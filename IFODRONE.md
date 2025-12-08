@@ -18,6 +18,8 @@ Fixed:
 
 ## Dokumentacja
 
+### GIT Workflow
+
 Struktura projektu przedstawia się w następujący sposób:
 1. Główną gałęzią do rozwijania aktualnej, działającej wersji kodu jest `ifodrone`.
 2. Chcąc dodać nową funkcjonalność wychodzimy z nowym branchem z linii `ifodrone`.
