@@ -6,14 +6,13 @@ Plik który zbiera informacje o zmianach `CHANGELOG` oraz służy jako dokumenta
 
 Added:
 - Initial commit, dodano IFODRONE.md [08.12.2025]
-
+- Dodano gałąź ifo-model oraz odpowiedni fork submodułu gz [08.12.2025]
+- Dodano gałąź ifo-airframe [08.12.2025]
 
 Changed:
--
 
 
 Fixed:
--
 
 
 ## Dokumentacja
@@ -34,8 +33,9 @@ W PX4 pracujemy często z submodułami, to znaczy zagnieżdżonymi repozytoriami
 #### Aktualizacja submodułów na początku pracy
 Po pobraniu lub przełączeniu się na gałąź w głównym repozytorium PX4 zawsze wykonuj:
 ```
-git submodule update --init --recursive
+git submodule update
 ```
+To powinno zaktualizować zmiany (jeśli robiłbym coś w innych submodułach).
 
 ### Przejście do submodułu
 Wejdź do katalogu `Tools/simulation/gz` i sprawdź na jakim jesteś commicie i czy nie jesteś w detached HEAD:
@@ -49,9 +49,10 @@ git checkout ifo-model
 Jeżeli gałąź nie istnieje lokalnie, ale jest w Twoim forku, pobierz ją:
 ```
 git fetch ifo-fork
-^ TO POWINNO WYSTARCZYĆ, KOMENDĄ PONIŻEJ ROBISZ NOWY BRANCH CO NIE POWINNO MIEĆ RACZEJ MIEJSCA PRZY POPRAWNIE ZPULLOWANYM SUBMODULE
+```
+^ TO POWINNO WYSTARCZYĆ, KOMENDĄ PONIŻEJ ROBISZ NOWY BRANCH CO NIE POWINNO MIEĆ RACZEJ MIEJSCA PRZY POPRAWNIE ZPULLOWANYM SUBMODULE I ZROBIEBNIU UPDATE'A
+```
 git checkout -b ifo-model ifo-fork/ifo-model
-
 ```
 
 #### Wprowadzanie zmian w submodule
