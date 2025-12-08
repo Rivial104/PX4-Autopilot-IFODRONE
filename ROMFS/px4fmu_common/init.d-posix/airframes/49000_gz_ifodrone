@@ -1,0 +1,127 @@
+#!/bin/sh
+#
+# @name IfoDrone Airframe
+#
+# @maintainer Paweł Zawadzki essa@gmail.com
+#
+# @output Motor1 main1
+# @output Motor2 main2
+# @output Motor3 side1
+# @output Motor4 side2
+# @output Motor5 side3
+# @output Motor6 side4
+# @output Servo1 tilt_side1
+# @output Servo2 tilt_side2
+# @output Servo3 tilt_side3
+# @output Servo4 tilt_side4
+
+. ${R}etc/init.d/rc.mc_defaults
+
+PX4_SIMULATOR=${PX4_SIMULATOR:=gz}
+PX4_GZ_WORLD=${PX4_GZ_WORLD:=default}
+PX4_SIM_MODEL=${PX4_SIM_MODEL:=x500}
+
+param set-default SIM_GZ_EN 1
+param set-default MAV_TYPE 0
+
+param set-default SYS_AUTOCONFIG 1
+param set-default SYS_AUTOSTART 49000
+
+param set-default CA_AIRFRAME 8
+param set-default CA_ROTOR_COUNT 6
+
+# Main motors
+param set-default CA_ROTOR0_AZ -1.0
+param set-default CA_ROTOR0_PX 0.0
+param set-default CA_ROTOR0_PY 0.0
+param set-default CA_ROTOR0_PZ 0.1
+param set-default CA_ROTOR0_KM 0.05
+param set-default CA_ROTOR0_CT 1
+
+param set-default CA_ROTOR1_AZ 1.0
+param set-default CA_ROTOR1_PX 0.0
+param set-default CA_ROTOR1_PY 0.0
+param set-default CA_ROTOR1_PZ -0.1
+param set-default CA_ROTOR1_KM 0.05
+param set-default CA_ROTOR1_CT 1
+
+# Side motors (tilting)
+param set-default CA_ROTOR2_AX 1.0
+# param set-default CA_ROTOR2_TILT 1
+param set-default CA_ROTOR2_PX 0
+param set-default CA_ROTOR2_PY 0.3
+param set-default CA_ROTOR2_KM 0.05
+param set-default CA_ROTOR2_CT 1
+
+
+param set-default CA_ROTOR3_AY 1.0
+# param set-default CA_ROTOR3_TILT 2
+param set-default CA_ROTOR3_PX 0
+param set-default CA_ROTOR3_PY -0.3
+param set-default CA_ROTOR3_KM 0.05
+param set-default CA_ROTOR3_CT 1
+
+param set-default CA_ROTOR4_AX -1.0
+# param set-default CA_ROTOR4_TILT 3
+param set-default CA_ROTOR4_PX 0.3
+param set-default CA_ROTOR4_PY 0
+param set-default CA_ROTOR4_KM 0.05
+param set-default CA_ROTOR4_CT 1
+# param set-default CA_SV_TL2_TD 180
+
+param set-default CA_ROTOR5_AY -1.0
+# param set-default CA_ROTOR5_TILT 4
+param set-default CA_ROTOR5_PX -0.3
+param set-default CA_ROTOR5_PY 0
+param set-default CA_ROTOR5_KM 0.05
+param set-default CA_ROTOR5_CT 1
+
+param set-default SIM_GZ_EC_FUNC1 101
+param set-default SIM_GZ_EC_FUNC2 102
+param set-default SIM_GZ_EC_FUNC3 103
+param set-default SIM_GZ_EC_FUNC4 104
+param set-default SIM_GZ_EC_FUNC5 105
+param set-default SIM_GZ_EC_FUNC6 106
+
+param set-default SIM_GZ_EC_MIN1 10
+param set-default SIM_GZ_EC_MIN2 10
+param set-default SIM_GZ_EC_MIN3 10
+param set-default SIM_GZ_EC_MIN4 10
+param set-default SIM_GZ_EC_MIN5 10
+param set-default SIM_GZ_EC_MIN6 10
+
+param set-default SIM_GZ_EC_MAX1 900
+param set-default SIM_GZ_EC_MAX2 900
+param set-default SIM_GZ_EC_MAX3 900
+param set-default SIM_GZ_EC_MAX4 900
+param set-default SIM_GZ_EC_MAX5 900
+param set-default SIM_GZ_EC_MAX6 900
+
+# # Tilt servos
+# param set-default CA_SV_TL_COUNT 4
+
+# param set-default CA_SV_TL0_CT 3
+# param set-default CA_SV_TL0_MINA -15.0
+# param set-default CA_SV_TL0_MAXA 90.0
+# param set-default CA_SV_TL0_TD 0.0
+# param set-default SIM_GZ_SV_FUNC1 201
+
+# param set-default CA_SV_TL1_CT 3
+# param set-default CA_SV_TL1_MINA -15.0
+# param set-default CA_SV_TL1_MAXA 90.0
+# param set-default CA_SV_TL1_TD 90.0
+# param set-default SIM_GZ_SV_FUNC2 202
+
+# param set-default CA_SV_TL2_CT 3
+# param set-default CA_SV_TL2_MINA -15.0
+# param set-default CA_SV_TL2_MAXA 90.0
+# param set-default CA_SV_TL2_TD 180.0
+# param set-default SIM_GZ_SV_FUNC3 203
+
+
+# param set-default CA_SV_TL3_CT 3
+# param set-default CA_SV_TL3_MINA -15.0
+# param set-default CA_SV_TL3_MAXA 90.0
+# param set-default CA_SV_TL3_TD 270.0
+# param set-default SIM_GZ_SV_FUNC4 204
+
