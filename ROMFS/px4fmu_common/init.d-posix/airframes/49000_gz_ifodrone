@@ -36,14 +36,14 @@ param set-default CA_ROTOR0_PX 0.0
 param set-default CA_ROTOR0_PY 0.0
 param set-default CA_ROTOR0_PZ 0.1
 param set-default CA_ROTOR0_KM 0.05
-param set-default CA_ROTOR0_CT 1
+param set-default CA_ROTOR0_CT 10
 
 param set-default CA_ROTOR1_AZ 1.0
 param set-default CA_ROTOR1_PX 0.0
 param set-default CA_ROTOR1_PY 0.0
 param set-default CA_ROTOR1_PZ -0.1
 param set-default CA_ROTOR1_KM 0.05
-param set-default CA_ROTOR1_CT 1
+param set-default CA_ROTOR1_CT 10
 
 # Side motors (tilting)
 param set-default CA_ROTOR2_AX 1.0
@@ -51,7 +51,7 @@ param set-default CA_ROTOR2_TILT 1
 param set-default CA_ROTOR2_PX 0
 param set-default CA_ROTOR2_PY 0.3
 param set-default CA_ROTOR2_KM 0.05
-param set-default CA_ROTOR2_CT 1
+param set-default CA_ROTOR2_CT 10
 
 
 param set-default CA_ROTOR3_AY 1.0
@@ -59,14 +59,14 @@ param set-default CA_ROTOR3_TILT 2
 param set-default CA_ROTOR3_PX 0
 param set-default CA_ROTOR3_PY -0.3
 param set-default CA_ROTOR3_KM 0.05
-param set-default CA_ROTOR3_CT 1
+param set-default CA_ROTOR3_CT 10
 
 param set-default CA_ROTOR4_AX -1.0
 param set-default CA_ROTOR4_TILT 3
 param set-default CA_ROTOR4_PX 0.3
 param set-default CA_ROTOR4_PY 0
 param set-default CA_ROTOR4_KM 0.05
-param set-default CA_ROTOR4_CT 1
+param set-default CA_ROTOR4_CT 10
 param set-default CA_SV_TL2_TD 180
 
 param set-default CA_ROTOR5_AY -1.0
@@ -74,7 +74,7 @@ param set-default CA_ROTOR5_TILT 4
 param set-default CA_ROTOR5_PX -0.3
 param set-default CA_ROTOR5_PY 0
 param set-default CA_ROTOR5_KM 0.05
-param set-default CA_ROTOR5_CT 1
+param set-default CA_ROTOR5_CT 10
 
 param set-default SIM_GZ_EC_FUNC1 101
 param set-default SIM_GZ_EC_FUNC2 102
@@ -83,19 +83,19 @@ param set-default SIM_GZ_EC_FUNC4 104
 param set-default SIM_GZ_EC_FUNC5 105
 param set-default SIM_GZ_EC_FUNC6 106
 
-# param set-default SIM_GZ_EC_MIN1 0
-# param set-default SIM_GZ_EC_MIN2 0
-# param set-default SIM_GZ_EC_MIN3 0
-# param set-default SIM_GZ_EC_MIN4 0
-# param set-default SIM_GZ_EC_MIN5 0
-# param set-default SIM_GZ_EC_MIN6 0
+param set-default SIM_GZ_EC_MIN1 20
+param set-default SIM_GZ_EC_MIN2 20
+param set-default SIM_GZ_EC_MIN3 20
+param set-default SIM_GZ_EC_MIN4 20
+param set-default SIM_GZ_EC_MIN5 20
+param set-default SIM_GZ_EC_MIN6 20
 
-# param set-default SIM_GZ_EC_MAX1 100
-# param set-default SIM_GZ_EC_MAX2 900
-# param set-default SIM_GZ_EC_MAX3 900
-# param set-default SIM_GZ_EC_MAX4 900
-# param set-default SIM_GZ_EC_MAX5 900
-# param set-default SIM_GZ_EC_MAX6 900
+param set-default SIM_GZ_EC_MAX1 900
+param set-default SIM_GZ_EC_MAX2 900
+param set-default SIM_GZ_EC_MAX3 900
+param set-default SIM_GZ_EC_MAX4 900
+param set-default SIM_GZ_EC_MAX5 900
+param set-default SIM_GZ_EC_MAX6 900
 
 # Tilt servos
 param set-default CA_SV_TL_COUNT 4
