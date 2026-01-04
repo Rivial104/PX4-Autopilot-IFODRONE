@@ -56,7 +56,7 @@ void IfodroneAttitudeControl::Run()
 
 	// Hover thrust estimate can be used for feedforward control
 	hover_thrust_estimate_s hover{};
-	float thrust_hover = 20.0f;
+	float thrust_hover = 200.0f;
 
 	if (_hover_thrust_estimate_sub.update(&hover)) {
 		if (PX4_ISFINITE(hover.hover_thrust)) {
