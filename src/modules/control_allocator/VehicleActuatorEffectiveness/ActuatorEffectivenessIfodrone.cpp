@@ -15,19 +15,27 @@ bool
 ActuatorEffectivenessIfodrone::getEffectivenessMatrix(Configuration &configuration,
 		EffectivenessUpdateReason external_update)
 {
-	if (external_update == EffectivenessUpdateReason::NO_EXTERNAL_UPDATE) {
-		return false;
-	}
+	// PX4_INFO("Updating Ifodrone effectiveness matrix");
+
+
+	// if (external_update == EffectivenessUpdateReason::NO_EXTERNAL_UPDATE) {
+	// 	PX4_INFO("No external update");
+	// 	return false;
+	// }
 
 	// Main motors
+	_first_main_idx = configuration.num_actuators[static_cast<int>(ActuatorType::MOTORS)];
 	_main_rotors.enableYawByDifferentialThrust(true);
+
 	const bool main_rotors_added_successfully = _main_rotors.addActuators(configuration);
 
 	// Side motors
+	_first_side_idx = configuration.num_actuators[static_cast<int>(ActuatorType::MOTORS)];
 	_side_rotors.enableYawByDifferentialThrust(!_tilts.hasYawControl());
 	const bool side_rotors_added_successfully = _side_rotors.addActuators(configuration);
 
 	// Tilts
+	_first_tilt_idx = configuration.num_actuators[static_cast<int>(ActuatorType::SERVOS)];
 	_tilts.updateTorqueSign(_side_rotors.geometry());
 	const bool tilts_added_successfully = _tilts.addActuators(configuration);
 
@@ -55,6 +63,12 @@ void ActuatorEffectivenessIfodrone::updateSetpoint(const matrix::Vector<float, N
 
 	const float Fz_des = control_sp(5);
 
+	// PX4_INFO("Forces desired Fx: %.5f, Fy: %.5f, Fz: %.5f",
+	// 		(double)control_sp(3), (double)control_sp(4), (double)control_sp(5));
+
+	// PX4_INFO("Torques desired: Tau_x: %.5f, Tau_y: %.5f, Tau_z: %.5f",
+	// 		(double)control_sp(0), (double)control_sp(1), (double)control_sp(2));
+
 	if(MAIN_MOTORS_NUM > 0) {
 		// Distribute collective thrust equally to main rotors
 		const float thrust_per_main_motor = Fz_des / static_cast<float>(MAIN_MOTORS_NUM);
@@ -71,6 +85,9 @@ void ActuatorEffectivenessIfodrone::updateSetpoint(const matrix::Vector<float, N
 			actuator_sp(1) = math::constrain(actuator_sp(1), actuator_min(1), actuator_max(1));
 		}
 	}
+
+	// PX4_INFO("After main motors: M1: %.2f, M2: %.2f",
+	// 		(double)actuator_sp(0), (double)actuator_sp(1));
 
 	const Vector2f F_xy_des(control_sp(3), control_sp(4));
 	const float fx = F_xy_des(0);

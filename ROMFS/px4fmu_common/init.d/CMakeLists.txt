@@ -123,3 +123,9 @@ if(CONFIG_MODULES_TEMPERATURE_COMPENSATION)
 		rc.thermal_cal
 	)
 endif()
+
+if(CONFIG_MODULES_IFO_ATT_CONTROL)
+	px4_add_romfs_files(
+		rc.ifodrone_defaults
+	)
+endif()

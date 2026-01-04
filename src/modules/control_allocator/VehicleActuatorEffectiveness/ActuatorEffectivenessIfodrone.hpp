@@ -33,9 +33,10 @@ protected:
 	ActuatorEffectivenessRotors _main_rotors;
 	ActuatorEffectivenessRotors _side_rotors;
 	ActuatorEffectivenessTilts _tilts;
-	static constexpr int _first_main_idx{0};
-	static constexpr int _first_side_idx{2};
-	static constexpr int _first_tilt_idx{6};
+
+	int _first_main_idx{-1};
+	int _first_side_idx{-1};
+	int _first_tilt_idx{-1};
 
 	static constexpr int MAIN_MOTORS_NUM{2};
 	static constexpr int SIDE_MOTORS_NUM{4};
