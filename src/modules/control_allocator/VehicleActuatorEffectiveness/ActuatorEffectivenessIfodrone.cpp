@@ -4,10 +4,11 @@ using namespace matrix;
 
 ActuatorEffectivenessIfodrone::ActuatorEffectivenessIfodrone(ModuleParams *parent)
 	: ModuleParams(parent),
-	  _main_rotors(this, ActuatorEffectivenessRotors::AxisConfiguration::FixedUpwards, false),
-	  _side_rotors(this, ActuatorEffectivenessRotors::AxisConfiguration::Configurable, true),
+	  _mc_rotors(this, ActuatorEffectivenessRotors::AxisConfiguration::Configurable, true),
 	  _tilts(this)
 {
+	_first_main_idx = 0;
+	_first_side_idx = MAIN_MOTORS_NUM;
 }
 
 
@@ -15,33 +16,21 @@ bool
 ActuatorEffectivenessIfodrone::getEffectivenessMatrix(Configuration &configuration,
 		EffectivenessUpdateReason external_update)
 {
-	// PX4_INFO("Updating Ifodrone effectiveness matrix");
+	// All 6 motors (2 main + 4 side)
+	configuration.selected_matrix = 0;
 
+	// Enable differential yaw for main motors (tilts don't contribute to yaw)
+	_mc_rotors.enableYawByDifferentialThrust(!_tilts.hasYawControl());
 
-	// if (external_update == EffectivenessUpdateReason::NO_EXTERNAL_UPDATE) {
-	// 	PX4_INFO("No external update");
-	// 	return false;
-	// }
+	const bool motors_added_successfully = _mc_rotors.addActuators(configuration);
 
-	// Main motors
-	_first_main_idx = configuration.num_actuators[static_cast<int>(ActuatorType::MOTORS)];
-	_main_rotors.enableYawByDifferentialThrust(true);
-
-	const bool main_rotors_added_successfully = _main_rotors.addActuators(configuration);
-
-	// Side motors
-	_first_side_idx = configuration.num_actuators[static_cast<int>(ActuatorType::MOTORS)];
-	_side_rotors.enableYawByDifferentialThrust(!_tilts.hasYawControl());
-	const bool side_rotors_added_successfully = _side_rotors.addActuators(configuration);
-
-	// Tilts
-	_first_tilt_idx = configuration.num_actuators[static_cast<int>(ActuatorType::SERVOS)];
-	_tilts.updateTorqueSign(_side_rotors.geometry());
+	// Tilts for side motors
+	_first_tilt_idx = configuration.num_actuators_matrix[0];
+	_tilts.updateTorqueSign(_mc_rotors.geometry());
 	const bool tilts_added_successfully = _tilts.addActuators(configuration);
 
-	// Set offset such that tilts point upwards when control input == 0 (trim is 0 if min_angle == -max_angle).
-	// Note that we don't set configuration.trim here, because in the case of trim == +-1, yaw is always saturated
-	// and reduced to 0 with the sequential desaturation method. Instead we add it after.
+	// Set offset such that tilts point upwards when control input == 0
+	// (trim is 0 if min_angle == -max_angle)
 	_tilt_offsets.setZero();
 
 	for (int i = 0; i < _tilts.count(); ++i) {
@@ -53,92 +42,105 @@ ActuatorEffectivenessIfodrone::getEffectivenessMatrix(Configuration &configurati
 		}
 	}
 
-	return (main_rotors_added_successfully && side_rotors_added_successfully && tilts_added_successfully);
+	return (motors_added_successfully && tilts_added_successfully);
 }
 
 void ActuatorEffectivenessIfodrone::updateSetpoint(const matrix::Vector<float, NUM_AXES> &control_sp, int matrix_index,
 		ActuatorVector &actuator_sp, const ActuatorVector &actuator_min, const ActuatorVector &actuator_max)
 {
+	// control_sp indices:
+	// [0] = roll torque (tau_x)
+	// [1] = pitch torque (tau_y)
+	// [2] = yaw torque (tau_z)
+	// [3] = thrust X (Fx)
+	// [4] = thrust Y (Fy)
+	// [5] = thrust Z (Fz)
+
 	actuator_sp.setZero();
 
-	const float Fz_des = control_sp(5);
+	const float tau_x = control_sp(0);  // Roll torque
+	const float tau_y = control_sp(1);  // Pitch torque
+	const float tau_z = control_sp(2);  // Yaw torque
+	const float Fz_des = control_sp(5); // Vertical thrust (negative = up in NED)
 
-	// PX4_INFO("Forces desired Fx: %.5f, Fy: %.5f, Fz: %.5f",
-	// 		(double)control_sp(3), (double)control_sp(4), (double)control_sp(5));
+	// ========================================
+	// MAIN MOTORS (indices 0, 1) - Z-axis thrust + differential yaw
+	// ========================================
+	// Motor 0: CW rotation (positive yaw moment with increased thrust)
+	// Motor 1: CCW rotation (negative yaw moment with increased thrust)
 
-	// PX4_INFO("Torques desired: Tau_x: %.5f, Tau_y: %.5f, Tau_z: %.5f",
-	// 		(double)control_sp(0), (double)control_sp(1), (double)control_sp(2));
+	const float thrust_per_main = Fz_des / static_cast<float>(MAIN_MOTORS_NUM);
+	const float yaw_differential = tau_z * 0.5f;
 
-	if(MAIN_MOTORS_NUM > 0) {
-		// Distribute collective thrust equally to main rotors
-		const float thrust_per_main_motor = Fz_des / static_cast<float>(MAIN_MOTORS_NUM);
+	// Motor 0 (CW): base thrust + yaw contribution
+	actuator_sp(_first_main_idx + 0) = thrust_per_main + yaw_differential;
+	// Motor 1 (CCW): base thrust - yaw contribution
+	actuator_sp(_first_main_idx + 1) = thrust_per_main - yaw_differential;
 
-		for (int i = 0; i < MAIN_MOTORS_NUM; ++i) {
-			actuator_sp(_first_main_idx + i) = math::constrain(thrust_per_main_motor, actuator_min(_first_main_idx + i), actuator_max(_first_main_idx + i));
-		}
-
-		if (MAIN_MOTORS_NUM == 2) {
-			float yaw_cmd = control_sp(2);
-			actuator_sp(0) += yaw_cmd / 2.f; // +1
-			actuator_sp(1) -= yaw_cmd / 2.f; // -1
-			actuator_sp(0) = math::constrain(actuator_sp(0), actuator_min(0), actuator_max(0));
-			actuator_sp(1) = math::constrain(actuator_sp(1), actuator_min(1), actuator_max(1));
-		}
-	}
-
-	// PX4_INFO("After main motors: M1: %.2f, M2: %.2f",
-	// 		(double)actuator_sp(0), (double)actuator_sp(1));
-
-	const Vector2f F_xy_des(control_sp(3), control_sp(4));
-	const float fx = F_xy_des(0);
-	const float fy = F_xy_des(1);
-	const float F_xy_norm = F_xy_des.norm();
-
-	const float F_xy_max = 4.f * actuator_max(_first_side_idx); // first tilting motor index
-
-
-
-	float tilt_angle = 0.f;
-	if (F_xy_norm > FLT_MIN)
-	{
-		auto &config = _tilts.config(0);
-		// 0 = poziom, +pi/2 = pion
-		tilt_angle = math::constrain(
-			acosf(math::constrain(F_xy_norm / F_xy_max, 0.f, 1.f)),
-			config.min_angle,
-			config.max_angle
+	// Constrain main motors
+	for (int i = 0; i < MAIN_MOTORS_NUM; ++i) {
+		actuator_sp(_first_main_idx + i) = math::constrain(
+			actuator_sp(_first_main_idx + i),
+			actuator_min(_first_main_idx + i),
+			actuator_max(_first_main_idx + i)
 		);
 	}
 
-	float tau_x = control_sp(0);
-	float tau_y = control_sp(1);
-	float tau_z = control_sp(2);
+	// ========================================
+	// SIDE MOTORS (indices 2, 3, 4, 5) - Plus configuration with tilt
+	// ========================================
 
-	for (int i = 0; i < _tilts.count(); ++i) {
-		auto &geometry = _side_rotors.geometry().rotors[i];
-		const float dx = geometry.position(0);
-		const float dy = geometry.position(1);
+	// Get rotor arm lengths from geometry
+	const float arm_x_front = fabsf(_mc_rotors.geometry().rotors[2].position(0)); // Front motor X position
+	const float arm_x_back  = fabsf(_mc_rotors.geometry().rotors[4].position(0)); // Back motor X position
+	const float arm_y_right = fabsf(_mc_rotors.geometry().rotors[3].position(1)); // Right motor Y position
+	const float arm_y_left  = fabsf(_mc_rotors.geometry().rotors[5].position(1)); // Left motor Y position
 
-		// actuator_sp(tilt_base + i) = math::constrain(
-		// 	tilt_angle,
-		// 	actuator_min(tilt_base + i),
-		// 	actuator_max(tilt_base + i)
-		// );
+	// Calculate tilt angles for roll (tau_x) and pitch (tau_y) control
 
-		// float signX = (i == 0) ? 1.f : (i == 2) ? -1.f : 0.f; // front/back
-		// float signY = (i == 1) ? 1.f : (i == 3) ? -1.f : 0.f; // right/left
+	float tilt_front = 0.f;  // Motor 2
+	float tilt_right = 0.f;  // Motor 3
+	float tilt_back  = 0.f;  // Motor 4
+	float tilt_left  = 0.f;  // Motor 5
 
-		float Fx_i = fx * 0.25f + tau_y / (4.f * dx); // roll → różnicowanie
-		float Fy_i = fy * 0.25f - tau_x / (4.f * dy); // pitch → różnicowanie
-		float Fz_i = tau_z / 4.f; // yaw przez boczne silniki
+	// Base thrust for side motors (can be zero or small for hover stabilization)
+	const float side_motor_base_thrust = 0.1f;
 
-		// całkowity ciąg = sqrt(Fx_i^2 + Fy_i^2 + Fz_i^2)
-		float T = sqrt(Fx_i*Fx_i + Fy_i*Fy_i + Fz_i*Fz_i);
-
-		actuator_sp(_first_side_idx + i) = math::constrain(T, actuator_min(_first_side_idx + i), actuator_max(_first_side_idx + i));
-
-		actuator_sp(_first_tilt_idx + i) = tilt_angle;
+	// Pitch control: front/back motors tilt to create pitch torque
+	// Positive pitch (nose up) = front motor tilts forward, back motor tilts backward
+	if (_tilts.count() >= 4 && (arm_x_front > FLT_EPSILON) && (arm_x_back > FLT_EPSILON)) {
+		const float pitch_gain = 1.0f;
+		tilt_front = -tau_y * pitch_gain;  // Negative: tilt forward for positive pitch
+		tilt_back  =  tau_y * pitch_gain;  // Positive: tilt backward for positive pitch
 	}
+
+	// Roll control: right/left motors tilt to create roll torque
+	// Positive roll (right wing down) = right motor tilts right, left motor tilts left
+	if (_tilts.count() >= 4 && (arm_y_right > FLT_EPSILON) && (arm_y_left > FLT_EPSILON)) {
+		const float roll_gain = 1.0f;
+		tilt_right = -tau_x * roll_gain;  // Negative: tilt right for positive roll
+		tilt_left  =  tau_x * roll_gain;  // Positive: tilt left for positive roll
+	}
+
+	// Get tilt constraints from configuration
+	const float tilt_min = (_tilts.count() > 0) ? _tilts.config(0).min_angle : -M_PI_4_F;
+	const float tilt_max = (_tilts.count() > 0) ? _tilts.config(0).max_angle : M_PI_4_F;
+
+	// Apply side motor thrusts (constant for now, could be modulated)
+	for (int i = 0; i < SIDE_MOTORS_NUM; ++i) {
+		actuator_sp(_first_side_idx + i) = math::constrain(
+			side_motor_base_thrust,
+			actuator_min(_first_side_idx + i),
+			actuator_max(_first_side_idx + i)
+		);
+	}
+
+	// Apply tilt setpoints
+	// Tilt servo indices: _first_tilt_idx + 0..3 correspond to motors 2..5
+	actuator_sp(_first_tilt_idx + 0) = math::constrain(tilt_front, tilt_min, tilt_max);
+	actuator_sp(_first_tilt_idx + 1) = math::constrain(tilt_right, tilt_min, tilt_max);
+	actuator_sp(_first_tilt_idx + 2) = math::constrain(tilt_back, tilt_min, tilt_max);
+	actuator_sp(_first_tilt_idx + 3) = math::constrain(tilt_left, tilt_min, tilt_max);
 }
 
 void ActuatorEffectivenessIfodrone::getUnallocatedControl(int matrix_index, control_allocator_status_s &status)

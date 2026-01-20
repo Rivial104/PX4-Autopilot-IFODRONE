@@ -414,6 +414,9 @@ ControlAllocator::Run()
 		c[0](4) = _thrust_sp(1);
 		c[0](5) = _thrust_sp(2);
 
+
+	// PX4_INFO("IfoAttCtrl -- Thrust setpoint recieved: %.3f, %.3f, %.3f", static_cast<double>(_thrust_sp(0)), static_cast<double>(_thrust_sp(1)), static_cast<double>(_thrust_sp(2)));
+
 		if (_num_control_allocation > 1) {
 			if (_vehicle_torque_setpoint1_sub.copy(&vehicle_torque_setpoint)) {
 				c[1](0) = vehicle_torque_setpoint.xyz[0];
@@ -714,6 +717,8 @@ ControlAllocator::publish_actuator_controls()
 
 		_actuator_servos_pub.publish(actuator_servos);
 	}
+
+	// PX4_INFO("CA -- Actuator controls published: motors %d, servos %d", motors_idx, _num_actuators[1]);
 }
 
 void

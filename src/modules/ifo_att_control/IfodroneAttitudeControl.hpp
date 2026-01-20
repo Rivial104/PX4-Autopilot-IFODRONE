@@ -1,6 +1,12 @@
 
 /**
  * IFODRONE position controller.
+ *
+ * used commands
+ * listener vehicle_thrust_setpoint
+ * listener vehicle_attitude_setpoint
+ * listener actuator_outputs
+ *
  */
 
 #pragma once
@@ -22,6 +28,7 @@
 #include <uORB/topics/vehicle_torque_setpoint.h>
 #include <uORB/topics/vehicle_thrust_setpoint.h>
 #include <uORB/topics/hover_thrust_estimate.h>
+#include <uORB/topics/vehicle_local_position_setpoint.h>
 
 using namespace time_literals;
 
@@ -63,9 +70,11 @@ private:
 	uORB::Subscription _vehicle_land_detected_sub{ORB_ID(vehicle_land_detected)};
 	uORB::Subscription _vehicle_status_sub{ORB_ID(vehicle_status)};
 	uORB::Subscription _hover_thrust_estimate_sub{ORB_ID(hover_thrust_estimate)};
+	uORB::Subscription _local_pos_sp_sub{ORB_ID(vehicle_local_position_setpoint)};
 
 	uORB::SubscriptionCallbackWorkItem _vehicle_attitude_sub{this, ORB_ID(vehicle_attitude)};
 
+	uORB::Publication<vehicle_attitude_setpoint_s> _att_target_pub{ORB_ID(vehicle_attitude_setpoint)};
 	uORB::Publication<vehicle_thrust_setpoint_s> _thrust_pub{ORB_ID(vehicle_thrust_setpoint)};
 	uORB::Publication<vehicle_torque_setpoint_s> _torque_pub{ORB_ID(vehicle_torque_setpoint)};
 	uORB::Publication<vehicle_control_mode_s> _vehicle_control_mode_pub{ORB_ID(vehicle_control_mode)};
