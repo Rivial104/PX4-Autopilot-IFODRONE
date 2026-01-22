@@ -127,5 +127,6 @@ endif()
 if(CONFIG_MODULES_IFO_ATT_CONTROL)
 	px4_add_romfs_files(
 		rc.ifodrone_defaults
+		rc.ifodrone_apps
 	)
 endif()

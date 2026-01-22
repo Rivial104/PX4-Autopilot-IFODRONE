@@ -1257,35 +1257,12 @@ mixer:
                 title: 'IFODRONE (Main + Tilt)'
                 actuators:
                   # =========================
-                  # MAIN MOTORS
+                  # ALL MOTORS (0-1: Main, 2-5: Side/Tilt)
                   # =========================
                   - actuator_type: 'motor'
-                    group_label: 'Main Motors'
-                    count: 2
-                    item_label_prefix: 'Main ${i}'
-                    per_item_parameters:
-                        standard:
-                          position: [
-                            'CA_ROTOR${i}_PX',
-                            'CA_ROTOR${i}_PY',
-                            'CA_ROTOR${i}_PZ'
-                          ]
-                        extra:
-                          - name: 'CA_ROTOR${i}_KM'
-                            label: 'Direction CCW'
-                            function: 'spin-dir'
-                            show_as: 'true-if-positive'
-                          - name: 'CA_ROTOR${i}_CT'
-                            label: 'Use for Control'
-
-                  # =========================
-                  # SIDE MOTORS (TILT)
-                  # =========================
-                  - actuator_type: 'motor'
-                    group_label: 'Side Motors (Tilt)'
-                    count: 4
-                    item_label_prefix: 'Side ${i}'
-                    index_offset: 2   # <-- CA_ROTOR2..5
+                    group_label: 'Motors'
+                    count: 6
+                    item_label_prefix: ['Main 0', 'Main 1', 'Side 0', 'Side 1', 'Side 2', 'Side 3']
                     per_item_parameters:
                         standard:
                           position: [
@@ -1301,7 +1278,7 @@ mixer:
                           - name: 'CA_ROTOR${i}_TILT'
                             label: 'Tilt Servo Index'
                           - name: 'CA_ROTOR${i}_CT'
-                            label: 'Use for Control'
+                            label: 'Thrust Coefficient'
 
                   # =========================
                   # TILT SERVOS

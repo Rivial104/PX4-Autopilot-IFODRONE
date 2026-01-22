@@ -1,0 +1,36 @@
+#!/bin/sh
+#
+# IfoDrone specific apps. Custom Attitude/Position control with tilting side motors.
+#
+# NOTE: Script variables are declared/initialized/unset in the rcS script.
+#
+
+#
+# Start Control Allocator (required for ActuatorEffectivenessIfodrone)
+#
+control_allocator start
+
+#
+# Start IfoDrone Position Controller (handles thrust/torque setpoints)
+#
+ifo_pos_control start
+
+#
+# Start IfoDrone Attitude Controller (currently disabled - for future use)
+#
+ifo_att_control start
+
+#
+# Start Hover Thrust Estimator (needed for thrust estimation)
+#
+mc_hover_thrust_estimator start
+
+#
+# Start Flight Mode Manager (required for mission/auto modes)
+#
+flight_mode_manager start
+
+#
+# Start Land Detector
+#
+land_detector start multicopter

@@ -5,15 +5,11 @@
 # NOTE: Script variables are declared/initialized/unset in the rcS script.
 #
 
-set VEHICLE_TYPE mc
+# Use custom vehicle type to avoid rc.mc_apps being loaded
+set VEHICLE_TYPE ifodrone
 
-# MAV_TYPE_QUADROTOR 2
+# MAV_TYPE_QUADROTOR 2 (closest match for QGC compatibility)
 param set-default MAV_TYPE 2
-
-mc_pos_control stop
-mc_att_control stop
-mc_rate_control stop
-ifo_att_control start
 
 if param compare IMU_GYRO_RATEMAX 400
 then

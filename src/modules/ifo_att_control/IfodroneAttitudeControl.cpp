@@ -8,7 +8,7 @@ using namespace matrix;
 
 IfodroneAttitudeControl::IfodroneAttitudeControl() :
 	ModuleParams(nullptr),
-	px4::ScheduledWorkItem(MODULE_NAME, px4::wq_configurations::lp_default)
+	px4::ScheduledWorkItem(MODULE_NAME, px4::wq_configurations::rate_ctrl)
 {
 	_loop_interval_perf = perf_alloc(PC_ELAPSED, MODULE_NAME": loop interval");
 	_control_updated_perf = perf_alloc(PC_COUNT, MODULE_NAME": control updated");
@@ -23,8 +23,12 @@ IfodroneAttitudeControl::~IfodroneAttitudeControl()
 
 bool IfodroneAttitudeControl::init()
 {
-	PX4_INFO("IFO attitude control module initialized!");
-	ScheduleOnInterval(20_ms); // 50 Hz
+	if (!_vehicle_attitude_sub.registerCallback()) {
+		PX4_ERR("callback registration failed");
+		return false;
+	}
+
+	PX4_INFO("IFO attitude control initialized - active stabilization mode");
 	return true;
 }
 
@@ -45,85 +49,117 @@ void IfodroneAttitudeControl::Run()
 		updateParams();
 	}
 
-	// Wait for new attitude data
-	if (!_vehicle_attitude_sub.updated()) {
-		return;
-	}
+	// ================================================================
+	// GET CURRENT STATE
+	// ================================================================
 
 	// Get current attitude
 	vehicle_attitude_s att{};
-	_vehicle_attitude_sub.copy(&att);
+	if (!_vehicle_attitude_sub.copy(&att)) {
+		return;
+	}
 
-	// Get attitude setpoint
+	// Get control mode
+	vehicle_control_mode_s control_mode{};
+	_vehicle_control_mode_sub.copy(&control_mode);
+
+	// Get attitude setpoint (from position controller)
 	vehicle_attitude_setpoint_s att_sp{};
 	const bool has_setpoint = _vehicle_attitude_setpoint_sub.copy(&att_sp);
 
-	// Get hover thrust estimate for vertical thrust
-	hover_thrust_estimate_s hover{};
-	float thrust_hover = 0.5f; // default hover thrust (normalized)
+	// Get land detected
+	vehicle_land_detected_s land_detected{};
+	_vehicle_land_detected_sub.copy(&land_detected);
 
-	if (_hover_thrust_estimate_sub.update(&hover)) {
-		if (PX4_ISFINITE(hover.hover_thrust)) {
-			thrust_hover = hover.hover_thrust;
-		}
-	}
-
-	// ========================================
-	// THRUST SETPOINT
-	// ========================================
-	// For IfoDrone: main motors handle Z thrust, side motors handle X/Y via tilts
-	vehicle_thrust_setpoint_s thrust{};
-	thrust.timestamp = hrt_absolute_time();
-	thrust.xyz[0] = 0.0f;  // No direct X thrust (handled by tilts)
-	thrust.xyz[1] = 0.0f;  // No direct Y thrust (handled by tilts)
-	thrust.xyz[2] = -thrust_hover;  // Negative in NED = upward thrust
-	_thrust_pub.publish(thrust);
-
-	// ========================================
+	// ================================================================
 	// ATTITUDE CONTROL
-	// ========================================
-	Quatf q(att.q);              // Current attitude
-	Quatf q_sp(att_sp.q_d);      // Desired attitude
-	Vector3f euler = Eulerf(q);
-	Vector3f euler_sp = Eulerf(q_sp);
+	// - Roll/Pitch torque: From attitude error (stabilization)
+	// - Yaw torque: From attitude error (main motors differential)
+	// - Thrust XYZ: Passed through from position controller
+	// ================================================================
 
-	// Hold yaw from setpoint, or current yaw if no setpoint
-	float yaw_sp = has_setpoint ? euler_sp(2) : euler(2);
+	const hrt_abstime now = hrt_absolute_time();
+	Vector3f torque(0.0f, 0.0f, 0.0f);
+	Vector3f thrust(0.0f, 0.0f, 0.0f);
 
-	// Target: level attitude (roll=0, pitch=0) with desired yaw
-	Quatf q_des = Quatf(Eulerf(0.f, 0.f, yaw_sp));
+	const bool run_attitude_control = control_mode.flag_armed &&
+					  control_mode.flag_control_attitude_enabled;
 
-	// Quaternion error (body frame)
-	Quatf q_err = q.inversed() * q_des;
+	if (run_attitude_control && has_setpoint) {
 
-	// Proportional attitude control
-	// The imaginary part of quaternion error gives rotation axis scaled by sin(angle/2)
-	Vector3f torque = 2.f * Vector3f(q_err.imag()) * _kp_att;
+		// Current attitude quaternion
+		const Quatf q_current(att.q);
 
-	// ========================================
-	// TORQUE SETPOINT
-	// ========================================
+		// Desired attitude quaternion (from position controller)
+		const Quatf q_desired(att_sp.q_d);
+
+		// Quaternion error: q_error = q_desired * q_current^-1
+		Quatf q_error = q_desired * q_current.inversed();
+
+		// Ensure quaternion has positive scalar part (shortest path)
+		if (q_error(0) < 0.0f) {
+			q_error = -q_error;
+		}
+
+		// Proportional attitude control for torque
+		// Roll and Pitch torque compensate attitude errors
+		// These will be applied via tilt motors
+		torque = 2.0f * Vector3f(q_error(1), q_error(2), q_error(3)) * _kp_att;
+
+		// Get thrust from attitude setpoint (from position controller)
+		// thrust_body[0]: X (forward) - tilt motors
+		// thrust_body[1]: Y (right) - tilt motors
+		// thrust_body[2]: Z (down, negative=up) - main motors
+		thrust(0) = att_sp.thrust_body[0];
+		thrust(1) = att_sp.thrust_body[1];
+		thrust(2) = att_sp.thrust_body[2];
+
+		// Debug output
+		static int counter = 0;
+		if (++counter >= 250) {  // ~1 Hz at 250 Hz
+			counter = 0;
+			const Eulerf euler_current(q_current);
+			const Eulerf euler_desired(q_desired);
+			PX4_INFO("ATT: r=%.1f p=%.1f y=%.1f | torque=(%.2f,%.2f,%.2f) | thrust=(%.2f,%.2f,%.2f)",
+				 (double)math::degrees(euler_current.phi()),
+				 (double)math::degrees(euler_current.theta()),
+				 (double)math::degrees(euler_current.psi()),
+				 (double)torque(0), (double)torque(1), (double)torque(2),
+				 (double)thrust(0), (double)thrust(1), (double)thrust(2));
+		}
+
+	} else if (!control_mode.flag_armed) {
+		// Not armed: zero everything
+		torque.setZero();
+		thrust.setZero();
+	}
+	// NOTE: When armed but no setpoint, keep previous values
+
+	// ================================================================
+	// PUBLISH THRUST SETPOINT
+	// X, Y: from tilt motors (horizontal position control)
+	// Z: from main motors (altitude control)
+	// ================================================================
+	vehicle_thrust_setpoint_s thrust_sp{};
+	thrust_sp.timestamp = now;
+	thrust_sp.timestamp_sample = att.timestamp;
+	thrust_sp.xyz[0] = thrust(0);  // X thrust (tilt motors - forward)
+	thrust_sp.xyz[1] = thrust(1);  // Y thrust (tilt motors - right)
+	thrust_sp.xyz[2] = thrust(2);  // Z thrust (main motors - up is negative)
+	_thrust_pub.publish(thrust_sp);
+
+	// ================================================================
+	// PUBLISH TORQUE SETPOINT
+	// Roll/Pitch: from tilt motors (attitude stabilization)
+	// Yaw: from main motors differential
+	// ================================================================
 	vehicle_torque_setpoint_s torque_sp{};
-	torque_sp.timestamp = hrt_absolute_time();
-	torque_sp.xyz[0] = torque(0);  // Roll torque -> side motor tilts (right/left)
-	torque_sp.xyz[1] = torque(1);  // Pitch torque -> side motor tilts (front/back)
-	torque_sp.xyz[2] = torque(2);  // Yaw torque -> main motor differential
+	torque_sp.timestamp = now;
+	torque_sp.timestamp_sample = att.timestamp;
+	torque_sp.xyz[0] = torque(0);  // Roll torque (tilt motors)
+	torque_sp.xyz[1] = torque(1);  // Pitch torque (tilt motors)
+	torque_sp.xyz[2] = torque(2);  // Yaw torque (main motors differential)
 	_torque_pub.publish(torque_sp);
-
-	// ========================================
-	// VEHICLE CONTROL MODE
-	// ========================================
-	vehicle_control_mode_s vcm{};
-	vcm.timestamp = hrt_absolute_time();
-	vcm.flag_control_position_enabled = true;
-	vcm.flag_control_velocity_enabled = true;
-	vcm.flag_control_attitude_enabled = true;
-	vcm.flag_control_rates_enabled = true;
-	vcm.flag_control_allocation_enabled = true;
-	vcm.flag_control_climb_rate_enabled = true;
-	vcm.flag_control_altitude_enabled = true;
-	vcm.flag_control_manual_enabled = false;
-	_vehicle_control_mode_pub.publish(vcm);
 
 	perf_count(_control_updated_perf);
 }

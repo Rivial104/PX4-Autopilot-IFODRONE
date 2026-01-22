@@ -5,28 +5,11 @@
 # @description IfoDrone - Hybrid multicopter with 2 main Z-axis motors and 4 tilting side motors
 #
 # Motor configuration:
-#   Main motors (Z-axis, differential yaw):
-#     Motor 0: CW rotation, provides +Z thrust and yaw moment
-#     Motor 1: CCW rotation, provides +Z thrust and yaw moment
-#
-#   Side motors (Plus configuration, tilting for roll/pitch):
-#     Motor 2: Front (+X), tilt for pitch control
-#     Motor 3: Right (+Y), tilt for roll control
-#     Motor 4: Back (-X), tilt for pitch control
-#     Motor 5: Left (-Y), tilt for roll control
+#   Main motors (0-1): Z-axis thrust + yaw control (differential)
+#   Side motors (2-5): Tiltable, XY thrust + roll/pitch torque
 #
 # @maintainer Paweł Zawadzki essa@gmail.com
 #
-# @output Motor1 main_motor_cw (Z-axis)
-# @output Motor2 main_motor_ccw (Z-axis)
-# @output Motor3 side_front (tilting)
-# @output Motor4 side_right (tilting)
-# @output Motor5 side_back (tilting)
-# @output Motor6 side_left (tilting)
-# @output Servo1 tilt_front
-# @output Servo2 tilt_right
-# @output Servo3 tilt_back
-# @output Servo4 tilt_left
 
 . ${R}etc/init.d/rc.ifodrone_defaults
 
@@ -40,137 +23,130 @@ param set-default SYS_AUTOCONFIG 1
 param set-default SYS_AUTOSTART 49000
 
 param set-default CA_AIRFRAME 90
+
+# ============================================
+# 6 MOTORS TOTAL
+# ============================================
 param set-default CA_ROTOR_COUNT 6
 
 # ============================================
-# MAIN MOTORS (Z-axis, indices 0-1)
+# MAIN MOTORS (0-1): Z-axis thrust + yaw
 # ============================================
-# Motor 0: CW rotation (positive yaw moment coefficient)
+
+# Motor 0: Upper motor - CCW rotation
 param set-default CA_ROTOR0_PX 0.0
-param set-default CA_ROTOR0_PY 0.05
-param set-default CA_ROTOR0_PZ -0.1
+param set-default CA_ROTOR0_PY 0.0
+param set-default CA_ROTOR0_PZ 0.1
 param set-default CA_ROTOR0_AX 0.0
 param set-default CA_ROTOR0_AY 0.0
 param set-default CA_ROTOR0_AZ -1.0
 param set-default CA_ROTOR0_KM 0.05
-param set-default CA_ROTOR0_CT 50
+param set-default CA_ROTOR0_CT 1.0
 param set-default SIM_GZ_EC_FUNC1 101
-param set-default SIM_GZ_EC_MIN1 50
-param set-default SIM_GZ_EC_MAX1 900
+param set-default SIM_GZ_EC_MIN1 0
+param set-default SIM_GZ_EC_MAX1 1000
 
-# Motor 1: CCW rotation (negative yaw moment coefficient)
+# Motor 1: Lower motor - CW rotation
 param set-default CA_ROTOR1_PX 0.0
-param set-default CA_ROTOR1_PY -0.05
+param set-default CA_ROTOR1_PY 0.0
 param set-default CA_ROTOR1_PZ -0.1
 param set-default CA_ROTOR1_AX 0.0
 param set-default CA_ROTOR1_AY 0.0
 param set-default CA_ROTOR1_AZ -1.0
 param set-default CA_ROTOR1_KM -0.05
-param set-default CA_ROTOR1_CT 50
+param set-default CA_ROTOR1_CT 1.0
 param set-default SIM_GZ_EC_FUNC2 102
-param set-default SIM_GZ_EC_MIN2 50
-param set-default SIM_GZ_EC_MAX2 900
+param set-default SIM_GZ_EC_MIN2 0
+param set-default SIM_GZ_EC_MAX2 1000
 
 # ============================================
-# SIDE MOTORS (Plus config, tilting, indices 2-5)
+# SIDE MOTORS (2-5): Fixed EDF for XY thrust
+# Positions match SDF: Front, Right, Back, Left
+# These generate fixed thrust in their direction (no tilt)
 # ============================================
-# Motor 2: Front (+X direction), tilt index 1
-param set-default CA_ROTOR2_PX 0.3
+
+# Motor 2: Front EDF - thrust in +X direction
+param set-default CA_ROTOR2_PX 0.35
 param set-default CA_ROTOR2_PY 0.0
 param set-default CA_ROTOR2_PZ 0.0
 param set-default CA_ROTOR2_AX 1.0
 param set-default CA_ROTOR2_AY 0.0
 param set-default CA_ROTOR2_AZ 0.0
-param set-default CA_ROTOR2_KM 0.05
-param set-default CA_ROTOR2_CT 10
-param set-default CA_ROTOR2_TILT 1
+param set-default CA_ROTOR2_KM 0.0
+param set-default CA_ROTOR2_CT 1.0
 param set-default SIM_GZ_EC_FUNC3 103
-param set-default SIM_GZ_EC_MIN3 50
+param set-default SIM_GZ_EC_MIN3 0
 param set-default SIM_GZ_EC_MAX3 1000
 
-# Motor 3: Right (+Y direction), tilt index 2
+# Motor 3: Right EDF - thrust in -Y direction
 param set-default CA_ROTOR3_PX 0.0
-param set-default CA_ROTOR3_PY 0.3
+param set-default CA_ROTOR3_PY -0.35
 param set-default CA_ROTOR3_PZ 0.0
 param set-default CA_ROTOR3_AX 0.0
-param set-default CA_ROTOR3_AY 1.0
+param set-default CA_ROTOR3_AY -1.0
 param set-default CA_ROTOR3_AZ 0.0
-param set-default CA_ROTOR3_KM 0.05
-param set-default CA_ROTOR3_CT 10
-param set-default CA_ROTOR3_TILT 2
+param set-default CA_ROTOR3_KM 0.0
+param set-default CA_ROTOR3_CT 1.0
 param set-default SIM_GZ_EC_FUNC4 104
-param set-default SIM_GZ_EC_MIN4 50
+param set-default SIM_GZ_EC_MIN4 0
 param set-default SIM_GZ_EC_MAX4 1000
 
-# Motor 4: Back (-X direction), tilt index 3
-param set-default CA_ROTOR4_PX -0.3
+# Motor 4: Back EDF - thrust in -X direction
+param set-default CA_ROTOR4_PX -0.35
 param set-default CA_ROTOR4_PY 0.0
 param set-default CA_ROTOR4_PZ 0.0
 param set-default CA_ROTOR4_AX -1.0
 param set-default CA_ROTOR4_AY 0.0
 param set-default CA_ROTOR4_AZ 0.0
-param set-default CA_ROTOR4_KM 0.05
-param set-default CA_ROTOR4_CT 10
-param set-default CA_ROTOR4_TILT 3
+param set-default CA_ROTOR4_KM 0.0
+param set-default CA_ROTOR4_CT 1.0
 param set-default SIM_GZ_EC_FUNC5 105
-param set-default SIM_GZ_EC_MIN5 50
+param set-default SIM_GZ_EC_MIN5 0
 param set-default SIM_GZ_EC_MAX5 1000
 
-# Motor 5: Left (-Y direction), tilt index 4
+# Motor 5: Left EDF - thrust in +Y direction
 param set-default CA_ROTOR5_PX 0.0
-param set-default CA_ROTOR5_PY -0.3
+param set-default CA_ROTOR5_PY 0.35
 param set-default CA_ROTOR5_PZ 0.0
 param set-default CA_ROTOR5_AX 0.0
-param set-default CA_ROTOR5_AY -1.0
+param set-default CA_ROTOR5_AY 1.0
 param set-default CA_ROTOR5_AZ 0.0
-param set-default CA_ROTOR5_KM 0.05
-param set-default CA_ROTOR5_CT 10
-param set-default CA_ROTOR5_TILT 4
+param set-default CA_ROTOR5_KM 0.0
+param set-default CA_ROTOR5_CT 1.0
 param set-default SIM_GZ_EC_FUNC6 106
-param set-default SIM_GZ_EC_MIN6 50
+param set-default SIM_GZ_EC_MIN6 0
 param set-default SIM_GZ_EC_MAX6 1000
 
 # ============================================
-# TILT SERVOS (indices 0-3, controlling motors 2-5)
+# NO TILT SERVOS - Fixed EDF configuration
 # ============================================
-param set-default CA_SV_TL_COUNT 4
-
-# Tilt 0: Front motor (Motor 2) - pitch control
-param set-default CA_SV_TL0_CT 1
-param set-default CA_SV_TL0_MINA -45.0
-param set-default CA_SV_TL0_MAXA 45.0
-param set-default CA_SV_TL0_TD 0.0
-param set-default SIM_GZ_SV_FUNC1 201
-
-# Tilt 1: Right motor (Motor 3) - roll control
-param set-default CA_SV_TL1_CT 1
-param set-default CA_SV_TL1_MINA -45.0
-param set-default CA_SV_TL1_MAXA 45.0
-param set-default CA_SV_TL1_TD 0.0
-param set-default SIM_GZ_SV_FUNC2 202
-
-# Tilt 2: Back motor (Motor 4) - pitch control
-param set-default CA_SV_TL2_CT 1
-param set-default CA_SV_TL2_MINA -45.0
-param set-default CA_SV_TL2_MAXA 45.0
-param set-default CA_SV_TL2_TD 0.0
-param set-default SIM_GZ_SV_FUNC3 203
-
-# Tilt 3: Left motor (Motor 5) - roll control
-param set-default CA_SV_TL3_CT 1
-param set-default CA_SV_TL3_MINA -45.0
-param set-default CA_SV_TL3_MAXA 45.0
-param set-default CA_SV_TL3_TD 0.0
-param set-default SIM_GZ_SV_FUNC4 204
+param set-default CA_SV_TL_COUNT 0
 
 # ============================================
 # FLIGHT CONTROLLER PARAMETERS
 # ============================================
-param set-default MPC_THR_HOVER 0.4
+param set-default MPC_THR_HOVER 0.5
 param set-default MC_AIRMODE 1
 
-param set-default MPC_XY_VEL_P_ACC 3
-param set-default MPC_XY_VEL_I_ACC 4
-param set-default MPC_XY_VEL_D_ACC 0.1
+# SITL: Allow arming without RC and disable ESC failure detection
+param set-default COM_RC_IN_MODE 4
+param set-default COM_ARM_WO_GPS 1
+param set-default COM_RCL_EXCEPT 4
+param set-default FD_ACT_EN 0
+param set-default FD_ACT_MOT_THR 0.0
+param set-default FD_ESCS_EN 0
+param set-default CBRK_SUPPLY_CHK 894281
+param set-default NAV_RCL_ACT 0
+param set-default NAV_DLL_ACT 0
 
-param set-default MIS_TAKEOFF_ALT 10
+# IFODRONE position controller params
+param set-default IFO_POS_Z_P 1.0
+param set-default IFO_VEL_Z_P 0.4
+param set-default IFO_POS_XY_P 0.8
+param set-default IFO_VEL_XY_P 0.4
+param set-default IFO_THR_HOVER 0.5
+param set-default IFO_THR_MAX 0.9
+param set-default IFO_THR_MIN 0.1
+param set-default IFO_THR_XY_MAX 0.3
+
+param set-default MIS_TAKEOFF_ALT 5
