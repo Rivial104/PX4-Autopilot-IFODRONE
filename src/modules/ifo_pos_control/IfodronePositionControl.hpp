@@ -37,6 +37,7 @@
 #include <uORB/topics/vehicle_attitude_setpoint.h>
 #include <uORB/topics/vehicle_attitude.h>
 #include <uORB/topics/hover_thrust_estimate.h>
+#include <uORB/topics/manual_control_setpoint.h>
 
 #include "Takeoff.hpp"
 
@@ -79,6 +80,7 @@ private:
 	uORB::Subscription _vehicle_land_detected_sub{ORB_ID(vehicle_land_detected)};
 	uORB::Subscription _vehicle_status_sub{ORB_ID(vehicle_status)};
 	uORB::Subscription _vehicle_attitude_sub{ORB_ID(vehicle_attitude)};
+	uORB::Subscription _manual_control_sub{ORB_ID(manual_control_setpoint)};
 
 	// Publications
 	uORB::Publication<vehicle_local_position_setpoint_s> _local_pos_sp_pub{ORB_ID(vehicle_local_position_setpoint)};
@@ -91,6 +93,12 @@ private:
 
 	// State
 	hrt_abstime _last_run{0};
+
+	// Position hold setpoints (used when no mission setpoint available)
+	bool _hold_position_initialized{false};
+	float _hold_x{0.0f};
+	float _hold_y{0.0f};
+	float _hold_z{0.0f};
 
 	// Simple altitude PID controller gains
 	DEFINE_PARAMETERS(

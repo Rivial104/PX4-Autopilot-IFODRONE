@@ -86,6 +86,10 @@ void IfodronePositionControl::Run()
 	trajectory_setpoint_s traj_sp{};
 	const bool has_trajectory_setpoint = _trajectory_setpoint_sub.copy(&traj_sp);
 
+	// Get manual control input (from RC/Joystick)
+	manual_control_setpoint_s manual_control{};
+	const bool has_manual_control = _manual_control_sub.copy(&manual_control);
+
 	// Get current attitude for yaw
 	vehicle_attitude_s attitude{};
 	_vehicle_attitude_sub.copy(&attitude);
@@ -129,6 +133,11 @@ void IfodronePositionControl::Run()
 	float vx_sp = 0.0f, vy_sp = 0.0f, vz_sp = 0.0f;
 	float ax_sp = 0.0f, ay_sp = 0.0f, az_sp = 0.0f;
 
+	// Reset hold position when disarmed or landed
+	if (!control_mode.flag_armed || land_detected.landed) {
+		_hold_position_initialized = false;
+	}
+
 	// Only control if armed and position control enabled
 	const bool run_position_control = control_mode.flag_armed &&
 					  (control_mode.flag_control_altitude_enabled ||
@@ -142,30 +151,75 @@ void IfodronePositionControl::Run()
 	if (run_position_control && local_pos.z_valid && local_pos.v_z_valid && in_flight_or_takeoff) {
 
 		// ============================================
+		// DETERMINE SETPOINT SOURCE
+		// Priority: 1. Trajectory (Mission), 2. Manual RC, 3. Position Hold
+		// ============================================
+
+		const bool manual_mode = control_mode.flag_control_manual_enabled;
+		const bool trajectory_valid = has_trajectory_setpoint &&
+					      (PX4_ISFINITE(traj_sp.position[0]) || PX4_ISFINITE(traj_sp.velocity[0]));
+
+		// ============================================
 		// Z-AXIS ALTITUDE CONTROL (Main motors)
 		// ============================================
-		z_sp = -5.0f;  // Default: hover at 5m altitude (NED: -5 = 5m up)
-		vz_sp = 0.0f;
-		az_sp = 0.0f;
 
-		// Use trajectory setpoint if available
-		if (has_trajectory_setpoint) {
-			if (PX4_ISFINITE(traj_sp.position[2]) && traj_sp.position[2] < -0.5f) {
-				z_sp = traj_sp.position[2];
+		// Initialize hold position on first run or when entering position control
+		if (!_hold_position_initialized && local_pos.z_valid && local_pos.xy_valid) {
+			_hold_x = local_pos.x;
+			_hold_y = local_pos.y;
+			_hold_z = local_pos.z;
+			_hold_position_initialized = true;
+			PX4_INFO("Hold position initialized: (%.1f, %.1f, %.1f)",
+				 (double)_hold_x, (double)_hold_y, (double)_hold_z);
+		}
+
+		// --- Z setpoints ---
+		if (trajectory_valid && PX4_ISFINITE(traj_sp.position[2])) {
+			// Use trajectory setpoint (Mission mode)
+			z_sp = traj_sp.position[2];
+			vz_sp = PX4_ISFINITE(traj_sp.velocity[2]) ? traj_sp.velocity[2] : 0.0f;
+			az_sp = PX4_ISFINITE(traj_sp.acceleration[2]) ? traj_sp.acceleration[2] : 0.0f;
+			// Update hold position
+			_hold_z = z_sp;
+
+		} else if (manual_mode && has_manual_control) {
+			// Manual control: stick = velocity command
+			// Throttle stick: center = hover, up = climb, down = descend
+			// manual_control.throttle: -1.0 (down) to +1.0 (up)
+			const float max_vel_z = 2.0f;  // m/s max vertical velocity
+
+			// Convert throttle to velocity (inverted: stick up = negative vz = climb in NED)
+			vz_sp = -manual_control.throttle * max_vel_z;
+
+			// Small deadzone around center
+			if (fabsf(vz_sp) < 0.1f) {
+				// Hold altitude when stick is centered
+				z_sp = _hold_z;
+				vz_sp = 0.0f;
+			} else {
+				// Update hold position while moving
+				_hold_z = local_pos.z;
+				z_sp = NAN;  // Velocity control only
 			}
-			if (PX4_ISFINITE(traj_sp.velocity[2])) {
-				vz_sp = traj_sp.velocity[2];
-			}
-			if (PX4_ISFINITE(traj_sp.acceleration[2])) {
-				az_sp = traj_sp.acceleration[2];
-			}
+
+		} else {
+			// No input: hold current position
+			z_sp = _hold_z;
+			vz_sp = 0.0f;
 		}
 
 		const float z = local_pos.z;
 		const float vz = local_pos.vz;
-		const float z_error = z_sp - z;
 
-		float vz_cmd = z_error * _param_ifo_pos_z_p.get() + vz_sp;
+		// Position + Velocity control
+		float vz_cmd;
+		if (PX4_ISFINITE(z_sp)) {
+			const float z_error = z_sp - z;
+			vz_cmd = z_error * _param_ifo_pos_z_p.get() + vz_sp;
+		} else {
+			// Velocity only control
+			vz_cmd = vz_sp;
+		}
 
 		// Apply takeoff velocity limit
 		if (vz_cmd < velocity_limit) {
@@ -182,20 +236,17 @@ void IfodronePositionControl::Run()
 		// ============================================
 		// XY-AXIS POSITION CONTROL (Tilt motors)
 		// ============================================
-		x_sp = 0.0f;  // Default: stay at origin
-		y_sp = 0.0f;
-		vx_sp = 0.0f;
-		vy_sp = 0.0f;
-		ax_sp = 0.0f;
-		ay_sp = 0.0f;
 
-		// Use trajectory setpoint for XY if available
-		if (has_trajectory_setpoint && control_mode.flag_control_position_enabled) {
+		// --- XY setpoints ---
+		if (trajectory_valid && control_mode.flag_control_position_enabled) {
+			// Use trajectory setpoint (Mission mode)
 			if (PX4_ISFINITE(traj_sp.position[0])) {
 				x_sp = traj_sp.position[0];
+				_hold_x = x_sp;
 			}
 			if (PX4_ISFINITE(traj_sp.position[1])) {
 				y_sp = traj_sp.position[1];
+				_hold_y = y_sp;
 			}
 			if (PX4_ISFINITE(traj_sp.velocity[0])) {
 				vx_sp = traj_sp.velocity[0];
@@ -203,6 +254,47 @@ void IfodronePositionControl::Run()
 			if (PX4_ISFINITE(traj_sp.velocity[1])) {
 				vy_sp = traj_sp.velocity[1];
 			}
+
+		} else if (manual_mode && has_manual_control && control_mode.flag_control_position_enabled) {
+			// Manual control: stick = velocity command
+			// manual_control.pitch: -1 (back) to +1 (forward) -> velocity X
+			// manual_control.roll: -1 (left) to +1 (right) -> velocity Y
+			const float max_vel_xy = 3.0f;  // m/s max horizontal velocity
+
+			// Deadzone
+			const float pitch_input = fabsf(manual_control.pitch) > 0.05f ? manual_control.pitch : 0.0f;
+			const float roll_input = fabsf(manual_control.roll) > 0.05f ? manual_control.roll : 0.0f;
+
+			// Velocity in body frame from sticks
+			const float vx_body = pitch_input * max_vel_xy;
+			const float vy_body = roll_input * max_vel_xy;
+
+			// Convert body velocity to world frame (NED)
+			const float cos_yaw = cosf(yaw_current);
+			const float sin_yaw = sinf(yaw_current);
+			vx_sp = cos_yaw * vx_body - sin_yaw * vy_body;
+			vy_sp = sin_yaw * vx_body + cos_yaw * vy_body;
+
+			// If sticks centered, use position hold
+			if (fabsf(vx_sp) < 0.1f && fabsf(vy_sp) < 0.1f) {
+				x_sp = _hold_x;
+				y_sp = _hold_y;
+				vx_sp = 0.0f;
+				vy_sp = 0.0f;
+			} else {
+				// Update hold position while moving
+				_hold_x = local_pos.x;
+				_hold_y = local_pos.y;
+				x_sp = NAN;  // Velocity control only
+				y_sp = NAN;
+			}
+
+		} else {
+			// No input: hold current position
+			x_sp = _hold_x;
+			y_sp = _hold_y;
+			vx_sp = 0.0f;
+			vy_sp = 0.0f;
 		}
 
 		if (local_pos.xy_valid && local_pos.v_xy_valid) {
@@ -211,13 +303,20 @@ void IfodronePositionControl::Run()
 			const float vx = local_pos.vx;
 			const float vy = local_pos.vy;
 
-			// Position error (NED world frame)
-			const float x_error = x_sp - x;
-			const float y_error = y_sp - y;
+			// Velocity command: from position error (if position valid) + feedforward
+			float vx_cmd, vy_cmd;
 
-			// Velocity command from position error
-			const float vx_cmd = x_error * _param_ifo_pos_xy_p.get() + vx_sp;
-			const float vy_cmd = y_error * _param_ifo_pos_xy_p.get() + vy_sp;
+			if (PX4_ISFINITE(x_sp) && PX4_ISFINITE(y_sp)) {
+				// Position + Velocity control
+				const float x_error = x_sp - x;
+				const float y_error = y_sp - y;
+				vx_cmd = x_error * _param_ifo_pos_xy_p.get() + vx_sp;
+				vy_cmd = y_error * _param_ifo_pos_xy_p.get() + vy_sp;
+			} else {
+				// Velocity only control (sticks active)
+				vx_cmd = vx_sp;
+				vy_cmd = vy_sp;
+			}
 
 			// Velocity error
 			const float vx_error = vx_cmd - vx;
