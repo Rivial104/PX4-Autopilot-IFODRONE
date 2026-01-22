@@ -1,0 +1,974 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sdf version="1.9">
+  <model name="ifodrone">
+
+    <!-- START 1 METR NAD ZIEMIĄ -->
+    <pose>0 0 0.4 0 0 0</pose>
+
+    <!-- ================= KADŁUB ================= -->
+    <link name="base_link">
+      <pose>0 0 0 0 0 0</pose>
+      <inertial>
+        <mass>2.0</mass>
+        <inertia>
+          <ixx>0.03</ixx>
+          <iyy>0.03</iyy>
+          <izz>0.05</izz>
+        </inertia>
+      </inertial>
+
+      <collision name="base_collision">
+        <geometry>
+          <cylinder>
+            <radius>0.34</radius>
+            <length>0.16</length>
+          </cylinder>
+        </geometry>
+      </collision>
+
+      <visual name="base_visual">
+        <geometry>
+          <cylinder>
+            <radius>0.34</radius>
+            <length>0.16</length>
+          </cylinder>
+        </geometry>
+        <material>
+          <diffuse>0.3 0.3 0.3 1</diffuse>
+        </material>
+      </visual>
+
+      <!-- LEG FRONT RIGHT -->
+      <collision name="leg_front_right_collision">
+        <pose>0.3 -0.3 -0.20 -0.7854 0 0.7854</pose>
+        <geometry>
+          <cylinder>
+            <radius>0.015</radius>
+            <length>0.34</length>
+          </cylinder>
+        </geometry>
+      </collision>
+
+      <visual name="leg_front_right_visual">
+        <pose>0.3 -0.3 -0.20 -0.7854 0 0.7854</pose>
+        <geometry>
+          <cylinder>
+            <radius>0.015</radius>
+            <length>0.34</length>
+          </cylinder>
+        </geometry>
+      </visual>
+
+      <!-- LEG FRONT LEFT -->
+      <collision name="leg_front_left_collision">
+        <pose>0.3 0.3 -0.20 -0.7854 0 2.3562</pose>
+        <geometry>
+          <cylinder>
+            <radius>0.015</radius>
+            <length>0.34</length>
+          </cylinder>
+        </geometry>
+      </collision>
+
+      <visual name="leg_front_left_visual">
+        <pose>0.3 0.3 -0.20 -0.7854 0 2.3562</pose>
+        <geometry>
+          <cylinder>
+            <radius>0.015</radius>
+            <length>0.34</length>
+          </cylinder>
+        </geometry>
+      </visual>
+
+      <!-- LEG BACK RIGHT -->
+      <collision name="leg_back_right_collision">
+        <pose>-0.3 -0.3 -0.20 -0.7854 0 -0.7854</pose>
+        <geometry>
+          <cylinder>
+            <radius>0.015</radius>
+            <length>0.34</length>
+          </cylinder>
+        </geometry>
+      </collision>
+
+      <visual name="leg_back_right_visual">
+        <pose>-0.3 -0.3 -0.20 -0.7854 0 -0.7854</pose>
+        <geometry>
+          <cylinder>
+            <radius>0.015</radius>
+            <length>0.34</length>
+          </cylinder>
+        </geometry>
+      </visual>
+
+      <!-- LEG BACK LEFT -->
+      <collision name="leg_back_left_collision">
+        <pose>-0.3 0.3 -0.20 -0.7854 0 -2.3562</pose>
+        <geometry>
+          <cylinder>
+            <radius>0.015</radius>
+            <length>0.34</length>
+          </cylinder>
+        </geometry>
+      </collision>
+
+      <visual name="leg_back_left_visual">
+        <pose>-0.3 0.3 -0.20 -0.7854 0 -2.3562</pose>
+        <geometry>
+          <cylinder>
+            <radius>0.015</radius>
+            <length>0.34</length>
+          </cylinder>
+        </geometry>
+      </visual>
+
+<!-- ================= SENSORY ================= -->
+      <sensor name="air_pressure_sensor" type="air_pressure">
+        <!-- <gz_frame_id>base_link</gz_frame_id> -->
+        <pose>0 0 0 0 0 0</pose>
+        <always_on>1</always_on>
+        <update_rate>50</update_rate>
+        <air_pressure>
+          <!-- Noise modeled after BMP390 -->
+          <pressure>
+            <noise type="gaussian">
+              <mean>0</mean>
+              <stddev>3</stddev>
+            </noise>
+          </pressure>
+        </air_pressure>
+      </sensor>
+      <sensor name="magnetometer_sensor" type="magnetometer">
+        <!-- <gz_frame_id>base_link</gz_frame_id> -->
+        <pose>0 0 0 0 0 0</pose>
+        <always_on>1</always_on>
+        <update_rate>100</update_rate>
+        <magnetometer>
+          <!-- TODO: update to fix units and coordinate system when we move past Harmonic -->
+          <!-- See https://github.com/gazebosim/gz-sim/pull/2460 -->
+          <!-- 3mgauss RMS: NOTE: noise is in tesla but sensor reports data in gauss -->
+          <!-- Noise modeled after IIS2MDC -->
+          <x>
+            <noise type="gaussian">
+              <stddev>0.0001</stddev>
+            </noise>
+          </x>
+          <y>
+            <noise type="gaussian">
+              <stddev>0.0001</stddev>
+            </noise>
+          </y>
+          <z>
+            <noise type="gaussian">
+              <stddev>0.0001</stddev>
+            </noise>
+          </z>
+        </magnetometer>
+      </sensor>
+      <sensor name="imu_sensor" type="imu">
+        <!-- <gz_frame_id>base_link</gz_frame_id> -->
+        <pose>0 0 0 0 0 0</pose>
+        <always_on>1</always_on>
+        <update_rate>250</update_rate>
+        <imu>
+          <angular_velocity>
+            <!-- Noise modeled after IIM42653 -->
+            <!-- 0.05 deg/s converted to rad/s -->
+            <x>
+              <noise type="gaussian">
+                <mean>0.0</mean>
+                <stddev>0.0008726646</stddev>
+              </noise>
+            </x>
+            <y>
+              <noise type="gaussian">
+                <mean>0.0</mean>
+                <stddev>0.0008726646</stddev>
+              </noise>
+            </y>
+            <z>
+              <noise type="gaussian">
+                <mean>0.0</mean>
+                <stddev>0.0008726646</stddev>
+              </noise>
+            </z>
+          </angular_velocity>
+          <linear_acceleration>
+            <!-- Noise modeled after IIM42653 -->
+            <!-- X & Y axis: 0.65 mg-rms converted to m/ss -->
+            <x>
+              <noise type="gaussian">
+                <mean>0.0</mean>
+                <stddev>0.00637</stddev>
+              </noise>
+            </x>
+            <y>
+              <noise type="gaussian">
+                <mean>0.0</mean>
+                <stddev>0.00637</stddev>
+              </noise>
+            </y>
+            <!-- Z axis: 0.70 mg-rms converted to m/ss-->
+            <z>
+              <noise type="gaussian">
+                <mean>0.0</mean>
+                <stddev>0.00686</stddev>
+              </noise>
+            </z>
+          </linear_acceleration>
+        </imu>
+      </sensor>
+      <sensor name="navsat_sensor" type="navsat">
+        <!-- <gz_frame_id>base_link</gz_frame_id> -->
+        <pose>0 0 0 0 0 0</pose>
+        <always_on>1</always_on>
+        <update_rate>30</update_rate>
+      </sensor>
+    </link>
+
+    <!-- ================= ROTOR 0 – MAIN ROTOR UP (RED) ================= -->
+    <link name="rotor_0">
+      <pose>0 0 0.1 0 0 0</pose>
+
+      <inertial>
+        <mass>0.05</mass>
+        <inertia>
+          <ixx>1e-4</ixx>
+          <iyy>1e-4</iyy>
+          <izz>1e-4</izz>
+        </inertia>
+      </inertial>
+
+      <collision name="c">
+        <geometry>
+          <cylinder>
+            <radius>0.06</radius>
+            <length>0.09</length>
+          </cylinder>
+        </geometry>
+      </collision>
+
+      <visual name="motor_0">
+        <geometry>
+          <cylinder>
+            <radius>0.06</radius>
+            <length>0.09</length>
+          </cylinder>
+        </geometry>
+        <material>
+          <diffuse>1 0 0 1</diffuse>
+        </material>
+      </visual>
+
+      <visual name="prop_0">
+        <pose>0 0 0.05 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>0.58 0.02 0.01</size>
+          </box>
+        </geometry>
+        <material>
+          <diffuse>1 0 0 1</diffuse>
+        </material>
+      </visual>
+    </link>
+
+    <joint name="rotor_0_joint" type="revolute">
+      <parent>base_link</parent>
+      <child>rotor_0</child>
+      <axis><xyz>0 0 1</xyz></axis>
+    </joint>
+
+    <!-- ================= ROTOR 1 – MAIN ROTOR DOWN (GREEN) ================= -->
+    <link name="rotor_1">
+      <pose>0 0 -0.1 0 0 0</pose>
+
+      <inertial>
+        <mass>0.05</mass>
+        <inertia>
+          <ixx>1e-4</ixx>
+          <iyy>1e-4</iyy>
+          <izz>1e-4</izz>
+        </inertia>
+      </inertial>
+
+      <collision name="c">
+        <geometry>
+          <cylinder>
+            <radius>0.06</radius>
+            <length>0.09</length>
+          </cylinder>
+        </geometry>
+      </collision>
+
+      <visual name="motor_1">
+        <geometry>
+          <cylinder>
+            <radius>0.06</radius>
+            <length>0.09</length>
+          </cylinder>
+        </geometry>
+      <material>
+        <diffuse>0 1 0 1</diffuse>
+      </material>
+      </visual>
+
+      <visual name="prop_1">
+        <pose>0 0 -0.05 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>0.58 0.02 0.01</size>
+          </box>
+        </geometry>
+      <material>
+        <diffuse>0 1 0 1</diffuse>
+      </material>
+      </visual>
+    </link>
+
+    <joint name="rotor_1_joint" type="revolute">
+      <parent>base_link</parent>
+      <child>rotor_1</child>
+      <axis><xyz>0 0 1</xyz></axis>
+    </joint>
+
+    <!-- ================= MOTOR 2 – FRONT TILT MOTOR (BLUE) ================= -->
+    <link name='motor_2'>
+      <pose>0.5 0 0.045 0 1.570 0</pose>
+      <inertial>
+        <pose>0 0 0 0 0 0</pose>
+        <mass>0.05</mass>
+        <inertia>
+          <ixx>0.0166704</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>0.0166704</iyy>
+          <iyz>0</iyz>
+          <izz>0.0167604</izz>
+        </inertia>
+      </inertial>
+      <collision name='motor_2_collision'>
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.035</length>
+            <radius>0.02</radius>
+          </cylinder>
+        </geometry>
+        <surface>
+          <contact><ode /></contact>
+          <friction><ode /></friction>
+        </surface>
+      </collision>
+      <visual name='motor_2_visual'>
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.035</length>
+            <radius>0.02</radius>
+          </cylinder>
+        </geometry>
+        <material>
+          <ambient>0 0 1 1.0</ambient>
+          <diffuse>0 0 1 1.0</diffuse>
+        </material>
+      </visual>
+      <gravity>1</gravity>
+      <velocity_decay />
+      <self_collide>0</self_collide>
+    </link>
+
+    <joint name='motor_2_joint' type='revolute'>
+      <child>motor_2</child>
+      <parent>base_link</parent>
+      <axis>
+        <xyz>0 1 0</xyz>
+        <limit>
+          <lower>-1.57</lower>
+          <upper>1.57</upper>
+        </limit>
+        <dynamics>
+          <friction>1.0</friction>
+          <spring_reference>0</spring_reference>
+          <spring_stiffness>0</spring_stiffness>
+        </dynamics>
+        <use_parent_model_frame>1</use_parent_model_frame>
+      </axis>
+    </joint>
+
+    <link name='rotor_2'>
+      <pose>0.535 0 0.045 0 1.57 0</pose>
+      <inertial>
+        <pose>0 0 0 0 0 0</pose>
+        <mass>0.005</mass>
+        <inertia>
+          <ixx>9.75e-07</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>0.000166704</iyy>
+          <iyz>0</iyz>
+          <izz>0.000167604</izz>
+        </inertia>
+      </inertial>
+      <visual name='rotor_2_visual'>
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>1 1 1</scale>
+            <uri>model://standard_vtol/meshes/iris_prop_cw.dae</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <ambient>0 0 1 1.0</ambient>
+          <diffuse>0 0 1 1.0</diffuse>
+        </material>
+      </visual>
+      <gravity>1</gravity>
+      <velocity_decay />
+      <self_collide>0</self_collide>
+    </link>
+
+    <joint name='rotor_2_joint' type='revolute'>
+      <child>rotor_2</child>
+      <parent>motor_2</parent>
+      <axis>
+        <xyz>0 0 1</xyz>
+        <limit>
+          <lower>-1e+16</lower>
+          <upper>1e+16</upper>
+        </limit>
+        <dynamics>
+          <spring_reference>0</spring_reference>
+          <spring_stiffness>0</spring_stiffness>
+        </dynamics>
+        <use_parent_model_frame>1</use_parent_model_frame>
+      </axis>
+    </joint>
+
+    <!-- ================= MOTOR 3 – RIGHT TILT MOTOR (YELLOW) ================= -->
+    <link name='motor_3'>
+      <pose>0 -0.5 0.045 1.570 0 0</pose>
+      <inertial>
+        <pose>0 0 0 0 0 0</pose>
+        <mass>0.05</mass>
+        <inertia>
+          <ixx>0.0166704</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>0.0166704</iyy>
+          <iyz>0</iyz>
+          <izz>0.0167604</izz>
+        </inertia>
+      </inertial>
+      <collision name='motor_3_collision'>
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.035</length>
+            <radius>0.02</radius>
+          </cylinder>
+        </geometry>
+        <surface>
+          <contact><ode /></contact>
+          <friction><ode /></friction>
+        </surface>
+      </collision>
+      <visual name='motor_3_visual'>
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.035</length>
+            <radius>0.02</radius>
+          </cylinder>
+        </geometry>
+        <material>
+          <ambient>1 1 0 1.0</ambient>
+          <diffuse>1 1 0 1.0</diffuse>
+        </material>
+      </visual>
+      <gravity>1</gravity>
+      <velocity_decay />
+      <self_collide>0</self_collide>
+    </link>
+
+    <joint name='motor_3_joint' type='revolute'>
+      <child>motor_3</child>
+      <parent>base_link</parent>
+      <axis>
+        <xyz>1 0 0</xyz>
+        <limit>
+          <lower>-1.57</lower>
+          <upper>1.57</upper>
+        </limit>
+        <dynamics>
+          <friction>1.0</friction>
+          <spring_reference>0</spring_reference>
+          <spring_stiffness>0</spring_stiffness>
+        </dynamics>
+        <use_parent_model_frame>1</use_parent_model_frame>
+      </axis>
+    </joint>
+
+    <link name='rotor_3'>
+      <pose>0 -0.535 0.045 -1.57 0 0</pose>
+      <inertial>
+        <pose>0 0 0 0 0 0</pose>
+        <mass>0.005</mass>
+        <inertia>
+          <ixx>9.75e-07</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>0.000166704</iyy>
+          <iyz>0</iyz>
+          <izz>0.000167604</izz>
+        </inertia>
+      </inertial>
+      <visual name='rotor_3_visual'>
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>1 1 1</scale>
+            <uri>model://standard_vtol/meshes/iris_prop_ccw.dae</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <ambient>1 1 0 1.0</ambient>
+          <diffuse>1 1 0 1.0</diffuse>
+        </material>
+      </visual>
+      <gravity>1</gravity>
+      <velocity_decay />
+      <self_collide>0</self_collide>
+    </link>
+
+    <joint name='rotor_3_joint' type='revolute'>
+      <child>rotor_3</child>
+      <parent>motor_3</parent>
+      <axis>
+        <xyz>0 0 1</xyz>
+        <limit>
+          <lower>-1e+16</lower>
+          <upper>1e+16</upper>
+        </limit>
+        <dynamics>
+          <spring_reference>0</spring_reference>
+          <spring_stiffness>0</spring_stiffness>
+        </dynamics>
+        <use_parent_model_frame>1</use_parent_model_frame>
+      </axis>
+    </joint>
+
+    <!-- ================= MOTOR 4 – BACK TILT MOTOR (MAGENTA) ================= -->
+    <link name='motor_4'>
+      <pose>-0.5 0 0.045 0 1.570 0</pose>
+      <inertial>
+        <pose>0 0 0 0 0 0</pose>
+        <mass>0.05</mass>
+        <inertia>
+          <ixx>0.0166704</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>0.0166704</iyy>
+          <iyz>0</iyz>
+          <izz>0.0167604</izz>
+        </inertia>
+      </inertial>
+      <collision name='motor_4_collision'>
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.035</length>
+            <radius>0.02</radius>
+          </cylinder>
+        </geometry>
+        <surface>
+          <contact><ode /></contact>
+          <friction><ode /></friction>
+        </surface>
+      </collision>
+      <visual name='motor_4_visual'>
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.035</length>
+            <radius>0.02</radius>
+          </cylinder>
+        </geometry>
+        <material>
+          <ambient>1 0 1 1.0</ambient>
+          <diffuse>1 0 1 1.0</diffuse>
+        </material>
+      </visual>
+      <gravity>1</gravity>
+      <velocity_decay />
+      <self_collide>0</self_collide>
+    </link>
+
+    <joint name='motor_4_joint' type='revolute'>
+      <child>motor_4</child>
+      <parent>base_link</parent>
+      <axis>
+        <xyz>0 -1 0</xyz>
+        <limit>
+          <lower>-1.57</lower>
+          <upper>1.57</upper>
+        </limit>
+        <dynamics>
+          <friction>1.0</friction>
+          <spring_reference>0</spring_reference>
+          <spring_stiffness>0</spring_stiffness>
+        </dynamics>
+        <use_parent_model_frame>1</use_parent_model_frame>
+      </axis>
+    </joint>
+
+    <link name='rotor_4'>
+      <pose>-0.535 0 0.045 0 1.57 0</pose>
+      <inertial>
+        <pose>0 0 0 0 0 0</pose>
+        <mass>0.005</mass>
+        <inertia>
+          <ixx>9.75e-07</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>0.000166704</iyy>
+          <iyz>0</iyz>
+          <izz>0.000167604</izz>
+        </inertia>
+      </inertial>
+      <visual name='rotor_4_visual'>
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>1 1 1</scale>
+            <uri>model://standard_vtol/meshes/iris_prop_cw.dae</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <ambient>1 0 1 1.0</ambient>
+          <diffuse>1 0 1 1.0</diffuse>
+        </material>
+      </visual>
+      <gravity>1</gravity>
+      <velocity_decay />
+      <self_collide>0</self_collide>
+    </link>
+
+    <joint name='rotor_4_joint' type='revolute'>
+      <child>rotor_4</child>
+      <parent>motor_4</parent>
+      <axis>
+        <xyz>0 0 1</xyz>
+        <limit>
+          <lower>-1e+16</lower>
+          <upper>1e+16</upper>
+        </limit>
+        <dynamics>
+          <spring_reference>0</spring_reference>
+          <spring_stiffness>0</spring_stiffness>
+        </dynamics>
+        <use_parent_model_frame>1</use_parent_model_frame>
+      </axis>
+    </joint>
+
+    <!-- ================= MOTOR 5 – LEFT TILT MOTOR (CYAN) ================= -->
+    <link name='motor_5'>
+      <pose>0 0.5 0.045 1.570 0 0</pose>
+      <inertial>
+        <mass>0.05</mass>
+        <inertia>
+          <ixx>0.0166704</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>0.0166704</iyy>
+          <iyz>0</iyz>
+          <izz>0.0167604</izz>
+        </inertia>
+      </inertial>
+      <collision name='motor_5_collision'>
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.02</length>
+            <radius>0.035</radius>
+          </cylinder>
+        </geometry>
+        <surface>
+          <contact>
+            <ode>
+              <min_depth>0.001</min_depth>
+            </ode>
+          </contact>
+          <friction>
+            <ode />
+          </friction>
+        </surface>
+      </collision>
+      <visual name='motor_5_visual'>
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.035</length>
+            <radius>0.02</radius>
+          </cylinder>
+        </geometry>
+        <material>
+          <diffuse>0 1 1 1</diffuse>
+          <ambient>0 1 1 1</ambient>
+        </material>
+      </visual>
+      <gravity>1</gravity>
+      <velocity_decay />
+      <self_collide>0</self_collide>
+    </link>
+
+    <joint name='motor_5_joint' type='revolute'>
+      <child>motor_5</child>
+      <parent>base_link</parent>
+      <axis>
+        <xyz>-1 0 0</xyz>
+        <limit>
+          <lower>-1.57</lower>
+          <upper>1.57</upper>
+          <effort>-1</effort>
+          <velocity>-1</velocity>
+        </limit>
+        <dynamics>
+          <spring_reference>0</spring_reference>
+          <spring_stiffness>0</spring_stiffness>
+          <!-- <damping>1.0</damping> -->
+          <friction>1.0</friction>
+        </dynamics>
+        <use_parent_model_frame>1</use_parent_model_frame>
+      </axis>
+    </joint>
+
+    <link name='rotor_5'>
+      <pose>0 0.535 0.045 -1.57 0 0</pose>
+      <inertial>
+        <mass>0.005</mass>
+        <inertia>
+          <ixx>9.75e-07</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>0.000166704</iyy>
+          <iyz>0</iyz>
+          <izz>0.000167604</izz>
+        </inertia>
+      </inertial>
+      <visual name='rotor_5_visual'>
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>0.8 0.8 0.8</scale>
+            <uri>model://standard_vtol/meshes/iris_prop_cw.dae</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <diffuse>0 1 1 1</diffuse>
+          <ambient>0 1 1 1</ambient>
+        </material>
+      </visual>
+      <gravity>1</gravity>
+      <velocity_decay />
+      <self_collide>0</self_collide>
+    </link>
+
+    <joint name='rotor_5_joint' type='revolute'>
+      <child>rotor_5</child>
+      <parent>motor_5</parent>
+      <axis>
+        <xyz>0 0 1</xyz>
+        <limit>
+          <lower>-1e+16</lower>
+          <upper>1e+16</upper>
+        </limit>
+        <dynamics>
+          <spring_reference>0</spring_reference>
+          <spring_stiffness>0</spring_stiffness>
+        </dynamics>
+        <use_parent_model_frame>1</use_parent_model_frame>
+      </axis>
+    </joint>
+
+    <!-- ================= PLUGINS – GENERUJĄ SIŁĘ ================= -->
+    <!-- (DOKŁADNIE JAK WCZEŚNIEJ, NIE ZMIENIAJ) -->
+
+    <!-- motor 0 -->
+    <plugin filename="gz-sim-multicopter-motor-model-system"
+            name="gz::sim::systems::MulticopterMotorModel">
+      <jointName>rotor_0_joint</jointName>
+      <linkName>rotor_0</linkName>
+      <turningDirection>ccw</turningDirection>
+      <timeConstantUp>0.0125</timeConstantUp>
+      <timeConstantDown>0.025</timeConstantDown>
+      <maxRotVelocity>1500</maxRotVelocity>
+      <motorConstant>6e-05</motorConstant>
+      <momentConstant>0.06</momentConstant>
+      <commandSubTopic>command/motor_speed</commandSubTopic>
+      <motorNumber>0</motorNumber>
+      <rotorDragCoefficient>0.0000806428</rotorDragCoefficient>
+      <rollingMomentCoefficient>1e-06</rollingMomentCoefficient>
+      <rotorVelocitySlowdownSim>20</rotorVelocitySlowdownSim>
+      <motorType>velocity</motorType>
+    </plugin>
+
+    <!-- motor 1 -->
+    <plugin filename="gz-sim-multicopter-motor-model-system"
+            name="gz::sim::systems::MulticopterMotorModel">
+      <jointName>rotor_1_joint</jointName>
+      <linkName>rotor_1</linkName>
+      <turningDirection>cw</turningDirection>
+      <timeConstantUp>0.0125</timeConstantUp>
+      <timeConstantDown>0.025</timeConstantDown>
+      <maxRotVelocity>1500</maxRotVelocity>
+      <motorConstant>6e-05</motorConstant>
+      <momentConstant>0.06</momentConstant>
+      <commandSubTopic>command/motor_speed</commandSubTopic>
+      <motorNumber>1</motorNumber>
+      <rotorDragCoefficient>0.0000806428</rotorDragCoefficient>
+      <rollingMomentCoefficient>1e-06</rollingMomentCoefficient>
+      <rotorVelocitySlowdownSim>20</rotorVelocitySlowdownSim>
+      <motorType>velocity</motorType>
+    </plugin>
+
+    <!-- motor 2 -->
+    <plugin filename="gz-sim-multicopter-motor-model-system"
+            name="gz::sim::systems::MulticopterMotorModel">
+      <jointName>rotor_2_joint</jointName>
+      <linkName>rotor_2</linkName>
+      <turningDirection>ccw</turningDirection>
+      <timeConstantUp>0.040</timeConstantUp>
+      <timeConstantDown>0.025</timeConstantDown>
+      <maxRotVelocity>1500</maxRotVelocity>
+      <motorConstant>8e-06</motorConstant>
+      <momentConstant>0.06</momentConstant>
+      <commandSubTopic>command/motor_speed</commandSubTopic>
+      <motorNumber>2</motorNumber>
+      <rotorDragCoefficient>0.0000806428</rotorDragCoefficient>
+      <rollingMomentCoefficient>1e-06</rollingMomentCoefficient>
+      <rotorVelocitySlowdownSim>20</rotorVelocitySlowdownSim>
+      <motorType>velocity</motorType>
+    </plugin>
+
+    <!-- motor 3 -->
+    <plugin filename="gz-sim-multicopter-motor-model-system"
+            name="gz::sim::systems::MulticopterMotorModel">
+      <jointName>rotor_3_joint</jointName>
+      <linkName>rotor_3</linkName>
+      <turningDirection>cw</turningDirection>
+      <timeConstantUp>0.040</timeConstantUp>
+      <timeConstantDown>0.025</timeConstantDown>
+      <maxRotVelocity>1500</maxRotVelocity>
+      <motorConstant>8e-06</motorConstant>
+      <momentConstant>0.06</momentConstant>
+      <commandSubTopic>command/motor_speed</commandSubTopic>
+      <motorNumber>3</motorNumber>
+      <rotorDragCoefficient>0.0000806428</rotorDragCoefficient>
+      <rollingMomentCoefficient>1e-06</rollingMomentCoefficient>
+      <rotorVelocitySlowdownSim>20</rotorVelocitySlowdownSim>
+      <motorType>velocity</motorType>
+    </plugin>
+
+    <!-- motor 4 -->
+    <plugin filename="gz-sim-multicopter-motor-model-system"
+            name="gz::sim::systems::MulticopterMotorModel">
+      <jointName>rotor_4_joint</jointName>
+      <linkName>rotor_4</linkName>
+      <turningDirection>ccw</turningDirection>
+      <timeConstantUp>0.040</timeConstantUp>
+      <timeConstantDown>0.025</timeConstantDown>
+      <maxRotVelocity>1500</maxRotVelocity>
+      <motorConstant>8e-06</motorConstant>
+      <momentConstant>0.06</momentConstant>
+      <commandSubTopic>command/motor_speed</commandSubTopic>
+      <motorNumber>4</motorNumber>
+      <rotorDragCoefficient>0.0000806428</rotorDragCoefficient>
+      <rollingMomentCoefficient>1e-06</rollingMomentCoefficient>
+      <rotorVelocitySlowdownSim>20</rotorVelocitySlowdownSim>
+      <motorType>velocity</motorType>
+    </plugin>
+
+    <!-- motor 5 -->
+    <plugin filename="gz-sim-multicopter-motor-model-system"
+            name="gz::sim::systems::MulticopterMotorModel">
+      <jointName>rotor_5_joint</jointName>
+      <linkName>rotor_5</linkName>
+      <turningDirection>cw</turningDirection>
+      <timeConstantUp>0.040</timeConstantUp>
+      <timeConstantDown>0.025</timeConstantDown>
+      <maxRotVelocity>1500</maxRotVelocity>
+      <motorConstant>8e-06</motorConstant>
+      <momentConstant>0.06</momentConstant>
+      <commandSubTopic>command/motor_speed</commandSubTopic>
+      <motorNumber>5</motorNumber>
+      <rotorDragCoefficient>0.0000806428</rotorDragCoefficient>
+      <rollingMomentCoefficient>1e-06</rollingMomentCoefficient>
+      <rotorVelocitySlowdownSim>20</rotorVelocitySlowdownSim>
+      <motorType>velocity</motorType>
+    </plugin>
+
+    <!-- ================= SERVO CONTROLLERS FOR TILTS ================= -->
+
+    <!-- servo 0 - motor_2 tilt (front) -->
+    <plugin filename="gz-sim-joint-position-controller-system"
+            name="gz::sim::systems::JointPositionController">
+      <joint_name>motor_2_joint</joint_name>
+      <sub_topic>servo_0</sub_topic>
+      <p_gain>10</p_gain>
+      <i_gain>0</i_gain>
+      <d_gain>0</d_gain>
+      <i_max>0.0</i_max>
+      <i_min>0.0</i_min>
+      <cmd_max>2</cmd_max>
+      <cmd_min>-2</cmd_min>
+      <err_max>0.2</err_max>
+    </plugin>
+
+    <!-- servo 1 - motor_3 tilt (right) -->
+    <plugin filename="gz-sim-joint-position-controller-system"
+            name="gz::sim::systems::JointPositionController">
+      <joint_name>motor_3_joint</joint_name>
+      <sub_topic>servo_1</sub_topic>
+      <p_gain>00</p_gain>
+      <i_gain>0</i_gain>
+      <d_gain>0</d_gain>
+      <i_max>0.0</i_max>
+      <i_min>0.0</i_min>
+      <cmd_max>2</cmd_max>
+      <cmd_min>-2</cmd_min>
+      <err_max>0.2</err_max>
+    </plugin>
+
+    <!-- servo 2 - motor_4 tilt (back) -->
+    <plugin filename="gz-sim-joint-position-controller-system"
+            name="gz::sim::systems::JointPositionController">
+      <joint_name>motor_4_joint</joint_name>
+      <sub_topic>servo_2</sub_topic>
+      <p_gain>10</p_gain>
+      <i_gain>0</i_gain>
+      <d_gain>0</d_gain>
+      <i_max>0.0</i_max>
+      <i_min>0.0</i_min>
+      <cmd_max>2</cmd_max>
+      <cmd_min>-2</cmd_min>
+      <err_max>0.2</err_max>
+    </plugin>
+
+    <!-- servo 3 - motor_5 tilt (left) -->
+    <plugin filename="gz-sim-joint-position-controller-system"
+            name="gz::sim::systems::JointPositionController">
+      <joint_name>motor_5_joint</joint_name>
+      <sub_topic>servo_3</sub_topic>
+      <p_gain>10</p_gain>
+      <i_gain>0</i_gain>
+      <d_gain>0</d_gain>
+      <i_max>0.0</i_max>
+      <i_min>0.0</i_min>
+      <cmd_max>2</cmd_max>
+      <cmd_min>-2</cmd_min>
+      <err_max>0.2</err_max>
+    </plugin>
+
+  </model>
+</sdf>

@@ -23,6 +23,7 @@ param set-default SYS_AUTOCONFIG 1
 param set-default SYS_AUTOSTART 49000
 
 param set-default CA_AIRFRAME 90
+param set-default MIS_TAKEOFF_ALT 30
 
 # ============================================
 # 6 MOTORS TOTAL
@@ -66,7 +67,7 @@ param set-default SIM_GZ_EC_MAX2 1000
 # ============================================
 
 # Motor 2: Front EDF - thrust in +X direction (default), tiltable
-param set-default CA_ROTOR2_PX 0.35
+param set-default CA_ROTOR2_PX 0.5
 param set-default CA_ROTOR2_PY 0.0
 param set-default CA_ROTOR2_PZ 0.0
 param set-default CA_ROTOR2_AX 1.0
@@ -81,7 +82,7 @@ param set-default SIM_GZ_EC_MAX3 1000
 
 # Motor 3: Right EDF - thrust in -Y direction (default), tiltable
 param set-default CA_ROTOR3_PX 0.0
-param set-default CA_ROTOR3_PY -0.35
+param set-default CA_ROTOR3_PY -0.5
 param set-default CA_ROTOR3_PZ 0.0
 param set-default CA_ROTOR3_AX 0.0
 param set-default CA_ROTOR3_AY -1.0
@@ -94,7 +95,7 @@ param set-default SIM_GZ_EC_MIN4 0
 param set-default SIM_GZ_EC_MAX4 1000
 
 # Motor 4: Back EDF - thrust in -X direction (default), tiltable
-param set-default CA_ROTOR4_PX -0.35
+param set-default CA_ROTOR4_PX -0.5
 param set-default CA_ROTOR4_PY 0.0
 param set-default CA_ROTOR4_PZ 0.0
 param set-default CA_ROTOR4_AX -1.0
@@ -109,7 +110,7 @@ param set-default SIM_GZ_EC_MAX5 1000
 
 # Motor 5: Left EDF - thrust in +Y direction (default), tiltable
 param set-default CA_ROTOR5_PX 0.0
-param set-default CA_ROTOR5_PY 0.35
+param set-default CA_ROTOR5_PY 0.5
 param set-default CA_ROTOR5_PZ 0.0
 param set-default CA_ROTOR5_AX 0.0
 param set-default CA_ROTOR5_AY 1.0
