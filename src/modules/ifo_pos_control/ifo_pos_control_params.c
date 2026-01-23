@@ -24,7 +24,31 @@ PARAM_DEFINE_FLOAT(IFO_POS_Z_P, 1.0f);
  * @decimal 2
  * @group IFODRONE Position Control
  */
-PARAM_DEFINE_FLOAT(IFO_VEL_Z_P, 0.5f);
+PARAM_DEFINE_FLOAT(IFO_VEL_Z_P, 2.0f);
+
+/**
+ * Velocity Z I gain
+ *
+ * Integral gain for vertical velocity control
+ *
+ * @min 0.0
+ * @max 5.0
+ * @decimal 2
+ * @group IFODRONE Position Control
+ */
+PARAM_DEFINE_FLOAT(IFO_VEL_Z_I, 0.2f);
+
+/**
+ * Velocity Z D gain
+ *
+ * Derivative gain for vertical velocity control (damping)
+ *
+ * @min 0.0
+ * @max 2.0
+ * @decimal 3
+ * @group IFODRONE Position Control
+ */
+PARAM_DEFINE_FLOAT(IFO_VEL_Z_D, 0.0f);
 
 /**
  * Position XY P gain
@@ -48,7 +72,31 @@ PARAM_DEFINE_FLOAT(IFO_POS_XY_P, 0.8f);
  * @decimal 2
  * @group IFODRONE Position Control
  */
-PARAM_DEFINE_FLOAT(IFO_VEL_XY_P, 0.4f);
+PARAM_DEFINE_FLOAT(IFO_VEL_XY_P, 1.0f);
+
+/**
+ * Velocity XY I gain
+ *
+ * Integral gain for horizontal velocity control
+ *
+ * @min 0.0
+ * @max 5.0
+ * @decimal 2
+ * @group IFODRONE Position Control
+ */
+PARAM_DEFINE_FLOAT(IFO_VEL_XY_I, 0.1f);
+
+/**
+ * Velocity XY D gain
+ *
+ * Derivative gain for horizontal velocity control (damping)
+ *
+ * @min 0.0
+ * @max 2.0
+ * @decimal 3
+ * @group IFODRONE Position Control
+ */
+PARAM_DEFINE_FLOAT(IFO_VEL_XY_D, 0.0f);
 
 /**
  * Hover thrust

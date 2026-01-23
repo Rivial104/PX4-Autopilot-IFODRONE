@@ -136,6 +136,10 @@ void IfodronePositionControl::Run()
 	// Reset hold position when disarmed or landed
 	if (!control_mode.flag_armed || land_detected.landed) {
 		_hold_position_initialized = false;
+		// Reset velocity integrals
+		_vel_z_integral = 0.0f;
+		_vel_x_integral = 0.0f;
+		_vel_y_integral = 0.0f;
 	}
 
 	// Only control if armed and position control enabled
@@ -210,28 +214,48 @@ void IfodronePositionControl::Run()
 
 		const float z = local_pos.z;
 		const float vz = local_pos.vz;
+		const float vz_dot = local_pos.az;  // przyspieszenie pionowe (dla członu D)
 
-		// Position + Velocity control
-		float vz_cmd;
+		// ============================================
+		// KASKADOWY REGULATOR: POZYCJA -> PRĘDKOŚĆ -> PRZYSPIESZENIE -> THRUST
+		// ============================================
+
+		// --- POZIOM 1: P-kontroler pozycji -> generuje vel_sp ---
+		// vel_sp_position = (pos_sp - pos) * Kp_pos
+		float vz_sp_from_pos = 0.0f;
 		if (PX4_ISFINITE(z_sp)) {
 			const float z_error = z_sp - z;
-			vz_cmd = z_error * _param_ifo_pos_z_p.get() + vz_sp;
-		} else {
-			// Velocity only control
-			vz_cmd = vz_sp;
+			vz_sp_from_pos = z_error * _param_ifo_pos_z_p.get();
 		}
+
+		// Suma: vel_sp z pozycji + feedforward vel_sp
+		float vz_cmd = vz_sp_from_pos + vz_sp;
 
 		// Apply takeoff velocity limit
 		if (vz_cmd < velocity_limit) {
 			vz_cmd = velocity_limit;
 		}
 
+		// --- POZIOM 2: PID-kontroler prędkości -> generuje acc_sp ---
+		// acc_sp = vel_error * Kp_vel + integral - vel_dot * Kd_vel
 		const float vz_error = vz_cmd - vz;
-		az_sp = az_sp + vz_error * _param_ifo_vel_z_p.get();
+		az_sp = vz_error * _param_ifo_vel_z_p.get()      // P: proporcjonalny do błędu prędkości
+		      + _vel_z_integral                          // I: całka błędu
+		      - vz_dot * _param_ifo_vel_z_d.get();       // D: tłumienie (pochodna prędkości = przyspieszenie)
 
-		// Thrust Z (main motors)
-		thrust_z = _param_ifo_thr_hover.get() - az_sp * 0.1f;
+		// --- POZIOM 3: Konwersja przyspieszenia na thrust ---
+		// thrust = hover_thrust - acc_sp * (hover_thrust / g)
+		// Uproszczenie: thrust = hover - acc_sp * scale
+		const float thrust_scale = _param_ifo_thr_hover.get() / 9.81f;
+		thrust_z = _param_ifo_thr_hover.get() - az_sp * thrust_scale;
 		thrust_z = math::constrain(thrust_z, _param_ifo_thr_min.get(), _param_ifo_thr_max.get());
+
+		// --- Aktualizacja całki (anti-windup) ---
+		// Tylko gdy nie saturujemy
+		if (thrust_z > _param_ifo_thr_min.get() && thrust_z < _param_ifo_thr_max.get()) {
+			_vel_z_integral += vz_error * _param_ifo_vel_z_i.get() * 0.004f;  // dt ~4ms
+			_vel_z_integral = math::constrain(_vel_z_integral, -5.0f, 5.0f);  // limit całki
+		}
 
 		// ============================================
 		// XY-AXIS POSITION CONTROL (Tilt motors)
@@ -302,45 +326,63 @@ void IfodronePositionControl::Run()
 			const float y = local_pos.y;
 			const float vx = local_pos.vx;
 			const float vy = local_pos.vy;
+			const float vx_dot = local_pos.ax;  // przyspieszenie X (dla członu D)
+			const float vy_dot = local_pos.ay;  // przyspieszenie Y (dla członu D)
 
-			// Velocity command: from position error (if position valid) + feedforward
-			float vx_cmd, vy_cmd;
+			// ============================================
+			// KASKADOWY REGULATOR XY: POZYCJA -> PRĘDKOŚĆ -> PRZYSPIESZENIE -> THRUST
+			// ============================================
 
+			// --- POZIOM 1: P-kontroler pozycji -> generuje vel_sp ---
+			// vel_sp_position = (pos_sp - pos) * Kp_pos
+			float vx_sp_from_pos = 0.0f;
+			float vy_sp_from_pos = 0.0f;
 			if (PX4_ISFINITE(x_sp) && PX4_ISFINITE(y_sp)) {
-				// Position + Velocity control
 				const float x_error = x_sp - x;
 				const float y_error = y_sp - y;
-				vx_cmd = x_error * _param_ifo_pos_xy_p.get() + vx_sp;
-				vy_cmd = y_error * _param_ifo_pos_xy_p.get() + vy_sp;
-			} else {
-				// Velocity only control (sticks active)
-				vx_cmd = vx_sp;
-				vy_cmd = vy_sp;
+				vx_sp_from_pos = x_error * _param_ifo_pos_xy_p.get();
+				vy_sp_from_pos = y_error * _param_ifo_pos_xy_p.get();
 			}
 
-			// Velocity error
+			// Suma: vel_sp z pozycji + feedforward vel_sp
+			const float vx_cmd = vx_sp_from_pos + vx_sp;
+			const float vy_cmd = vy_sp_from_pos + vy_sp;
+
+			// --- POZIOM 2: PID-kontroler prędkości -> generuje acc_sp ---
+			// acc_sp = vel_error * Kp_vel + integral - vel_dot * Kd_vel
 			const float vx_error = vx_cmd - vx;
 			const float vy_error = vy_cmd - vy;
 
-			// Acceleration setpoint (NED world frame)
-			ax_sp = vx_error * _param_ifo_vel_xy_p.get();
-			ay_sp = vy_error * _param_ifo_vel_xy_p.get();
+			ax_sp = vx_error * _param_ifo_vel_xy_p.get()    // P: proporcjonalny do błędu prędkości
+			      + _vel_x_integral                        // I: całka błędu
+			      - vx_dot * _param_ifo_vel_xy_d.get();    // D: tłumienie
 
-			// Convert world frame acceleration to body frame thrust
-			// Rotation from world (NED) to body frame using current yaw
+			ay_sp = vy_error * _param_ifo_vel_xy_p.get()
+			      + _vel_y_integral
+			      - vy_dot * _param_ifo_vel_xy_d.get();
+
+			// --- POZIOM 3: Konwersja przyspieszenia na thrust (body frame) ---
+			// Rotacja z układu świata (NED) do układu drona
 			const float cos_yaw = cosf(yaw_current);
 			const float sin_yaw = sinf(yaw_current);
 
-			// Body frame thrust = R_yaw^T * world_accel
-			// thrust_body_x = cos(yaw) * ax + sin(yaw) * ay
-			// thrust_body_y = -sin(yaw) * ax + cos(yaw) * ay
-			float thrust_x_raw = cos_yaw * ax_sp + sin_yaw * ay_sp;
-			float thrust_y_raw = -sin_yaw * ax_sp + cos_yaw * ay_sp;
+			// Body frame thrust = R_yaw^T * world_acc * scale
+			const float thrust_x_raw = (cos_yaw * ax_sp + sin_yaw * ay_sp) * thrust_scale;
+			const float thrust_y_raw = (-sin_yaw * ax_sp + cos_yaw * ay_sp) * thrust_scale;
 
-			// Scale and limit
+			// Limit thrust
 			const float thr_xy_max = _param_ifo_thr_xy_max.get();
-			thrust_x = math::constrain(thrust_x_raw * 0.1f, -thr_xy_max, thr_xy_max);
-			thrust_y = math::constrain(thrust_y_raw * 0.1f, -thr_xy_max, thr_xy_max);
+			thrust_x = math::constrain(thrust_x_raw, -thr_xy_max, thr_xy_max);
+			thrust_y = math::constrain(thrust_y_raw, -thr_xy_max, thr_xy_max);
+
+			// --- Aktualizacja całek (anti-windup) ---
+			const float thr_xy_norm = sqrtf(thrust_x * thrust_x + thrust_y * thrust_y);
+			if (thr_xy_norm < thr_xy_max * 0.95f) {
+				_vel_x_integral += vx_error * _param_ifo_vel_xy_i.get() * 0.004f;
+				_vel_y_integral += vy_error * _param_ifo_vel_xy_i.get() * 0.004f;
+				_vel_x_integral = math::constrain(_vel_x_integral, -5.0f, 5.0f);
+				_vel_y_integral = math::constrain(_vel_y_integral, -5.0f, 5.0f);
+			}
 		}
 
 		// Debug output

@@ -100,12 +100,27 @@ private:
 	float _hold_y{2.0f};
 	float _hold_z{5.0f};
 
-	// Simple altitude PID controller gains
+	// Velocity PID integral terms
+	float _vel_z_integral{0.0f};
+	float _vel_x_integral{0.0f};
+	float _vel_y_integral{0.0f};
+
+	// Kaskadowe regulatory PID:
+	// Poziom 1: P-kontroler pozycji (pos_error * Kp_pos -> vel_sp)
+	// Poziom 2: PID-kontroler prędkości (vel_error * Kp_vel + integral - vel_dot * Kd_vel -> acc_sp)
+	// Poziom 3: Konwersja acc_sp -> thrust
 	DEFINE_PARAMETERS(
+		// Pozycja -> Prędkość (P)
 		(ParamFloat<px4::params::IFO_POS_Z_P>) _param_ifo_pos_z_p,
-		(ParamFloat<px4::params::IFO_VEL_Z_P>) _param_ifo_vel_z_p,
 		(ParamFloat<px4::params::IFO_POS_XY_P>) _param_ifo_pos_xy_p,
+		// Prędkość -> Przyspieszenie (PID)
+		(ParamFloat<px4::params::IFO_VEL_Z_P>) _param_ifo_vel_z_p,
+		(ParamFloat<px4::params::IFO_VEL_Z_I>) _param_ifo_vel_z_i,
+		(ParamFloat<px4::params::IFO_VEL_Z_D>) _param_ifo_vel_z_d,
 		(ParamFloat<px4::params::IFO_VEL_XY_P>) _param_ifo_vel_xy_p,
+		(ParamFloat<px4::params::IFO_VEL_XY_I>) _param_ifo_vel_xy_i,
+		(ParamFloat<px4::params::IFO_VEL_XY_D>) _param_ifo_vel_xy_d,
+		// Thrust limits
 		(ParamFloat<px4::params::IFO_THR_HOVER>) _param_ifo_thr_hover,
 		(ParamFloat<px4::params::IFO_THR_MAX>) _param_ifo_thr_max,
 		(ParamFloat<px4::params::IFO_THR_MIN>) _param_ifo_thr_min,
