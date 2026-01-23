@@ -29,6 +29,7 @@
 #include <uORB/topics/vehicle_thrust_setpoint.h>
 #include <uORB/topics/hover_thrust_estimate.h>
 #include <uORB/topics/vehicle_local_position_setpoint.h>
+#include <uORB/topics/vehicle_angular_velocity.h>
 
 using namespace time_literals;
 
@@ -71,6 +72,7 @@ private:
 	uORB::Subscription _vehicle_status_sub{ORB_ID(vehicle_status)};
 	uORB::Subscription _hover_thrust_estimate_sub{ORB_ID(hover_thrust_estimate)};
 	uORB::Subscription _local_pos_sp_sub{ORB_ID(vehicle_local_position_setpoint)};
+	uORB::Subscription _vehicle_angular_velocity_sub{ORB_ID(vehicle_angular_velocity)};
 
 	uORB::SubscriptionCallbackWorkItem _vehicle_attitude_sub{this, ORB_ID(vehicle_attitude)};
 
@@ -79,7 +81,8 @@ private:
 	uORB::Publication<vehicle_torque_setpoint_s> _torque_pub{ORB_ID(vehicle_torque_setpoint)};
 	uORB::Publication<vehicle_control_mode_s> _vehicle_control_mode_pub{ORB_ID(vehicle_control_mode)};
 
-	static constexpr float _kp_att{2.0f};
+	static constexpr float _kp_att{0.4f};
+	static constexpr float _kd_att{0.05f};
 
 	perf_counter_t _loop_interval_perf{perf_alloc(PC_INTERVAL, MODULE_NAME": interval")};
 	perf_counter_t _control_updated_perf{perf_alloc(PC_COUNT, MODULE_NAME": calibration updated")};

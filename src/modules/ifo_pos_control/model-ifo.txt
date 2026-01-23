@@ -838,10 +838,10 @@
       <jointName>rotor_2_joint</jointName>
       <linkName>rotor_2</linkName>
       <turningDirection>ccw</turningDirection>
-      <timeConstantUp>0.040</timeConstantUp>
+      <timeConstantUp>0.0125</timeConstantUp>
       <timeConstantDown>0.025</timeConstantDown>
       <maxRotVelocity>1500</maxRotVelocity>
-      <motorConstant>8e-06</motorConstant>
+      <motorConstant>6e-08</motorConstant>
       <momentConstant>0.06</momentConstant>
       <commandSubTopic>command/motor_speed</commandSubTopic>
       <motorNumber>2</motorNumber>
@@ -857,10 +857,10 @@
       <jointName>rotor_3_joint</jointName>
       <linkName>rotor_3</linkName>
       <turningDirection>cw</turningDirection>
-      <timeConstantUp>0.040</timeConstantUp>
+      <timeConstantUp>0.0125</timeConstantUp>
       <timeConstantDown>0.025</timeConstantDown>
       <maxRotVelocity>1500</maxRotVelocity>
-      <motorConstant>8e-06</motorConstant>
+      <motorConstant>6e-08</motorConstant>
       <momentConstant>0.06</momentConstant>
       <commandSubTopic>command/motor_speed</commandSubTopic>
       <motorNumber>3</motorNumber>
@@ -876,10 +876,10 @@
       <jointName>rotor_4_joint</jointName>
       <linkName>rotor_4</linkName>
       <turningDirection>ccw</turningDirection>
-      <timeConstantUp>0.040</timeConstantUp>
+      <timeConstantUp>0.0125</timeConstantUp>
       <timeConstantDown>0.025</timeConstantDown>
       <maxRotVelocity>1500</maxRotVelocity>
-      <motorConstant>8e-06</motorConstant>
+      <motorConstant>6e-08</motorConstant>
       <momentConstant>0.06</momentConstant>
       <commandSubTopic>command/motor_speed</commandSubTopic>
       <motorNumber>4</motorNumber>
@@ -895,10 +895,10 @@
       <jointName>rotor_5_joint</jointName>
       <linkName>rotor_5</linkName>
       <turningDirection>cw</turningDirection>
-      <timeConstantUp>0.040</timeConstantUp>
+      <timeConstantUp>0.0125</timeConstantUp>
       <timeConstantDown>0.025</timeConstantDown>
       <maxRotVelocity>1500</maxRotVelocity>
-      <motorConstant>8e-06</motorConstant>
+      <motorConstant>6e-08</motorConstant>
       <momentConstant>0.06</momentConstant>
       <commandSubTopic>command/motor_speed</commandSubTopic>
       <motorNumber>5</motorNumber>
@@ -930,7 +930,7 @@
             name="gz::sim::systems::JointPositionController">
       <joint_name>motor_3_joint</joint_name>
       <sub_topic>servo_1</sub_topic>
-      <p_gain>00</p_gain>
+      <p_gain>10</p_gain>
       <i_gain>0</i_gain>
       <d_gain>0</d_gain>
       <i_max>0.0</i_max>

@@ -96,9 +96,9 @@ private:
 
 	// Position hold setpoints (used when no mission setpoint available)
 	bool _hold_position_initialized{false};
-	float _hold_x{0.0f};
-	float _hold_y{0.0f};
-	float _hold_z{0.0f};
+	float _hold_x{2.0f};
+	float _hold_y{2.0f};
+	float _hold_z{5.0f};
 
 	// Simple altitude PID controller gains
 	DEFINE_PARAMETERS(

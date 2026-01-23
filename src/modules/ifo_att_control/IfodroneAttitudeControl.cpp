@@ -72,10 +72,20 @@ void IfodroneAttitudeControl::Run()
 	_vehicle_land_detected_sub.copy(&land_detected);
 
 	// ================================================================
-	// ATTITUDE CONTROL
-	// - Roll/Pitch torque: From attitude error (stabilization)
-	// - Yaw torque: From attitude error (main motors differential)
-	// - Thrust XYZ: Passed through from position controller
+	// IFODRONE ATTITUDE CONTROL
+	//
+	// SIMPLE ARCHITECTURE:
+	// - Position controller provides thrust XYZ (passed through unchanged)
+	// - Attitude controller ONLY stabilizes to horizontal (roll=0, pitch=0)
+	// - Yaw is taken from attitude setpoint (heading control)
+	//
+	// Thrust:
+	//   X, Y → side motors (2-5) via tilts for horizontal movement
+	//   Z → main motors (0, 1) for altitude
+	//
+	// Torque:
+	//   Roll, Pitch → correction to keep drone level (setpoint = 0)
+	//   Yaw → from attitude setpoint (heading)
 	// ================================================================
 
 	const hrt_abstime now = hrt_absolute_time();
@@ -87,44 +97,65 @@ void IfodroneAttitudeControl::Run()
 
 	if (run_attitude_control && has_setpoint) {
 
-		// Current attitude quaternion
+		// Current attitude as Euler angles
 		const Quatf q_current(att.q);
+		const Eulerf euler_current(q_current);
 
-		// Desired attitude quaternion (from position controller)
+		const float roll_current = euler_current.phi();    // Current roll
+		const float pitch_current = euler_current.theta(); // Current pitch
+		const float yaw_current = euler_current.psi();     // Current yaw
+
+		// SETPOINT: Always level (roll=0, pitch=0), yaw from position controller
+		const float roll_setpoint = 0.0f;
+		const float pitch_setpoint = 0.0f;
+
+		// Get desired yaw from attitude setpoint quaternion
 		const Quatf q_desired(att_sp.q_d);
+		const Eulerf euler_desired(q_desired);
+		const float yaw_setpoint = euler_desired.psi();
 
-		// Quaternion error: q_error = q_desired * q_current^-1
-		Quatf q_error = q_desired * q_current.inversed();
+		// Attitude errors (setpoint - current)
+		const float roll_error = roll_setpoint - roll_current;
+		const float pitch_error = pitch_setpoint - pitch_current;
 
-		// Ensure quaternion has positive scalar part (shortest path)
-		if (q_error(0) < 0.0f) {
-			q_error = -q_error;
+		// Yaw error with wrap-around handling
+		float yaw_error = yaw_setpoint - yaw_current;
+		if (yaw_error > M_PI_F) {
+			yaw_error -= 2.0f * M_PI_F;
+		} else if (yaw_error < -M_PI_F) {
+			yaw_error += 2.0f * M_PI_F;
 		}
 
-		// Proportional attitude control for torque
-		// Roll and Pitch torque compensate attitude errors
-		// These will be applied via tilt motors
-		torque = 2.0f * Vector3f(q_error(1), q_error(2), q_error(3)) * _kp_att;
+		vehicle_angular_velocity_s rates{};
+		_vehicle_angular_velocity_sub.copy(&rates);
 
-		// Get thrust from attitude setpoint (from position controller)
-		// thrust_body[0]: X (forward) - tilt motors
-		// thrust_body[1]: Y (right) - tilt motors
-		// thrust_body[2]: Z (down, negative=up) - main motors
-		thrust(0) = att_sp.thrust_body[0];
-		thrust(1) = att_sp.thrust_body[1];
-		thrust(2) = att_sp.thrust_body[2];
+		torque(0) = _kp_att * roll_error - _kd_att * rates.xyz[0];
+		torque(1) = _kp_att * pitch_error - _kd_att * rates.xyz[1];
+
+		// P controller for attitude stabilization
+		// Torque = Kp * error
+		torque(0) = _kp_att * roll_error;   // Roll torque
+		torque(1) = _kp_att * pitch_error;  // Pitch torque
+		torque(2) = 0.0f;    // Yaw torque
+
+		// Pass through thrust from position controller unchanged
+		// X, Y: side motors (horizontal position control)
+		// Z: main motors (altitude control)
+		thrust(0) = att_sp.thrust_body[0];  // Forward/back
+		thrust(1) = att_sp.thrust_body[1];  // Left/right
+		thrust(2) = att_sp.thrust_body[2];  // Up/down (negative = up)
 
 		// Debug output
 		static int counter = 0;
 		if (++counter >= 250) {  // ~1 Hz at 250 Hz
 			counter = 0;
-			const Eulerf euler_current(q_current);
-			const Eulerf euler_desired(q_desired);
-			PX4_INFO("ATT: r=%.1f p=%.1f y=%.1f | torque=(%.2f,%.2f,%.2f) | thrust=(%.2f,%.2f,%.2f)",
-				 (double)math::degrees(euler_current.phi()),
-				 (double)math::degrees(euler_current.theta()),
-				 (double)math::degrees(euler_current.psi()),
-				 (double)torque(0), (double)torque(1), (double)torque(2),
+			PX4_INFO("ATT: r=%.1f p=%.1f y=%.1f | err=(%.2f,%.2f,%.2f) | thrust=(%.2f,%.2f,%.2f)",
+				 (double)math::degrees(roll_current),
+				 (double)math::degrees(pitch_current),
+				 (double)math::degrees(yaw_current),
+				 (double)math::degrees(roll_error),
+				 (double)math::degrees(pitch_error),
+				 (double)math::degrees(yaw_error),
 				 (double)thrust(0), (double)thrust(1), (double)thrust(2));
 		}
 
@@ -156,9 +187,9 @@ void IfodroneAttitudeControl::Run()
 	vehicle_torque_setpoint_s torque_sp{};
 	torque_sp.timestamp = now;
 	torque_sp.timestamp_sample = att.timestamp;
-	torque_sp.xyz[0] = torque(0);  // Roll torque (tilt motors)
-	torque_sp.xyz[1] = torque(1);  // Pitch torque (tilt motors)
-	torque_sp.xyz[2] = torque(2);  // Yaw torque (main motors differential)
+	torque_sp.xyz[0] = -torque(0);  // Roll torque (tilt motors)
+	torque_sp.xyz[1] = -torque(1);  // Pitch torque (tilt motors)
+	torque_sp.xyz[2] = -torque(2);  // Yaw torque (main motors differential)
 	_torque_pub.publish(torque_sp);
 
 	perf_count(_control_updated_perf);
