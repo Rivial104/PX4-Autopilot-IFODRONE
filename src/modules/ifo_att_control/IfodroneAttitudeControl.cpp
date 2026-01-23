@@ -187,9 +187,9 @@ void IfodroneAttitudeControl::Run()
 	vehicle_torque_setpoint_s torque_sp{};
 	torque_sp.timestamp = now;
 	torque_sp.timestamp_sample = att.timestamp;
-	torque_sp.xyz[0] = -torque(0);  // Roll torque (tilt motors)
-	torque_sp.xyz[1] = -torque(1);  // Pitch torque (tilt motors)
-	torque_sp.xyz[2] = -torque(2);  // Yaw torque (main motors differential)
+	torque_sp.xyz[0] = torque(0);  // Roll torque (tilt motors)
+	torque_sp.xyz[1] = torque(1);  // Pitch torque (tilt motors)
+	torque_sp.xyz[2] = torque(2);  // Yaw torque (main motors differential)
 	_torque_pub.publish(torque_sp);
 
 	perf_count(_control_updated_perf);
