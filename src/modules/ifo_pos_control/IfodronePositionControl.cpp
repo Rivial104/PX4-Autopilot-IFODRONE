@@ -118,7 +118,7 @@ void IfodronePositionControl::Run()
 	constexpr float KP_VZ = 1.2f;      // velocity proportional gain
 	constexpr float KD_VZ = 0.4f;      // velocity derivative gain
 	constexpr float THR_MIN = 0.3f;
-	constexpr float THR_MAX = 0.6f;
+	constexpr float THR_MAX = 1.0f;
 	constexpr float MAX_VZ = 1.5f;    // m/s up
 
 	if (control_mode.flag_armed &&
@@ -135,30 +135,72 @@ void IfodronePositionControl::Run()
 
 		// Position and velocity controllers for Z axis
 		const float z_err  = z_sp - local_pos.z;
-		vz_sp = z_err * KP_Z + (_prev_error_z - z_err)/dt * KD_Z;
+		vz_sp = z_err * KP_Z + (z_err - _prev_error_z) * KD_Z;
 		const float vz_sp_limited = math::constrain(vz_sp, -MAX_VZ, MAX_VZ);
 		const float vz_err = vz_sp_limited - local_pos.vz;
 
 		// Desired vertical acceleration
-		az_sp = vz_err * KP_VZ + (_prev_error_vz - vz_err)/dt * KD_VZ;
+		az_sp = vz_err * KP_VZ + (vz_err - _prev_error_vz) * KD_VZ + _integrator_z;
 
 		// ### Adaptive hover thrust estimation ###
 		const float thrust_from_vz = vz_err * KP_VZ;
 		const float thrust_derivative = az_sp * 0.01f;
 
-		float thrust_cmd = _thr_hover_est + thrust_from_vz + thrust_derivative;
-		thrust_cmd = math::constrain(thrust_cmd, THR_MIN, THR_MAX);
+		const float thrust_cmd_unclamped = _thr_hover_est + thrust_from_vz + thrust_derivative;
+		float thrust_cmd = math::constrain(thrust_cmd_unclamped, THR_MIN, THR_MAX);
+
+
+		bool thrust_saturated = !isEqualF(thrust_cmd, thrust_cmd_unclamped, 1e-6f);
+		if (!thrust_saturated) {
+			_integrator_z += z_err * dt;
+		}
 
 		if (fabsf(vz_err) > _thr_adapt_deadband) {
 			_thr_hover_est += (_thr_adapt_rate * vz_err) * dt;
 		}
 		_thr_hover_est = math::constrain(_thr_hover_est, _thr_adapt_min, _thr_adapt_max);
+
+		// przypisz finalny thrust
 		thrust_z = thrust_cmd;
-		} else {
-			thrust_z = 0.0f;
-			_prev_error_z = 0.0f;
-			_prev_error_vz = 0.0f;
+
+		// --- update prev errors (ważne, inaczej D będzie niepoprawne) ---
+		_prev_error_z = z_err;
+		_prev_error_vz = vz_err;
+
+		// --- THROTTLED DEBUG LOG (co ~200 ms) ---
+		static hrt_abstime _last_dbg_ts = 0;
+		const hrt_abstime dbg_interval_us = 200000; // 200 ms
+
+		if (now - _last_dbg_ts > dbg_interval_us) {
+			_last_dbg_ts = now;
+
+			PX4_INFO("IFO_DBG: armed=%u alt_ctrl=%u z_valid=%u vz_valid=%u",
+				(unsigned)control_mode.flag_armed,
+				(unsigned)control_mode.flag_control_altitude_enabled,
+				(unsigned)local_pos.z_valid,
+				(unsigned)local_pos.v_z_valid);
+
+			PX4_INFO("IFO_DBG: z=%.3f m vz=%.3f m/s z_sp=%.3f z_err=%.3f vz_sp=%.3f vz_err=%.3f",
+				(double)local_pos.z, (double)local_pos.vz,
+				(double)z_sp, (double)z_err,
+				(double)vz_sp_limited, (double)vz_err);
+
+			PX4_INFO("IFO_DBG: thr_est=%.3f thr_unclamped=%.3f thr_cmd=%.3f min=%.3f max=%.3f",
+				(double)_thr_hover_est, (double)thrust_cmd_unclamped,
+				(double)thrust_cmd, (double)THR_MIN, (double)THR_MAX);
+
+			if (fabs(thrust_cmd - thrust_cmd_unclamped) > 1e-6f) {
+				PX4_WARN("IFO_DBG: thrust was constrained (unclamped=%.3f -> clamped=%.3f)",
+					(double)thrust_cmd_unclamped, (double)thrust_cmd);
+			}
+
+			// jeśli estymata hover siedzi na granicy, wypisz ostrzeżenie
+			if (_thr_hover_est <= _thr_adapt_min + 1e-6f || _thr_hover_est >= _thr_adapt_max - 1e-6f) {
+				PX4_WARN("IFO_DBG: thr_hover_est at bound: %.3f (min=%.3f max=%.3f)",
+					(double)_thr_hover_est, (double)_thr_adapt_min, (double)_thr_adapt_max);
+			}
 		}
+	}
 
 		// ================================================================
 		// PUBLISH ATTITUDE SETPOINT

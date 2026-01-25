@@ -72,6 +72,9 @@ public:
 private:
 	void Run() override;
 
+	void setHoverThrust(const float hover_thrust);
+	void updateHoverThrust(const float hover_thrust_new);
+
 	// Subscriptions
 	uORB::SubscriptionInterval _parameter_update_sub{ORB_ID(parameter_update), 1_s};
 	uORB::SubscriptionCallbackWorkItem _local_pos_sub{this, ORB_ID(vehicle_local_position)};
@@ -105,6 +108,15 @@ private:
 
 	float _prev_error_z{0.0f};
 	float _prev_error_vz{0.0f};
+
+	float _lim_thr_min = 0.1f;
+	float _lim_thr_max = 1.0f;
+	float _lim_vel_up = 2.0f;
+	float _lim_vel_down = 2.0f;
+
+	float _last_acc_sp_z = 0.0f;
+
+	float _integrator_z{0.0f};
 
 	// Hover estimation
 	float _thr_hover_est = 0.45f; // [0; 1] - estimated hover thrust
