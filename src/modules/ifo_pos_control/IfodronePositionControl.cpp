@@ -143,16 +143,18 @@ void IfodronePositionControl::Run()
 		az_sp = vz_err * KP_VZ + (vz_err - _prev_error_vz) * KD_VZ + _integrator_z;
 
 		// ### Adaptive hover thrust estimation ###
-		const float thrust_from_vz = vz_err * KP_VZ;
-		const float thrust_derivative = az_sp * 0.01f;
+		// const float thrust_from_vz = vz_err * KP_VZ;
+		// const float thrust_derivative = az_sp * 0.01f;
 
-		const float thrust_cmd_unclamped = _thr_hover_est + thrust_from_vz + thrust_derivative;
+		const float thrust_cmd_unclamped = _thr_hover_est + az_sp * (_thr_hover_est / CONSTANTS_ONE_G);
 		float thrust_cmd = math::constrain(thrust_cmd_unclamped, THR_MIN, THR_MAX);
 
 
 		bool thrust_saturated = !isEqualF(thrust_cmd, thrust_cmd_unclamped, 1e-6f);
+
 		if (!thrust_saturated) {
-			_integrator_z += z_err * dt;
+			_integrator_z += vz_err * dt * 0.5f; // integrator gain
+			_integrator_z = math::constrain(_integrator_z, -CONSTANTS_ONE_G, CONSTANTS_ONE_G);
 		}
 
 		if (fabsf(vz_err) > _thr_adapt_deadband) {
@@ -162,6 +164,8 @@ void IfodronePositionControl::Run()
 
 		// przypisz finalny thrust
 		thrust_z = thrust_cmd;
+
+		_last_acc_sp_z = az_sp;
 
 		// --- update prev errors (ważne, inaczej D będzie niepoprawne) ---
 		_prev_error_z = z_err;
@@ -249,6 +253,31 @@ void IfodronePositionControl::Run()
 		_local_pos_sp_pub.publish(local_pos_sp);
 
 		perf_end(_cycle_perf);
+}
+
+void IfodronePositionControl::setHoverThrust(const float hover_thrust)
+{
+	_thr_hover_est = math::constrain(hover_thrust, _thr_adapt_min, _thr_adapt_max);
+}
+
+void IfodronePositionControl::updateHoverThrust(const float hover_thrust_new)
+{
+	const float previous_hover_thrust = _thr_hover_est;
+	setHoverThrust(hover_thrust_new);
+
+	// wzor z PositionControl:
+	// a_sp' = (a_sp - g) * Th / Th' + g
+	// integrator += a_sp' - a_sp
+	const float a_sp = _last_acc_sp_z;
+	const float Th = previous_hover_thrust;
+	const float Thp = _thr_hover_est;
+
+	if (Thp > 1e-6f) {
+		const float a_sp_new = (a_sp - CONSTANTS_ONE_G) * Th / Thp + CONSTANTS_ONE_G;
+		_integrator_z += (a_sp_new - a_sp);
+		// ogranicz integrator
+		_integrator_z = math::constrain(_integrator_z, -CONSTANTS_ONE_G, CONSTANTS_ONE_G);
+	}
 }
 
 
