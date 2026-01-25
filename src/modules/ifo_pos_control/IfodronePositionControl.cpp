@@ -19,10 +19,10 @@ IfodronePositionControl::IfodronePositionControl() :
 	ModuleParams(nullptr),
 	ScheduledWorkItem(MODULE_NAME, px4::wq_configurations::nav_and_controllers)
 {
-	// Initialize takeoff handling
-	_takeoff.setSpoolupTime(1.0f);  // 1 second spoolup
-	_takeoff.setTakeoffRampTime(2.0f);  // 2 second ramp
-	_takeoff.generateInitialRampValue(_param_ifo_vel_z_p.get());
+	// // Initialize takeoff handling
+	// _takeoff.setSpoolupTime(1.0f);  // 1 second spoolup
+	// _takeoff.setTakeoffRampTime(2.0f);  // 2 second ramp
+	// _takeoff.generateInitialRampValue(_param_ifo_vel_z_p.get());
 }
 
 IfodronePositionControl::~IfodronePositionControl()
@@ -87,8 +87,8 @@ void IfodronePositionControl::Run()
 	const bool has_trajectory_setpoint = _trajectory_setpoint_sub.copy(&traj_sp);
 
 	// Get manual control input (from RC/Joystick)
-	manual_control_setpoint_s manual_control{};
-	const bool has_manual_control = _manual_control_sub.copy(&manual_control);
+	// manual_control_setpoint_s manual_control{};
+	// const bool has_manual_control = _manual_control_sub.copy(&manual_control);
 
 	// Get current attitude for yaw
 	vehicle_attitude_s attitude{};
@@ -99,25 +99,25 @@ void IfodronePositionControl::Run()
 	// ================================================================
 	// TAKEOFF STATE MACHINE
 	// ================================================================
-	const float takeoff_desired_vz = -1.0f;  // 1 m/s upward (negative in NED)
-	const bool want_takeoff = control_mode.flag_armed &&
-				  (control_mode.flag_control_altitude_enabled ||
-				   control_mode.flag_control_position_enabled);
+	// const float takeoff_desired_vz = -1.0f;  // 1 m/s upward (negative in NED)
+	// const bool want_takeoff = control_mode.flag_armed &&
+	// 			  (control_mode.flag_control_altitude_enabled ||
+	// 			   control_mode.flag_control_position_enabled);
 
-	_takeoff.updateTakeoffState(
-		control_mode.flag_armed,
-		land_detected.landed,
-		want_takeoff,
-		takeoff_desired_vz,
-		false,  // skip_takeoff
-		now
-	);
+	// _takeoff.updateTakeoffState(
+	// 	control_mode.flag_armed,
+	// 	land_detected.landed,
+	// 	want_takeoff,
+	// 	takeoff_desired_vz,
+	// 	false,  // skip_takeoff
+	// 	now
+	// );
 
 	// Calculate dt for ramp
-	const float dt = math::constrain((now - _last_run) * 1e-6f, 0.002f, 0.04f);
+	// const float dt = math::constrain((now - _last_run) * 1e-6f, 0.002f, 0.04f);
 
-	// Get velocity limit from takeoff ramp
-	const float velocity_limit = _takeoff.updateRamp(dt, takeoff_desired_vz);
+	// // Get velocity limit from takeoff ramp
+	// const float velocity_limit = _takeoff.updateRamp(dt, takeoff_desired_vz);
 
 	// ================================================================
 	// 3D POSITION CONTROLLER
@@ -138,245 +138,275 @@ void IfodronePositionControl::Run()
 		_hold_position_initialized = false;
 	}
 
-	// Only control if armed and position control enabled
-	const bool run_position_control = control_mode.flag_armed &&
-					  (control_mode.flag_control_altitude_enabled ||
-					   control_mode.flag_control_position_enabled);
+	constexpr float KP_Z = 1.2f;      // position -> velocity
+	constexpr float KD_Z = 0.4f;      // velocity damping
+	constexpr float THR_HOVER = 0.5f; // hover thrust estimate
+	constexpr float THR_MIN = 0.1f;
+	constexpr float THR_MAX = 0.9f;
+	// constexpr float MAX_VZ = 1.5f;    // m/s up
+
+	if (control_mode.flag_armed &&
+	control_mode.flag_control_altitude_enabled &&
+	local_pos.z_valid && local_pos.v_z_valid)
+	{
+
+	if (has_trajectory_setpoint && PX4_ISFINITE(traj_sp.position[2])) {
+		z_sp = traj_sp.position[2];
+	} else {
+		// HOLD current altitude if nothing commanded
+		z_sp = _hold_z;
+	}
+
+	// Errors (NED!)
+	const float z_err  = z_sp - local_pos.z;
+	const float vz_err = 0.0f - local_pos.vz;
+
+	// Desired vertical acceleration
+	float az_cmd = KP_Z * z_err + KD_Z * vz_err;
+
+	// Convert acceleration to thrust
+	thrust_z = THR_HOVER - az_cmd * 0.1f;
+
+	thrust_z = math::constrain(thrust_z, THR_MIN, THR_MAX);
+
+	} else {
+	thrust_z = 0.0f;
+	}
 
 	// Check takeoff state
-	const TakeoffState takeoff_state = _takeoff.getTakeoffState();
-	const bool in_flight_or_takeoff = (takeoff_state == TakeoffState::rampup ||
-					   takeoff_state == TakeoffState::flight);
+	// const TakeoffState takeoff_state = _takeoff.getTakeoffState();
+	// const bool in_flight_or_takeoff = (takeoff_state == TakeoffState::rampup ||
+	// 				   takeoff_state == TakeoffState::flight);
 
-	if (run_position_control && local_pos.z_valid && local_pos.v_z_valid && in_flight_or_takeoff) {
+	// if (run_position_control && local_pos.z_valid && local_pos.v_z_valid && in_flight_or_takeoff) {
 
-		// ============================================
-		// DETERMINE SETPOINT SOURCE
-		// Priority: 1. Trajectory (Mission), 2. Manual RC, 3. Position Hold
-		// ============================================
+	// 	// ============================================
+	// 	// DETERMINE SETPOINT SOURCE
+	// 	// Priority: 1. Trajectory (Mission), 2. Manual RC, 3. Position Hold
+	// 	// ============================================
 
-		const bool manual_mode = control_mode.flag_control_manual_enabled;
-		const bool trajectory_valid = has_trajectory_setpoint &&
-					      (PX4_ISFINITE(traj_sp.position[0]) || PX4_ISFINITE(traj_sp.velocity[0]));
+	// 	const bool manual_mode = control_mode.flag_control_manual_enabled;
+	// 	const bool trajectory_valid = has_trajectory_setpoint &&
+	// 				      (PX4_ISFINITE(traj_sp.position[0]) || PX4_ISFINITE(traj_sp.velocity[0]));
 
-		// ============================================
-		// Z-AXIS ALTITUDE CONTROL (Main motors)
-		// ============================================
+	// 	// ============================================
+	// 	// Z-AXIS ALTITUDE CONTROL (Main motors)
+	// 	// ============================================
 
-		// Initialize hold position on first run or when entering position control
-		if (!_hold_position_initialized && local_pos.z_valid && local_pos.xy_valid) {
-			_hold_x = local_pos.x;
-			_hold_y = local_pos.y;
-			_hold_z = local_pos.z;
-			_hold_position_initialized = true;
-			PX4_INFO("Hold position initialized: (%.1f, %.1f, %.1f)",
-				 (double)_hold_x, (double)_hold_y, (double)_hold_z);
-		}
+	// 	// Initialize hold position on first run or when entering position control
+	// 	if (!_hold_position_initialized && local_pos.z_valid && local_pos.xy_valid) {
+	// 		_hold_x = local_pos.x;
+	// 		_hold_y = local_pos.y;
+	// 		_hold_z = local_pos.z;
+	// 		_hold_position_initialized = true;
+	// 		PX4_INFO("Hold position initialized: (%.1f, %.1f, %.1f)",
+	// 			 (double)_hold_x, (double)_hold_y, (double)_hold_z);
+	// 	}
 
-		// --- Z setpoints ---
-		if (trajectory_valid && PX4_ISFINITE(traj_sp.position[2])) {
-			// Use trajectory setpoint (Mission mode)
-			z_sp = traj_sp.position[2];
-			vz_sp = PX4_ISFINITE(traj_sp.velocity[2]) ? traj_sp.velocity[2] : 0.0f;
-			az_sp = PX4_ISFINITE(traj_sp.acceleration[2]) ? traj_sp.acceleration[2] : 0.0f;
-			// Update hold position
-			_hold_z = z_sp;
+	// 	// --- Z setpoints ---
+	// 	if (trajectory_valid && PX4_ISFINITE(traj_sp.position[2])) {
+	// 		// Use trajectory setpoint (Mission mode)
+	// 		z_sp = traj_sp.position[2];
+	// 		vz_sp = PX4_ISFINITE(traj_sp.velocity[2]) ? traj_sp.velocity[2] : 0.0f;
+	// 		az_sp = PX4_ISFINITE(traj_sp.acceleration[2]) ? traj_sp.acceleration[2] : 0.0f;
+	// 		// Update hold position
+	// 		_hold_z = z_sp;
 
-		} else if (manual_mode && has_manual_control) {
-			// Manual control: stick = velocity command
-			// Throttle stick: center = hover, up = climb, down = descend
-			// manual_control.throttle: -1.0 (down) to +1.0 (up)
-			const float max_vel_z = 2.0f;  // m/s max vertical velocity
+	// 	} else if (manual_mode && has_manual_control) {
+	// 		// Manual control: stick = velocity command
+	// 		// Throttle stick: center = hover, up = climb, down = descend
+	// 		// manual_control.throttle: -1.0 (down) to +1.0 (up)
+	// 		const float max_vel_z = 2.0f;  // m/s max vertical velocity
 
-			// Convert throttle to velocity (inverted: stick up = negative vz = climb in NED)
-			vz_sp = -manual_control.throttle * max_vel_z;
+	// 		// Convert throttle to velocity (inverted: stick up = negative vz = climb in NED)
+	// 		vz_sp = -manual_control.throttle * max_vel_z;
 
-			// Small deadzone around center
-			if (fabsf(vz_sp) < 0.1f) {
-				// Hold altitude when stick is centered
-				z_sp = _hold_z;
-				vz_sp = 0.0f;
-			} else {
-				// Update hold position while moving
-				_hold_z = local_pos.z;
-				z_sp = NAN;  // Velocity control only
-			}
+	// 		// Small deadzone around center
+	// 		if (fabsf(vz_sp) < 0.1f) {
+	// 			// Hold altitude when stick is centered
+	// 			z_sp = _hold_z;
+	// 			vz_sp = 0.0f;
+	// 		} else {
+	// 			// Update hold position while moving
+	// 			_hold_z = local_pos.z;
+	// 			z_sp = NAN;  // Velocity control only
+	// 		}
 
-		} else {
-			// No input: hold current position
-			z_sp = _hold_z;
-			vz_sp = 0.0f;
-		}
+	// 	} else {
+	// 		// No input: hold current position
+	// 		z_sp = _hold_z;
+	// 		vz_sp = 0.0f;
+	// 	}
 
-		const float z = local_pos.z;
-		const float vz = local_pos.vz;
+	// 	const float z = local_pos.z;
+	// 	const float vz = local_pos.vz;
 
-		// Position + Velocity control
-		float vz_cmd;
-		if (PX4_ISFINITE(z_sp)) {
-			const float z_error = z_sp - z;
-			vz_cmd = z_error * _param_ifo_pos_z_p.get() + vz_sp;
-		} else {
-			// Velocity only control
-			vz_cmd = vz_sp;
-		}
+	// 	// Position + Velocity control
+	// 	float vz_cmd;
+	// 	if (PX4_ISFINITE(z_sp)) {
+	// 		const float z_error = z_sp - z;
+	// 		vz_cmd = z_error * _param_ifo_pos_z_p.get() + vz_sp;
+	// 	} else {
+	// 		// Velocity only control
+	// 		vz_cmd = vz_sp;
+	// 	}
 
-		// Apply takeoff velocity limit
-		if (vz_cmd < velocity_limit) {
-			vz_cmd = velocity_limit;
-		}
+	// 	// Apply takeoff velocity limit
+	// 	if (vz_cmd < velocity_limit) {
+	// 		vz_cmd = velocity_limit;
+	// 	}
 
-		const float vz_error = vz_cmd - vz;
-		az_sp = az_sp + vz_error * _param_ifo_vel_z_p.get();
+	// 	const float vz_error = vz_cmd - vz;
+	// 	az_sp = az_sp + vz_error * _param_ifo_vel_z_p.get();
 
-		// Thrust Z (main motors)
-		thrust_z = _param_ifo_thr_hover.get() - az_sp * 0.1f;
-		thrust_z = math::constrain(thrust_z, _param_ifo_thr_min.get(), _param_ifo_thr_max.get());
+	// 	// Thrust Z (main motors)
+	// 	thrust_z = _param_ifo_thr_hover.get() - az_sp * 0.1f;
+	// 	thrust_z = math::constrain(thrust_z, _param_ifo_thr_min.get(), _param_ifo_thr_max.get());
 
-		// ============================================
-		// XY-AXIS POSITION CONTROL (Tilt motors)
-		// ============================================
+	// 	// ============================================
+	// 	// XY-AXIS POSITION CONTROL (Tilt motors)
+	// 	// ============================================
 
-		// --- XY setpoints ---
-		if (trajectory_valid && control_mode.flag_control_position_enabled) {
-			// Use trajectory setpoint (Mission mode)
-			if (PX4_ISFINITE(traj_sp.position[0])) {
-				x_sp = traj_sp.position[0];
-				_hold_x = x_sp;
-			}
-			if (PX4_ISFINITE(traj_sp.position[1])) {
-				y_sp = traj_sp.position[1];
-				_hold_y = y_sp;
-			}
-			if (PX4_ISFINITE(traj_sp.velocity[0])) {
-				vx_sp = traj_sp.velocity[0];
-			}
-			if (PX4_ISFINITE(traj_sp.velocity[1])) {
-				vy_sp = traj_sp.velocity[1];
-			}
+	// 	// --- XY setpoints ---
+	// 	if (trajectory_valid && control_mode.flag_control_position_enabled) {
+	// 		// Use trajectory setpoint (Mission mode)
+	// 		if (PX4_ISFINITE(traj_sp.position[0])) {
+	// 			x_sp = traj_sp.position[0];
+	// 			_hold_x = x_sp;
+	// 		}
+	// 		if (PX4_ISFINITE(traj_sp.position[1])) {
+	// 			y_sp = traj_sp.position[1];
+	// 			_hold_y = y_sp;
+	// 		}
+	// 		if (PX4_ISFINITE(traj_sp.velocity[0])) {
+	// 			vx_sp = traj_sp.velocity[0];
+	// 		}
+	// 		if (PX4_ISFINITE(traj_sp.velocity[1])) {
+	// 			vy_sp = traj_sp.velocity[1];
+	// 		}
 
-		} else if (manual_mode && has_manual_control && control_mode.flag_control_position_enabled) {
-			// Manual control: stick = velocity command
-			// manual_control.pitch: -1 (back) to +1 (forward) -> velocity X
-			// manual_control.roll: -1 (left) to +1 (right) -> velocity Y
-			const float max_vel_xy = 3.0f;  // m/s max horizontal velocity
+	// 	} else if (manual_mode && has_manual_control && control_mode.flag_control_position_enabled) {
+	// 		// Manual control: stick = velocity command
+	// 		// manual_control.pitch: -1 (back) to +1 (forward) -> velocity X
+	// 		// manual_control.roll: -1 (left) to +1 (right) -> velocity Y
+	// 		const float max_vel_xy = 3.0f;  // m/s max horizontal velocity
 
-			// Deadzone
-			const float pitch_input = fabsf(manual_control.pitch) > 0.05f ? manual_control.pitch : 0.0f;
-			const float roll_input = fabsf(manual_control.roll) > 0.05f ? manual_control.roll : 0.0f;
+	// 		// Deadzone
+	// 		const float pitch_input = fabsf(manual_control.pitch) > 0.05f ? manual_control.pitch : 0.0f;
+	// 		const float roll_input = fabsf(manual_control.roll) > 0.05f ? manual_control.roll : 0.0f;
 
-			// Velocity in body frame from sticks
-			const float vx_body = pitch_input * max_vel_xy;
-			const float vy_body = roll_input * max_vel_xy;
+	// 		// Velocity in body frame from sticks
+	// 		const float vx_body = pitch_input * max_vel_xy;
+	// 		const float vy_body = roll_input * max_vel_xy;
 
-			// Convert body velocity to world frame (NED)
-			const float cos_yaw = cosf(yaw_current);
-			const float sin_yaw = sinf(yaw_current);
-			vx_sp = cos_yaw * vx_body - sin_yaw * vy_body;
-			vy_sp = sin_yaw * vx_body + cos_yaw * vy_body;
+	// 		// Convert body velocity to world frame (NED)
+	// 		const float cos_yaw = cosf(yaw_current);
+	// 		const float sin_yaw = sinf(yaw_current);
+	// 		vx_sp = cos_yaw * vx_body - sin_yaw * vy_body;
+	// 		vy_sp = sin_yaw * vx_body + cos_yaw * vy_body;
 
-			// If sticks centered, use position hold
-			if (fabsf(vx_sp) < 0.1f && fabsf(vy_sp) < 0.1f) {
-				x_sp = _hold_x;
-				y_sp = _hold_y;
-				vx_sp = 0.0f;
-				vy_sp = 0.0f;
-			} else {
-				// Update hold position while moving
-				_hold_x = local_pos.x;
-				_hold_y = local_pos.y;
-				x_sp = NAN;  // Velocity control only
-				y_sp = NAN;
-			}
+	// 		// If sticks centered, use position hold
+	// 		if (fabsf(vx_sp) < 0.1f && fabsf(vy_sp) < 0.1f) {
+	// 			x_sp = _hold_x;
+	// 			y_sp = _hold_y;
+	// 			vx_sp = 0.0f;
+	// 			vy_sp = 0.0f;
+	// 		} else {
+	// 			// Update hold position while moving
+	// 			_hold_x = local_pos.x;
+	// 			_hold_y = local_pos.y;
+	// 			x_sp = NAN;  // Velocity control only
+	// 			y_sp = NAN;
+	// 		}
 
-		} else {
-			// No input: hold current position
-			x_sp = _hold_x;
-			y_sp = _hold_y;
-			vx_sp = 0.0f;
-			vy_sp = 0.0f;
-		}
+	// 	} else {
+	// 		// No input: hold current position
+	// 		x_sp = _hold_x;
+	// 		y_sp = _hold_y;
+	// 		vx_sp = 0.0f;
+	// 		vy_sp = 0.0f;
+	// 	}
 
-		if (local_pos.xy_valid && local_pos.v_xy_valid) {
-			const float x = local_pos.x;
-			const float y = local_pos.y;
-			const float vx = local_pos.vx;
-			const float vy = local_pos.vy;
+	// 	if (local_pos.xy_valid && local_pos.v_xy_valid) {
+	// 		const float x = local_pos.x;
+	// 		const float y = local_pos.y;
+	// 		const float vx = local_pos.vx;
+	// 		const float vy = local_pos.vy;
 
-			// Velocity command: from position error (if position valid) + feedforward
-			float vx_cmd, vy_cmd;
+	// 		// Velocity command: from position error (if position valid) + feedforward
+	// 		float vx_cmd, vy_cmd;
 
-			if (PX4_ISFINITE(x_sp) && PX4_ISFINITE(y_sp)) {
-				// Position + Velocity control
-				const float x_error = x_sp - x;
-				const float y_error = y_sp - y;
-				vx_cmd = x_error * _param_ifo_pos_xy_p.get() + vx_sp;
-				vy_cmd = y_error * _param_ifo_pos_xy_p.get() + vy_sp;
-			} else {
-				// Velocity only control (sticks active)
-				vx_cmd = vx_sp;
-				vy_cmd = vy_sp;
-			}
+	// 		if (PX4_ISFINITE(x_sp) && PX4_ISFINITE(y_sp)) {
+	// 			// Position + Velocity control
+	// 			const float x_error = x_sp - x;
+	// 			const float y_error = y_sp - y;
+	// 			vx_cmd = x_error * _param_ifo_pos_xy_p.get() + vx_sp;
+	// 			vy_cmd = y_error * _param_ifo_pos_xy_p.get() + vy_sp;
+	// 		} else {
+	// 			// Velocity only control (sticks active)
+	// 			vx_cmd = vx_sp;
+	// 			vy_cmd = vy_sp;
+	// 		}
 
-			// Velocity error
-			const float vx_error = vx_cmd - vx;
-			const float vy_error = vy_cmd - vy;
+	// 		// Velocity error
+	// 		const float vx_error = vx_cmd - vx;
+	// 		const float vy_error = vy_cmd - vy;
 
-			// Acceleration setpoint (NED world frame)
-			ax_sp = vx_error * _param_ifo_vel_xy_p.get();
-			ay_sp = vy_error * _param_ifo_vel_xy_p.get();
+	// 		// Acceleration setpoint (NED world frame)
+	// 		ax_sp = vx_error * _param_ifo_vel_xy_p.get();
+	// 		ay_sp = vy_error * _param_ifo_vel_xy_p.get();
 
-			// Convert world frame acceleration to body frame thrust
-			// Rotation from world (NED) to body frame using current yaw
-			const float cos_yaw = cosf(yaw_current);
-			const float sin_yaw = sinf(yaw_current);
+	// 		// Convert world frame acceleration to body frame thrust
+	// 		// Rotation from world (NED) to body frame using current yaw
+	// 		const float cos_yaw = cosf(yaw_current);
+	// 		const float sin_yaw = sinf(yaw_current);
 
-			// Body frame thrust = R_yaw^T * world_accel
-			// thrust_body_x = cos(yaw) * ax + sin(yaw) * ay
-			// thrust_body_y = -sin(yaw) * ax + cos(yaw) * ay
-			float thrust_x_raw = cos_yaw * ax_sp + sin_yaw * ay_sp;
-			float thrust_y_raw = -sin_yaw * ax_sp + cos_yaw * ay_sp;
+	// 		// Body frame thrust = R_yaw^T * world_accel
+	// 		// thrust_body_x = cos(yaw) * ax + sin(yaw) * ay
+	// 		// thrust_body_y = -sin(yaw) * ax + cos(yaw) * ay
+	// 		float thrust_x_raw = cos_yaw * ax_sp + sin_yaw * ay_sp;
+	// 		float thrust_y_raw = -sin_yaw * ax_sp + cos_yaw * ay_sp;
 
-			// Scale and limit
-			const float thr_xy_max = _param_ifo_thr_xy_max.get();
-			thrust_x = math::constrain(thrust_x_raw * 0.1f, -thr_xy_max, thr_xy_max);
-			thrust_y = math::constrain(thrust_y_raw * 0.1f, -thr_xy_max, thr_xy_max);
-		}
+	// 		// Scale and limit
+	// 		const float thr_xy_max = _param_ifo_thr_xy_max.get();
+	// 		thrust_x = math::constrain(thrust_x_raw * 0.1f, -thr_xy_max, thr_xy_max);
+	// 		thrust_y = math::constrain(thrust_y_raw * 0.1f, -thr_xy_max, thr_xy_max);
+	// 	}
 
-		// Debug output
-		static int counter = 0;
-		if (++counter >= 50) {  // ~1 Hz
-			counter = 0;
-			PX4_INFO("POS: xyz=(%.1f,%.1f,%.1f) sp=(%.1f,%.1f,%.1f) thr=(%.2f,%.2f,%.2f)",
-				 (double)local_pos.x, (double)local_pos.y, (double)local_pos.z,
-				 (double)x_sp, (double)y_sp, (double)z_sp,
-				 (double)thrust_x, (double)thrust_y, (double)thrust_z);
-		}
+	// 	// Debug output
+	// 	static int counter = 0;
+	// 	if (++counter >= 50) {  // ~1 Hz
+	// 		counter = 0;
+	// 		PX4_INFO("POS: xyz=(%.1f,%.1f,%.1f) sp=(%.1f,%.1f,%.1f) thr=(%.2f,%.2f,%.2f)",
+	// 			 (double)local_pos.x, (double)local_pos.y, (double)local_pos.z,
+	// 			 (double)x_sp, (double)y_sp, (double)z_sp,
+	// 			 (double)thrust_x, (double)thrust_y, (double)thrust_z);
+	// 	}
 
-	} else if (control_mode.flag_armed && takeoff_state == TakeoffState::spoolup) {
-		thrust_z = 0.1f;
-		static int counter_spoolup = 0;
-		if (++counter_spoolup >= 50) {
-			counter_spoolup = 0;
-			PX4_INFO("SPOOLUP: thr=%.2f state=%d", (double)thrust_z, (int)takeoff_state);
-		}
+	// } else if (control_mode.flag_armed && takeoff_state == TakeoffState::spoolup) {
+	// 	thrust_z = 0.1f;
+	// 	static int counter_spoolup = 0;
+	// 	if (++counter_spoolup >= 50) {
+	// 		counter_spoolup = 0;
+	// 		PX4_INFO("SPOOLUP: thr=%.2f state=%d", (double)thrust_z, (int)takeoff_state);
+	// 	}
 
-	} else if (control_mode.flag_armed && takeoff_state == TakeoffState::ready_for_takeoff) {
-		thrust_z = 0.15f;
-		static int counter_ready = 0;
-		if (++counter_ready >= 50) {
-			counter_ready = 0;
-			PX4_INFO("READY: thr=%.2f state=%d", (double)thrust_z, (int)takeoff_state);
-		}
+	// } else if (control_mode.flag_armed && takeoff_state == TakeoffState::ready_for_takeoff) {
+	// 	thrust_z = 0.15f;
+	// 	static int counter_ready = 0;
+	// 	if (++counter_ready >= 50) {
+	// 		counter_ready = 0;
+	// 		PX4_INFO("READY: thr=%.2f state=%d", (double)thrust_z, (int)takeoff_state);
+	// 	}
 
-	} else if (control_mode.flag_armed) {
-		thrust_z = 0.0f;
-		static int counter2 = 0;
-		if (++counter2 >= 100) {
-			counter2 = 0;
-			PX4_WARN("Armed unknown: state=%d", (int)takeoff_state);
-		}
-	}
+	// } else if (control_mode.flag_armed) {
+	// 	thrust_z = 0.0f;
+	// 	static int counter2 = 0;
+	// 	if (++counter2 >= 100) {
+	// 		counter2 = 0;
+	// 		PX4_WARN("Armed unknown: state=%d", (int)takeoff_state);
+	// 	}
+	// }
 
 	// ================================================================
 	// PUBLISH ATTITUDE SETPOINT
