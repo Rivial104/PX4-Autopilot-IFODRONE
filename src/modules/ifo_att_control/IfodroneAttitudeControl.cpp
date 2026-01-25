@@ -145,19 +145,19 @@ void IfodroneAttitudeControl::Run()
 		thrust(1) = att_sp.thrust_body[1];  // Left/right
 		thrust(2) = att_sp.thrust_body[2];  // Up/down (negative = up)
 
-		// Debug output
-		static int counter = 0;
-		if (++counter >= 250) {  // ~1 Hz at 250 Hz
-			counter = 0;
-			PX4_INFO("ATT: r=%.1f p=%.1f y=%.1f | err=(%.2f,%.2f,%.2f) | thrust=(%.2f,%.2f,%.2f)",
-				 (double)math::degrees(roll_current),
-				 (double)math::degrees(pitch_current),
-				 (double)math::degrees(yaw_current),
-				 (double)math::degrees(roll_error),
-				 (double)math::degrees(pitch_error),
-				 (double)math::degrees(yaw_error),
-				 (double)thrust(0), (double)thrust(1), (double)thrust(2));
-		}
+		// // Debug output
+		// static int counter = 0;
+		// if (++counter >= 250) {  // ~1 Hz at 250 Hz
+		// 	counter = 0;
+		// 	PX4_INFO("ATT: r=%.1f p=%.1f y=%.1f | err=(%.2f,%.2f,%.2f) | thrust=(%.2f,%.2f,%.2f)",
+		// 		 (double)math::degrees(roll_current),
+		// 		 (double)math::degrees(pitch_current),
+		// 		 (double)math::degrees(yaw_current),
+		// 		 (double)math::degrees(roll_error),
+		// 		 (double)math::degrees(pitch_error),
+		// 		 (double)math::degrees(yaw_error),
+		// 		 (double)thrust(0), (double)thrust(1), (double)thrust(2));
+		// }
 
 	} else if (!control_mode.flag_armed) {
 		// Not armed: zero everything

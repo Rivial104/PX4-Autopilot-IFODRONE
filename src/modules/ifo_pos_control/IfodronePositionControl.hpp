@@ -100,6 +100,19 @@ private:
 	float _hold_y{2.0f};
 	float _hold_z{5.0f};
 
+	float _hover_thrust{0.5f};
+	float _hover_thrust_int{0.0f};
+
+	float _prev_error_z{0.0f};
+	float _prev_error_vz{0.0f};
+
+	// Hover estimation
+	float _thr_hover_est = 0.45f; // [0; 1] - estimated hover thrust
+	float _thr_adapt_rate = 0.25f; // adaptation rate [s]
+	float _thr_adapt_deadband = 0.02f;
+	float _thr_adapt_min = 0.1f;
+	float _thr_adapt_max = 0.9f;
+
 	// Simple altitude PID controller gains
 	DEFINE_PARAMETERS(
 		(ParamFloat<px4::params::IFO_POS_Z_P>) _param_ifo_pos_z_p,
