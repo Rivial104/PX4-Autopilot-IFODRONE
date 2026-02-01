@@ -10,7 +10,7 @@
 
 #include "IfodronePositionControl.hpp"
 
- 
+
 
 IfodronePositionControl::IfodronePositionControl() :
 	ModuleParams(nullptr),
@@ -86,8 +86,22 @@ void IfodronePositionControl::Run()
 	local_pos_sp.z = z_sp;
 	_local_pos_sp_pub.publish(local_pos_sp);
 
+	// vehicle_thrust_setpoint_s thrust_sp{};
+	// thrust_sp.timestamp = now;
+	// if (control_mode.flag_armed && control_mode.flag_control_altitude_enabled) {
+	// 	thrust_sp.xyz[0] = 0.0f;
+	// 	thrust_sp.xyz[1] = 0.0f;
+	// 	thrust_sp.xyz[2] = -0.6f; // NED: negative Z is upward thrust
+	// }
+	// _thrust_setpoint_pub.publish(thrust_sp);
+
 	vehicle_attitude_setpoint_s att_sp{};
 	att_sp.timestamp = now;
+	if (control_mode.flag_armed && control_mode.flag_control_altitude_enabled) {
+		att_sp.thrust_body[0] = 0.0f;
+		att_sp.thrust_body[1] = 0.0f;
+		att_sp.thrust_body[2] = -0.6f; // NED: negative Z is upward thrust
+	}
 	_attitude_setpoint_pub.publish(att_sp);
 
 	perf_end(_cycle_perf);
