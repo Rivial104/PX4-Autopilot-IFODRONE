@@ -85,7 +85,8 @@ private:
 	uORB::Subscription _vehicle_status_sub{ORB_ID(vehicle_status)};
 	uORB::Subscription _vehicle_attitude_sub{ORB_ID(vehicle_attitude)};
 	uORB::Subscription _manual_control_sub{ORB_ID(manual_control_setpoint)};
-
+	uORB::Subscription _hover_thrust_estimate_sub{ORB_ID(hover_thrust_estimate)};
+/*  */
 	// Publications
 	uORB::Publication<vehicle_local_position_setpoint_s> _local_pos_sp_pub{ORB_ID(vehicle_local_position_setpoint)};
 	uORB::Publication<vehicle_thrust_setpoint_s> _thrust_setpoint_pub{ORB_ID(vehicle_thrust_setpoint)};
@@ -125,9 +126,22 @@ private:
 	float _thr_adapt_deadband = 0.02f;
 	float _thr_adapt_min = 0.1f;
 	float _thr_adapt_max = 0.9f;
+	bool _hover_thrust_initialized{false};
+	float _hover_thrust_sp{0.0f};
+	bool _hover_sp_valid{false};
+
+	// Takeoff target/hold handling
+	float _takeoff_target_z{0.0f};
+	bool _takeoff_target_valid{false};
+	bool _takeoff_hold{false};
 
 	// Simple altitude PID controller gains
 	DEFINE_PARAMETERS(
+		(ParamFloat<px4::params::COM_SPOOLUP_TIME>) _param_com_spoolup_time,
+		(ParamBool<px4::params::COM_THROW_EN>) _param_com_throw_en,
+		(ParamBool<px4::params::MPC_USE_HTE>) _param_mpc_use_hte,
+		(ParamFloat<px4::params::MPC_TKO_RAMP_T>) _param_mpc_tko_ramp_t,
+		(ParamFloat<px4::params::MIS_TAKEOFF_ALT>) _param_mis_takeoff_alt,
 		(ParamFloat<px4::params::IFO_POS_Z_P>) _param_ifo_pos_z_p,
 		(ParamFloat<px4::params::IFO_VEL_Z_P>) _param_ifo_vel_z_p,
 		(ParamFloat<px4::params::IFO_POS_XY_P>) _param_ifo_pos_xy_p,

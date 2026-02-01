@@ -23,7 +23,6 @@ param set-default SYS_AUTOCONFIG 1
 param set-default SYS_AUTOSTART 49000
 
 param set-default CA_AIRFRAME 90
-param set-default MIS_TAKEOFF_ALT 30
 
 # ============================================
 # 6 MOTORS TOTAL
@@ -67,7 +66,7 @@ param set-default SIM_GZ_EC_MAX2 1000
 # ============================================
 
 # Motor 2: Front EDF - thrust in +X direction (default), tiltable
-param set-default CA_ROTOR2_PX 0.5
+param set-default CA_ROTOR2_PX 0.2
 param set-default CA_ROTOR2_PY 0.0
 param set-default CA_ROTOR2_PZ 0.0
 param set-default CA_ROTOR2_AX 1.0
@@ -80,12 +79,12 @@ param set-default SIM_GZ_EC_FUNC3 103
 param set-default SIM_GZ_EC_MIN3 0
 param set-default SIM_GZ_EC_MAX3 1000
 
-# Motor 3: Right EDF - thrust in -Y direction (default), tiltable
+# Motor 3: Right EDF - thrust in +Y direction (default), tiltable
 param set-default CA_ROTOR3_PX 0.0
-param set-default CA_ROTOR3_PY -0.5
+param set-default CA_ROTOR3_PY 0.2
 param set-default CA_ROTOR3_PZ 0.0
 param set-default CA_ROTOR3_AX 0.0
-param set-default CA_ROTOR3_AY -1.0
+param set-default CA_ROTOR3_AY 1.0
 param set-default CA_ROTOR3_AZ 0.0
 param set-default CA_ROTOR3_KM 0.1
 param set-default CA_ROTOR3_CT 1.0
@@ -95,7 +94,7 @@ param set-default SIM_GZ_EC_MIN4 0
 param set-default SIM_GZ_EC_MAX4 1000
 
 # Motor 4: Back EDF - thrust in -X direction (default), tiltable
-param set-default CA_ROTOR4_PX -0.5
+param set-default CA_ROTOR4_PX -0.2
 param set-default CA_ROTOR4_PY 0.0
 param set-default CA_ROTOR4_PZ 0.0
 param set-default CA_ROTOR4_AX -1.0
@@ -108,12 +107,12 @@ param set-default SIM_GZ_EC_FUNC5 105
 param set-default SIM_GZ_EC_MIN5 0
 param set-default SIM_GZ_EC_MAX5 1000
 
-# Motor 5: Left EDF - thrust in +Y direction (default), tiltable
+# Motor 5: Left EDF - thrust in -Y direction (default), tiltable
 param set-default CA_ROTOR5_PX 0.0
-param set-default CA_ROTOR5_PY 0.5
+param set-default CA_ROTOR5_PY -0.2
 param set-default CA_ROTOR5_PZ 0.0
 param set-default CA_ROTOR5_AX 0.0
-param set-default CA_ROTOR5_AY 1.0
+param set-default CA_ROTOR5_AY -1.0
 param set-default CA_ROTOR5_AZ 0.0
 param set-default CA_ROTOR5_KM 0.1
 param set-default CA_ROTOR5_CT 1.0
@@ -181,13 +180,12 @@ param set-default NAV_RCL_ACT 0
 param set-default NAV_DLL_ACT 0
 
 # IFODRONE position controller params
-param set-default IFO_POS_Z_P 1.0
-param set-default IFO_VEL_Z_P 0.4
-param set-default IFO_POS_XY_P 0.8
-param set-default IFO_VEL_XY_P 0.4
-param set-default IFO_THR_HOVER 0.5
-param set-default IFO_THR_MAX 0.9
+param set-default IFO_POS_Z_P 3.0
+param set-default IFO_VEL_Z_P 1.5
+param set-default IFO_POS_XY_P 2.5
+param set-default IFO_VEL_XY_P 1.5
+param set-default IFO_THR_HOVER 0.65
+param set-default IFO_THR_MAX 0.75
 param set-default IFO_THR_MIN 0.1
-param set-default IFO_THR_XY_MAX 0.3
+param set-default IFO_THR_XY_MAX 4.0
 
-param set-default MIS_TAKEOFF_ALT 5
