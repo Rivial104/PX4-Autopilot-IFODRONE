@@ -1,8 +1,7 @@
 /**
  * IFODRONE Position Controller
  *
- * Simple position controller for IFODRONE.
- * For now: only controls Z-axis thrust using 2 main motors.
+ * Minimal position controller scaffold for IFODRONE.
  *
  * Subscribes to:
  *   - vehicle_local_position (current position)
@@ -11,8 +10,7 @@
  *
  * Publishes:
  *   - vehicle_local_position_setpoint (for other modules)
- *   - vehicle_thrust_setpoint (for control allocator)
- *   - vehicle_attitude_setpoint (for attitude controller - empty for now)
+ *   - vehicle_attitude_setpoint (empty for now)
  */
 
 #pragma once
@@ -31,16 +29,7 @@
 #include <uORB/topics/vehicle_local_position_setpoint.h>
 #include <uORB/topics/trajectory_setpoint.h>
 #include <uORB/topics/vehicle_control_mode.h>
-#include <uORB/topics/vehicle_land_detected.h>
-#include <uORB/topics/vehicle_status.h>
-#include <uORB/topics/vehicle_thrust_setpoint.h>
-#include <uORB/topics/vehicle_torque_setpoint.h>
 #include <uORB/topics/vehicle_attitude_setpoint.h>
-#include <uORB/topics/vehicle_attitude.h>
-#include <uORB/topics/hover_thrust_estimate.h>
-#include <uORB/topics/manual_control_setpoint.h>
-
-#include "Takeoff.hpp"
 
 using namespace time_literals;
 
@@ -73,84 +62,22 @@ public:
 private:
 	void Run() override;
 
-	void setHoverThrust(const float hover_thrust);
-	void updateHoverThrust(const float hover_thrust_new);
-
 	// Subscriptions
 	uORB::SubscriptionInterval _parameter_update_sub{ORB_ID(parameter_update), 1_s};
 	uORB::SubscriptionCallbackWorkItem _local_pos_sub{this, ORB_ID(vehicle_local_position)};
 	uORB::Subscription _trajectory_setpoint_sub{ORB_ID(trajectory_setpoint)};
 	uORB::Subscription _vehicle_control_mode_sub{ORB_ID(vehicle_control_mode)};
-	uORB::Subscription _vehicle_land_detected_sub{ORB_ID(vehicle_land_detected)};
-	uORB::Subscription _vehicle_status_sub{ORB_ID(vehicle_status)};
-	uORB::Subscription _vehicle_attitude_sub{ORB_ID(vehicle_attitude)};
-	uORB::Subscription _manual_control_sub{ORB_ID(manual_control_setpoint)};
-	uORB::Subscription _hover_thrust_estimate_sub{ORB_ID(hover_thrust_estimate)};
-/*  */
+
 	// Publications
 	uORB::Publication<vehicle_local_position_setpoint_s> _local_pos_sp_pub{ORB_ID(vehicle_local_position_setpoint)};
-	uORB::Publication<vehicle_thrust_setpoint_s> _thrust_setpoint_pub{ORB_ID(vehicle_thrust_setpoint)};
-	uORB::Publication<vehicle_torque_setpoint_s> _torque_setpoint_pub{ORB_ID(vehicle_torque_setpoint)};
 	uORB::Publication<vehicle_attitude_setpoint_s> _attitude_setpoint_pub{ORB_ID(vehicle_attitude_setpoint)};
-
-	// Takeoff handling
-	TakeoffHandling _takeoff;
 
 	// State
 	hrt_abstime _last_run{0};
 
-	// Position hold setpoints (used when no mission setpoint available)
+	// Position hold setpoint (used when no mission setpoint available)
 	bool _hold_position_initialized{false};
-	float _hold_x{2.0f};
-	float _hold_y{2.0f};
 	float _hold_z{5.0f};
-
-	float _hover_thrust{0.5f};
-	float _hover_thrust_int{0.0f};
-
-	float _prev_error_z{0.0f};
-	float _prev_error_vz{0.0f};
-
-	float _lim_thr_min = 0.1f;
-	float _lim_thr_max = 1.0f;
-	float _lim_vel_up = 2.0f;
-	float _lim_vel_down = 2.0f;
-
-	float _last_acc_sp_z = 0.0f;
-
-	float _integrator_z{0.0f};
-
-	// Hover estimation
-	float _thr_hover_est = 0.45f; // [0; 1] - estimated hover thrust
-	float _thr_adapt_rate = 0.25f; // adaptation rate [s]
-	float _thr_adapt_deadband = 0.02f;
-	float _thr_adapt_min = 0.1f;
-	float _thr_adapt_max = 0.9f;
-	bool _hover_thrust_initialized{false};
-	float _hover_thrust_sp{0.0f};
-	bool _hover_sp_valid{false};
-
-	// Takeoff target/hold handling
-	float _takeoff_target_z{0.0f};
-	bool _takeoff_target_valid{false};
-	bool _takeoff_hold{false};
-
-	// Simple altitude PID controller gains
-	DEFINE_PARAMETERS(
-		(ParamFloat<px4::params::COM_SPOOLUP_TIME>) _param_com_spoolup_time,
-		(ParamBool<px4::params::COM_THROW_EN>) _param_com_throw_en,
-		(ParamBool<px4::params::MPC_USE_HTE>) _param_mpc_use_hte,
-		(ParamFloat<px4::params::MPC_TKO_RAMP_T>) _param_mpc_tko_ramp_t,
-		(ParamFloat<px4::params::MIS_TAKEOFF_ALT>) _param_mis_takeoff_alt,
-		(ParamFloat<px4::params::IFO_POS_Z_P>) _param_ifo_pos_z_p,
-		(ParamFloat<px4::params::IFO_VEL_Z_P>) _param_ifo_vel_z_p,
-		(ParamFloat<px4::params::IFO_POS_XY_P>) _param_ifo_pos_xy_p,
-		(ParamFloat<px4::params::IFO_VEL_XY_P>) _param_ifo_vel_xy_p,
-		(ParamFloat<px4::params::IFO_THR_HOVER>) _param_ifo_thr_hover,
-		(ParamFloat<px4::params::IFO_THR_MAX>) _param_ifo_thr_max,
-		(ParamFloat<px4::params::IFO_THR_MIN>) _param_ifo_thr_min,
-		(ParamFloat<px4::params::IFO_THR_XY_MAX>) _param_ifo_thr_xy_max
-	)
 
 	// Performance counters
 	perf_counter_t _cycle_perf{perf_alloc(PC_ELAPSED, MODULE_NAME": cycle")};
