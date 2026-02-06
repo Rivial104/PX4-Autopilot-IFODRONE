@@ -80,6 +80,15 @@ private:
 	// Position hold setpoint (used when no mission setpoint available)
 	bool _hold_position_initialized{false};
 	float _hold_z{5.0f};
+	float _z_sp{0.0f};
+
+	static constexpr int DEBUG_INTERVAL_US = 1000000;
+
+	DEFINE_PARAMETERS(
+		(ParamFloat<px4::params::IFO_POS_Z_P>) _param_ifo_pos_z_p,
+		(ParamFloat<px4::params::IFO_VEL_Z_P>) _param_ifo_vel_z_p,
+		(ParamFloat<px4::params::IFO_THR_HOVER>) _param_ifo_thr_hover
+	)
 
 	// Performance counters
 	perf_counter_t _cycle_perf{perf_alloc(PC_ELAPSED, MODULE_NAME": cycle")};

@@ -10,7 +10,7 @@
 
 #include "IfodronePositionControl.hpp"
 
-
+#include <lib/mathlib/mathlib.h>
 
 IfodronePositionControl::IfodronePositionControl() :
 	ModuleParams(nullptr),
@@ -68,17 +68,66 @@ void IfodronePositionControl::Run()
 
 	float z_sp = _hold_z;
 
+	if (!control_mode.flag_armed || !control_mode.flag_control_altitude_enabled) {
+		_hold_position_initialized = false;
+	}
+
 	if (control_mode.flag_armed && control_mode.flag_control_altitude_enabled && local_pos.z_valid) {
 		if (has_trajectory_setpoint && PX4_ISFINITE(traj_sp.position[2])) {
-			z_sp = traj_sp.position[2];
+			// Latch setpoint only when it meaningfully differs from current position
+			const float candidate_z = traj_sp.position[2];
+			const float diff = fabsf(candidate_z - local_pos.z);
+
+			if (!_hold_position_initialized || diff > 0.5f) {
+				_hold_z = candidate_z;
+				_hold_position_initialized = true;
+				PX4_INFO("IFO_DBG: z_sp latched to %.3f\n", (double)_hold_z);
+			}
+
+			z_sp = _hold_z;
 
 		} else {
 			if (!_hold_position_initialized) {
 				_hold_z = local_pos.z;
 				_hold_position_initialized = true;
+				PX4_INFO("IFO_DBG: z_sp latched to %.3f\n", (double)_hold_z);
 			}
 			z_sp = _hold_z;
 		}
+	}
+
+	_z_sp = z_sp;
+
+	// Simple PD: position -> velocity -> acceleration -> thrust
+	float thrust_cmd = 0.0f;
+	float z_err = 0.0f;
+	float vz_sp = 0.0f;
+	float vz_err = 0.0f;
+
+	if (control_mode.flag_armed && control_mode.flag_control_altitude_enabled
+	    && local_pos.z_valid && local_pos.v_z_valid) {
+		z_err = _z_sp - local_pos.z;
+		vz_sp = z_err * _param_ifo_pos_z_p.get();
+		vz_err = vz_sp - local_pos.vz;
+		const float az_sp = vz_err * _param_ifo_vel_z_p.get();
+
+		const float hover = math::constrain(_param_ifo_thr_hover.get(), 0.0f, 1.0f);
+		// NED: positive az_sp means down, so reduce thrust
+		thrust_cmd = hover - az_sp * (hover / CONSTANTS_ONE_G);
+		thrust_cmd = math::constrain(thrust_cmd, 0.0f, 1.0f);
+	}
+
+	// Debug output (1 Hz)
+	static hrt_abstime last_dbg_ts = 0;
+	if (now - last_dbg_ts > DEBUG_INTERVAL_US) {
+		last_dbg_ts = now;
+
+		PX4_INFO("IFO_DBG: z_sp set to %.3f", (double)z_sp);
+
+		PX4_INFO("IFO_DBG: z=%.3f z_sp=%.3f z_err=%.3f vz=%.3f vz_sp=%.3f vz_err=%.3f thr=%.3f\n",
+			(double)local_pos.z, (double)_z_sp, (double)z_err,
+			(double)local_pos.vz, (double)vz_sp, (double)vz_err,
+			(double)thrust_cmd);
 	}
 
 	vehicle_local_position_setpoint_s local_pos_sp{};
@@ -97,11 +146,9 @@ void IfodronePositionControl::Run()
 
 	vehicle_attitude_setpoint_s att_sp{};
 	att_sp.timestamp = now;
-	if (control_mode.flag_armed && control_mode.flag_control_altitude_enabled) {
-		att_sp.thrust_body[0] = 0.0f;
-		att_sp.thrust_body[1] = 0.0f;
-		att_sp.thrust_body[2] = -0.6f; // NED: negative Z is upward thrust
-	}
+	att_sp.thrust_body[0] = 0.0f;
+	att_sp.thrust_body[1] = 0.0f;
+	att_sp.thrust_body[2] = -thrust_cmd; // NED: negative Z is upward thrust
 	_attitude_setpoint_pub.publish(att_sp);
 
 	perf_end(_cycle_perf);
