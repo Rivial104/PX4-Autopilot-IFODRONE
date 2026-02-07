@@ -87,6 +87,11 @@ private:
 	DEFINE_PARAMETERS(
 		(ParamFloat<px4::params::IFO_POS_Z_P>) _param_ifo_pos_z_p,
 		(ParamFloat<px4::params::IFO_VEL_Z_P>) _param_ifo_vel_z_p,
+		(ParamFloat<px4::params::IFO_POS_XY_P>) _param_ifo_pos_xy_p,
+		(ParamFloat<px4::params::IFO_VEL_XY_P>) _param_ifo_vel_xy_p,
+		(ParamFloat<px4::params::IFO_THR_MAX>) _param_ifo_thr_max,
+		(ParamFloat<px4::params::IFO_THR_MIN>) _param_ifo_thr_min,
+		(ParamFloat<px4::params::IFO_THR_XY_MAX>) _param_ifo_thr_xy_max,
 		(ParamFloat<px4::params::IFO_THR_HOVER>) _param_ifo_thr_hover
 	)
 
