@@ -81,6 +81,18 @@ private:
 	bool _hold_position_initialized{false};
 	float _hold_z{5.0f};
 	float _z_sp{0.0f};
+	bool _hold_xy_initialized{false};
+	float _hold_x{0.0f};
+	float _hold_y{0.0f};
+
+	// Last trajectory setpoint (to detect rapid changes)
+	matrix::Vector3f _last_traj_sp_pos{NAN, NAN, NAN};
+	hrt_abstime _last_traj_sp_update{0};
+	// EKF reset counters (to detect resets and adjust hold setpoints)
+	uint8_t _xy_reset_counter{0};
+	uint8_t _z_reset_counter{0};
+	uint8_t _vxy_reset_counter{0};
+	uint8_t _vz_reset_counter{0};
 
 	static constexpr int DEBUG_INTERVAL_US = 1000000;
 

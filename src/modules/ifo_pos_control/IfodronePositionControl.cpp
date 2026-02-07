@@ -5,7 +5,6 @@
  * - Z-axis: Main motors (0-1) for altitude
  * - XY-axis: Tilt motors (2-5) for horizontal position
  *
- * Uses TakeoffHandling for proper takeoff sequence.
  */
 
 #include "IfodronePositionControl.hpp"
@@ -65,8 +64,53 @@ void IfodronePositionControl::Run()
 		return;
 	}
 
+	// Adjust hold setpoints for EKF resets (keeps setpoints fixed in world frame)
+	if (local_pos.xy_reset_counter != _xy_reset_counter) {
+		if (_hold_xy_initialized) {
+			_hold_x += local_pos.delta_xy[0];
+			_hold_y += local_pos.delta_xy[1];
+			PX4_INFO("IFO_DBG: XY reset - hold adjusted by (%.3f, %.3f)",
+				 (double)local_pos.delta_xy[0], (double)local_pos.delta_xy[1]);
+		}
+	}
+
+	if (local_pos.z_reset_counter != _z_reset_counter) {
+		if (_hold_position_initialized) {
+			_hold_z += local_pos.delta_z;
+			PX4_INFO("IFO_DBG: Z reset - hold_z adjusted by %.3f", (double)local_pos.delta_z);
+		}
+	}
+
 	trajectory_setpoint_s traj_sp{};
 	const bool has_trajectory_setpoint = _trajectory_setpoint_sub.copy(&traj_sp);
+
+	// Check if trajectory setpoint is fresh (like MulticopterPositionControl)
+	const bool traj_sp_fresh = has_trajectory_setpoint && (traj_sp.timestamp > 0)
+				   && (now - traj_sp.timestamp < 500_ms);
+
+	// Adjust setpoint for EKF resets (similar to MulticopterPositionControl::adjustSetpointForEKFResets)
+	if (has_trajectory_setpoint && traj_sp.timestamp != 0 && traj_sp.timestamp < local_pos.timestamp) {
+		if (local_pos.xy_reset_counter != _xy_reset_counter) {
+			if (PX4_ISFINITE(traj_sp.position[0])) { traj_sp.position[0] += local_pos.delta_xy[0]; }
+			if (PX4_ISFINITE(traj_sp.position[1])) { traj_sp.position[1] += local_pos.delta_xy[1]; }
+		}
+		if (local_pos.z_reset_counter != _z_reset_counter) {
+			if (PX4_ISFINITE(traj_sp.position[2])) { traj_sp.position[2] += local_pos.delta_z; }
+		}
+		if (local_pos.vxy_reset_counter != _vxy_reset_counter) {
+			if (PX4_ISFINITE(traj_sp.velocity[0])) { traj_sp.velocity[0] += local_pos.delta_vxy[0]; }
+			if (PX4_ISFINITE(traj_sp.velocity[1])) { traj_sp.velocity[1] += local_pos.delta_vxy[1]; }
+		}
+		if (local_pos.vz_reset_counter != _vz_reset_counter) {
+			if (PX4_ISFINITE(traj_sp.velocity[2])) { traj_sp.velocity[2] += local_pos.delta_vz; }
+		}
+	}
+
+	// Save reset counters AFTER all adjustments are done
+	_xy_reset_counter = local_pos.xy_reset_counter;
+	_z_reset_counter = local_pos.z_reset_counter;
+	_vxy_reset_counter = local_pos.vxy_reset_counter;
+	_vz_reset_counter = local_pos.vz_reset_counter;
 
 	const bool armed = control_mode.flag_armed;
 	const bool altitude_control_enabled = control_mode.flag_control_altitude_enabled;
@@ -78,16 +122,45 @@ void IfodronePositionControl::Run()
 		_hold_position_initialized = false;
 	}
 
-	if (armed && altitude_control_enabled && local_pos.z_valid) {
-		if (has_trajectory_setpoint && PX4_ISFINITE(traj_sp.position[2])) {
-			// Latch setpoint only when it meaningfully differs from current position
-			const float candidate_z = traj_sp.position[2];
-			const float diff = fabsf(candidate_z - local_pos.z);
+	if (!armed || !position_control_enabled) {
+		_hold_xy_initialized = false;
+	}
 
-			if (!_hold_position_initialized || diff > 0.5f) {
-				_hold_z = candidate_z;
+	if (armed && altitude_control_enabled && local_pos.z_valid) {
+		if (traj_sp_fresh && PX4_ISFINITE(traj_sp.position[2])) {
+			// Check if trajectory setpoint is changing rapidly (indicates takeoff/landing/mission, not Hold)
+			bool traj_changing_rapidly = false;
+			if (PX4_ISFINITE(_last_traj_sp_pos(2)) && _last_traj_sp_update > 0) {
+				const float dt_s = (now - _last_traj_sp_update) * 1e-6f;
+				if (dt_s > 0.01f && dt_s < 1.0f) {
+					const float dz = fabsf(traj_sp.position[2] - _last_traj_sp_pos(2));
+					const float z_rate = dz / dt_s;
+					// If Z setpoint changing faster than 0.2 m/s, it's takeoff/landing/mission
+					if (z_rate > 0.2f) {
+						traj_changing_rapidly = true;
+					}
+				}
+			}
+
+			// Update last trajectory setpoint
+			_last_traj_sp_pos(2) = traj_sp.position[2];
+			_last_traj_sp_update = now;
+
+			// Only latch hold position if trajectory is stable (not changing rapidly)
+			if (!traj_changing_rapidly) {
+				const float candidate_z = traj_sp.position[2];
+				const float diff_from_hold = fabsf(candidate_z - _hold_z);
+
+				if (!_hold_position_initialized || diff_from_hold > 0.1f) {
+					_hold_z = candidate_z;
+					_hold_position_initialized = true;
+					PX4_INFO("IFO_DBG: Z hold latched to %.3f from traj_sp (diff=%.3f)",
+						 (double)_hold_z, (double)diff_from_hold);
+				}
+			} else {
+				// During rapid changes, use current trajectory setpoint directly
+				_hold_z = traj_sp.position[2];
 				_hold_position_initialized = true;
-				PX4_INFO("IFO_DBG: z_sp latched to %.3f", (double)_hold_z);
 			}
 
 			z_sp = _hold_z;
@@ -96,7 +169,8 @@ void IfodronePositionControl::Run()
 			if (!_hold_position_initialized) {
 				_hold_z = local_pos.z;
 				_hold_position_initialized = true;
-				PX4_INFO("IFO_DBG: z_sp latched to %.3f", (double)_hold_z);
+				PX4_INFO("IFO_DBG: Z hold latched to current pos %.3f (no fresh traj_sp)",
+					 (double)_hold_z);
 			}
 			z_sp = _hold_z;
 		}
@@ -114,13 +188,67 @@ void IfodronePositionControl::Run()
 	matrix::Vector3f pos_sp = pos;
 	pos_sp(2) = z_sp; // Z is handled with special latching logic above
 
-	if (has_trajectory_setpoint) {
-		if (PX4_ISFINITE(traj_sp.position[0])) {
-			pos_sp(0) = traj_sp.position[0];
+	// XY: latch last valid setpoint or hold current position to avoid drifting
+	// Key insight from MulticopterPositionControl: only update hold position from fresh trajectory setpoints
+	if (run_xy_control) {
+		const bool traj_xy_valid = traj_sp_fresh
+					   && PX4_ISFINITE(traj_sp.position[0])
+					   && PX4_ISFINITE(traj_sp.position[1]);
+
+		if (traj_xy_valid) {
+			// Check if trajectory setpoint is changing rapidly (indicates mission, not Hold)
+			bool traj_xy_changing_rapidly = false;
+			if (PX4_ISFINITE(_last_traj_sp_pos(0)) && PX4_ISFINITE(_last_traj_sp_pos(1)) && _last_traj_sp_update > 0) {
+				const float dt_s = (now - _last_traj_sp_update) * 1e-6f;
+				if (dt_s > 0.01f && dt_s < 1.0f) {
+					const float dx = traj_sp.position[0] - _last_traj_sp_pos(0);
+					const float dy = traj_sp.position[1] - _last_traj_sp_pos(1);
+					const float dist = sqrtf(dx * dx + dy * dy);
+					const float xy_rate = dist / dt_s;
+					// If XY setpoint changing faster than 0.3 m/s, it's a mission
+					if (xy_rate > 0.3f) {
+						traj_xy_changing_rapidly = true;
+					}
+				}
+			}
+
+			// Update last trajectory setpoint
+			_last_traj_sp_pos(0) = traj_sp.position[0];
+			_last_traj_sp_pos(1) = traj_sp.position[1];
+
+			// Only latch hold position if trajectory is stable
+			if (!traj_xy_changing_rapidly) {
+				const float dx = traj_sp.position[0] - _hold_x;
+				const float dy = traj_sp.position[1] - _hold_y;
+				const float dist_sq = dx * dx + dy * dy;
+
+				// Only update hold position if trajectory setpoint changed significantly or not initialized
+				if (!_hold_xy_initialized || dist_sq > 0.01f) { // 10cm threshold
+					_hold_x = traj_sp.position[0];
+					_hold_y = traj_sp.position[1];
+					_hold_xy_initialized = true;
+					PX4_INFO("IFO_DBG: XY hold latched to (%.3f, %.3f) from traj_sp",
+						 (double)_hold_x, (double)_hold_y);
+				}
+			} else {
+				// During rapid changes, use current trajectory setpoint directly
+				_hold_x = traj_sp.position[0];
+				_hold_y = traj_sp.position[1];
+				_hold_xy_initialized = true;
+			}
+
+		} else if (!_hold_xy_initialized) {
+			// No valid trajectory setpoint - hold current position
+			_hold_x = local_pos.x;
+			_hold_y = local_pos.y;
+			_hold_xy_initialized = true;
+			PX4_INFO("IFO_DBG: XY hold latched to current pos (%.3f, %.3f)",
+				 (double)_hold_x, (double)_hold_y);
 		}
 
-		if (PX4_ISFINITE(traj_sp.position[1])) {
-			pos_sp(1) = traj_sp.position[1];
+		if (_hold_xy_initialized) {
+			pos_sp(0) = _hold_x;
+			pos_sp(1) = _hold_y;
 		}
 	}
 
@@ -198,10 +326,29 @@ void IfodronePositionControl::Run()
 	static hrt_abstime last_dbg_ts = 0;
 	if (now - last_dbg_ts > DEBUG_INTERVAL_US) {
 		last_dbg_ts = now;
-		PX4_INFO("IFO_DBG: pos=(%.2f %.2f %.2f) sp=(%.2f %.2f %.2f) thr=(%.3f %.3f %.3f)",
+		PX4_INFO("IFO_DBG: === Position Control State ===");
+		PX4_INFO("IFO_DBG: ctrl_mode: armed=%d alt_en=%d pos_en=%d",
+			 (int)armed, (int)altitude_control_enabled, (int)position_control_enabled);
+		PX4_INFO("IFO_DBG: local_pos: xy_valid=%d z_valid=%d v_xy_valid=%d v_z_valid=%d",
+			 (int)local_pos.xy_valid, (int)local_pos.z_valid,
+			 (int)local_pos.v_xy_valid, (int)local_pos.v_z_valid);
+		PX4_INFO("IFO_DBG: pos_cur=(%.3f, %.3f, %.3f) vel=(%.3f, %.3f, %.3f)",
 			 (double)local_pos.x, (double)local_pos.y, (double)local_pos.z,
+			 (double)local_pos.vx, (double)local_pos.vy, (double)local_pos.vz);
+		PX4_INFO("IFO_DBG: hold_xy=(%.3f, %.3f) hold_z=%.3f init_xy=%d init_z=%d",
+			 (double)_hold_x, (double)_hold_y, (double)_hold_z,
+			 (int)_hold_xy_initialized, (int)_hold_position_initialized);
+		PX4_INFO("IFO_DBG: pos_sp=(%.3f, %.3f, %.3f) pos_err=(%.3f, %.3f, %.3f)",
 			 (double)pos_sp(0), (double)pos_sp(1), (double)pos_sp(2),
-			 (double)thrust_sp_body(0), (double)thrust_sp_body(1), (double)thrust_sp_body(2));
+			 (double)pos_err(0), (double)pos_err(1), (double)pos_err(2));
+		PX4_INFO("IFO_DBG: vel_sp=(%.3f, %.3f, %.3f) vel_err=(%.3f, %.3f, %.3f)",
+			 (double)vel_sp(0), (double)vel_sp(1), (double)vel_sp(2),
+			 (double)vel_err(0), (double)vel_err(1), (double)vel_err(2));
+		PX4_INFO("IFO_DBG: thrust=(%.4f, %.4f, %.4f) run_xy=%d run_z=%d",
+			 (double)thrust_sp_body(0), (double)thrust_sp_body(1), (double)thrust_sp_body(2),
+			 (int)run_xy_control, (int)run_z_control);
+		PX4_INFO("IFO_DBG: traj_sp_fresh=%d traj_ts=%llu now=%llu",
+			 (int)traj_sp_fresh, (unsigned long long)traj_sp.timestamp, (unsigned long long)now);
 	}
 
 	vehicle_local_position_setpoint_s local_pos_sp{};
