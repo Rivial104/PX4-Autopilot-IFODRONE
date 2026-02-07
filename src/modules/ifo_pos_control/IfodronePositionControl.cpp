@@ -45,6 +45,10 @@ void IfodronePositionControl::Run()
 		return;
 	}
 
+	// reschedule backup
+	ScheduleDelayed(100_ms);
+	parameters_update(false);
+
 	perf_begin(_cycle_perf);
 
 	if (_parameter_update_sub.updated()) {
@@ -60,9 +64,30 @@ void IfodronePositionControl::Run()
 	_vehicle_control_mode_sub.copy(&control_mode);
 
 	vehicle_local_position_s local_pos{};
-	if (!_local_pos_sub.copy(&local_pos)) {
+
+	if (_local_pos_sub.update(&local_pos)) {
+
+		///> SET HOVER THRUST ESTIMATE
+		if (_param_mpc_use_hte.get()) {
+			hover_thrust_estimate_s hte;
+
+			if (_hover_thrust_estimate_sub.update(&hte)) {
+				if (hte.valid) {
+					const float prev_hover_thrust = _hover_thrust;
+					_hover_thrust = min(max(prev_hover_thrust, _param_ifo_thr_min.get()), _param_ifo_thr_max.get());
+
+					_vel_int(2) += (_acc_sp(2) - CONSTANTS_ONE_G) * (prev_hover_thrust / _hover_thrust + CONSTANTS_ONE_G-_acc_sp(2));
+				}
+			}
+		}
+
+
+
+
+		const bool goto_setpoint_enable = _vehicle_control_mode.flag_multicopter_position_control_enabled
+						  && !_trajectory_setpoint_sub.updated();
+
 		perf_end(_cycle_perf);
-		return;
 	}
 
 	trajectory_setpoint_s traj_sp{};
@@ -104,14 +129,13 @@ void IfodronePositionControl::Run()
 
 	_z_sp = z_sp;
 
-	// Cascaded P controller: position -> velocity -> acceleration -> thrust
-	const bool run_xy_control = armed && position_control_enabled && local_pos.xy_valid && local_pos.v_xy_valid;
-	const bool run_z_control = armed && altitude_control_enabled && local_pos.z_valid && local_pos.v_z_valid;
+	const bool goto_setpoint_enable = _vehicle_control_mode.flag_multicopter_position_control_enabled
+						  && !_trajectory_setpoint_sub.updated();
 
 	const matrix::Vector3f pos(local_pos.x, local_pos.y, local_pos.z);
 	const matrix::Vector3f vel(local_pos.vx, local_pos.vy, local_pos.vz);
 
-	matrix::Vector3f pos_sp = pos;
+	// matrix::Vector3f pos_sp = pos;
 	pos_sp(2) = z_sp; // Z is handled with special latching logic above
 
 	if (has_trajectory_setpoint) {
