@@ -16,4 +16,5 @@ px4_add_module(
 		mathlib
 		perf
 		hysteresis
+		SlewRate
 	)

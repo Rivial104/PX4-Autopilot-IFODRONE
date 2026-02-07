@@ -27,6 +27,32 @@ PARAM_DEFINE_FLOAT(IFO_POS_Z_P, 1.0f);
 PARAM_DEFINE_FLOAT(IFO_VEL_Z_P, 0.5f);
 
 /**
+ * Position I gain
+ *
+ * Integral gain for position control.
+ * Helps remove steady-state position error caused by hover thrust mismatch.
+ *
+ * @min 0.0
+ * @max 5.0
+ * @decimal 3
+ * @group IFODRONE Position Control
+ */
+PARAM_DEFINE_FLOAT(IFO_POS_I, 0.2f);
+
+/**
+ * Velocity I gain
+ *
+ * Integral gain for velocity control.
+ * Helps remove steady-state velocity error caused by hover thrust mismatch.
+ *
+ * @min 0.0
+ * @max 5.0
+ * @decimal 3
+ * @group IFODRONE Position Control
+ */
+PARAM_DEFINE_FLOAT(IFO_VEL_I, 0.2f);
+
+/**
  * Position XY P gain
  *
  * Proportional gain for horizontal position control (tilt motors)
