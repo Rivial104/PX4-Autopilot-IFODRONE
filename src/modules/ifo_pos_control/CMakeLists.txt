@@ -10,10 +10,12 @@ px4_add_module(
 	SRCS
 		IfodronePositionControl.cpp
 		IfodronePositionControl.hpp
+		../mc_pos_control/GotoControl/GotoControl.cpp
 		Takeoff.cpp
 		Takeoff.hpp
 	DEPENDS
 		mathlib
+		motion_planning
 		perf
 		hysteresis
-	)
+)

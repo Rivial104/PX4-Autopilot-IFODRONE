@@ -86,7 +86,7 @@ param set-default CA_ROTOR3_PZ 0.0
 param set-default CA_ROTOR3_AX 0.0
 param set-default CA_ROTOR3_AY 1.0
 param set-default CA_ROTOR3_AZ 0.0
-param set-default CA_ROTOR3_KM 0.1
+param set-default CA_ROTOR3_KM -0.1
 param set-default CA_ROTOR3_CT 1.0
 param set-default CA_ROTOR3_TILT 2
 param set-default SIM_GZ_EC_FUNC4 104
@@ -114,7 +114,7 @@ param set-default CA_ROTOR5_PZ 0.0
 param set-default CA_ROTOR5_AX 0.0
 param set-default CA_ROTOR5_AY -1.0
 param set-default CA_ROTOR5_AZ 0.0
-param set-default CA_ROTOR5_KM 0.1
+param set-default CA_ROTOR5_KM -0.1
 param set-default CA_ROTOR5_CT 1.0
 param set-default CA_ROTOR5_TILT 4
 param set-default SIM_GZ_EC_FUNC6 106
@@ -132,7 +132,10 @@ param set-default CA_SV_TL0_MAXA 90.0
 param set-default CA_SV_TL0_TD 0
 param set-default CA_SV_TL0_CT 1
 param set-default SIM_GZ_SV_FUNC1 201
-param set-default SIM_GZ_SV_MIN1 -1000
+# GZ bridge uses angle params (MINA/MAXA) for servo output mapping
+param set-default SIM_GZ_SV_MINA1 -90.0
+param set-default SIM_GZ_SV_MAXA1 90.0
+param set-default SIM_GZ_SV_MIN1 0
 param set-default SIM_GZ_SV_MAX1 1000
 
 # Tilt 1: Right motor (rotor 3) - tilts around X axis
@@ -141,7 +144,9 @@ param set-default CA_SV_TL1_MAXA 90.0
 param set-default CA_SV_TL1_TD 0
 param set-default CA_SV_TL1_CT 1
 param set-default SIM_GZ_SV_FUNC2 202
-param set-default SIM_GZ_SV_MIN2 -1000
+param set-default SIM_GZ_SV_MINA2 -90.0
+param set-default SIM_GZ_SV_MAXA2 90.0
+param set-default SIM_GZ_SV_MIN2 0
 param set-default SIM_GZ_SV_MAX2 1000
 
 # Tilt 2: Back motor (rotor 4) - tilts around Y axis
@@ -150,7 +155,9 @@ param set-default CA_SV_TL2_MAXA 90.0
 param set-default CA_SV_TL2_TD 0
 param set-default CA_SV_TL2_CT 1
 param set-default SIM_GZ_SV_FUNC3 203
-param set-default SIM_GZ_SV_MIN3 -1000
+param set-default SIM_GZ_SV_MINA3 -90.0
+param set-default SIM_GZ_SV_MAXA3 90.0
+param set-default SIM_GZ_SV_MIN3 0
 param set-default SIM_GZ_SV_MAX3 1000
 
 # Tilt 3: Left motor (rotor 5) - tilts around X axis
@@ -159,7 +166,9 @@ param set-default CA_SV_TL3_MAXA 90.0
 param set-default CA_SV_TL3_TD 0
 param set-default CA_SV_TL3_CT 1
 param set-default SIM_GZ_SV_FUNC4 204
-param set-default SIM_GZ_SV_MIN4 -1000
+param set-default SIM_GZ_SV_MINA4 -90.0
+param set-default SIM_GZ_SV_MAXA4 90.0
+param set-default SIM_GZ_SV_MIN4 0
 param set-default SIM_GZ_SV_MAX4 1000
 
 # ============================================

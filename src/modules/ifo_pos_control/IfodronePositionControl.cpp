@@ -33,8 +33,25 @@ bool IfodronePositionControl::init()
 		return false;
 	}
 
+	configureGotoControl();
+
 	PX4_INFO("IFODRONE position controller initialized - minimal mode");
 	return true;
+}
+
+void IfodronePositionControl::configureGotoControl()
+{
+	_goto_control.setParamMpcAccHor(GOTO_ACC_HOR);
+	_goto_control.setParamMpcAccDownMax(GOTO_ACC_DOWN_MAX);
+	_goto_control.setParamMpcAccUpMax(GOTO_ACC_UP_MAX);
+	_goto_control.setParamMpcJerkAuto(GOTO_JERK_AUTO);
+	_goto_control.setParamMpcXyCruise(GOTO_XY_CRUISE);
+	_goto_control.setParamMpcXyErrMax(GOTO_XY_ERR_MAX);
+	_goto_control.setParamMpcXyVelMax(GOTO_XY_VEL_MAX);
+	_goto_control.setParamMpcYawrautoMax(GOTO_YAW_RATE_MAX);
+	_goto_control.setParamMpcYawrautoAcc(GOTO_YAW_ACCEL_MAX);
+	_goto_control.setParamMpcZVAutoDn(GOTO_Z_VEL_DOWN);
+	_goto_control.setParamMpcZVAutoUp(GOTO_Z_VEL_UP);
 }
 
 void IfodronePositionControl::Run()
@@ -54,7 +71,6 @@ void IfodronePositionControl::Run()
 	}
 
 	const hrt_abstime now = hrt_absolute_time();
-	_last_run = now;
 
 	vehicle_control_mode_s control_mode{};
 	_vehicle_control_mode_sub.copy(&control_mode);
@@ -65,12 +81,32 @@ void IfodronePositionControl::Run()
 		return;
 	}
 
+	const float dt = (_last_run > 0)
+			 ? math::constrain((local_pos.timestamp_sample - _last_run) * 1e-6f, 0.002f, 0.04f)
+			 : 0.01f;
+	_last_run = local_pos.timestamp_sample;
+
+	// If a goto setpoint is available this publishes a trajectory setpoint to go there.
+	// If trajectory_setpoint is published elsewhere, do not use the goto setpoint.
+	const bool goto_setpoint_enable = control_mode.flag_multicopter_position_control_enabled
+					  && !_trajectory_setpoint_sub.updated();
+
+	if (_goto_control.checkForSetpoint(local_pos.timestamp_sample, goto_setpoint_enable)) {
+		const matrix::Vector3f current_position(local_pos.x, local_pos.y, local_pos.z);
+		const float current_yaw = PX4_ISFINITE(local_pos.heading) ? local_pos.heading : 0.0f;
+		_goto_control.update(dt, current_position, current_yaw);
+	}
+
 	trajectory_setpoint_s traj_sp{};
 	const bool has_trajectory_setpoint = _trajectory_setpoint_sub.copy(&traj_sp);
+	const bool trajectory_setpoint_fresh = has_trajectory_setpoint
+					       && (traj_sp.timestamp != 0)
+					       && (now <= traj_sp.timestamp + TRAJ_SP_TIMEOUT_US);
 
 	const bool armed = control_mode.flag_armed;
 	const bool altitude_control_enabled = control_mode.flag_control_altitude_enabled;
-	const bool position_control_enabled = control_mode.flag_control_position_enabled;
+	const bool position_control_enabled = control_mode.flag_control_position_enabled
+					      || control_mode.flag_multicopter_position_control_enabled;
 
 	float z_sp = _hold_z;
 
@@ -78,13 +114,17 @@ void IfodronePositionControl::Run()
 		_hold_position_initialized = false;
 	}
 
+	if (!armed || !position_control_enabled) {
+		_hold_xy_initialized = false;
+	}
+
 	if (armed && altitude_control_enabled && local_pos.z_valid) {
-		if (has_trajectory_setpoint && PX4_ISFINITE(traj_sp.position[2])) {
+		if (trajectory_setpoint_fresh && PX4_ISFINITE(traj_sp.position[2])) {
 			// Latch setpoint only when it meaningfully differs from current position
 			const float candidate_z = traj_sp.position[2];
 			const float diff = fabsf(candidate_z - local_pos.z);
 
-			if (!_hold_position_initialized || diff > 0.5f) {
+			if (!_hold_position_initialized || diff > 0.2f) {
 				_hold_z = candidate_z;
 				_hold_position_initialized = true;
 				PX4_INFO("IFO_DBG: z_sp latched to %.3f", (double)_hold_z);
@@ -114,15 +154,51 @@ void IfodronePositionControl::Run()
 	matrix::Vector3f pos_sp = pos;
 	pos_sp(2) = z_sp; // Z is handled with special latching logic above
 
-	if (has_trajectory_setpoint) {
-		if (PX4_ISFINITE(traj_sp.position[0])) {
-			pos_sp(0) = traj_sp.position[0];
+	const bool traj_x_finite = trajectory_setpoint_fresh && PX4_ISFINITE(traj_sp.position[0]);
+	const bool traj_y_finite = trajectory_setpoint_fresh && PX4_ISFINITE(traj_sp.position[1]);
+
+	if (armed && position_control_enabled && local_pos.xy_valid) {
+		// If any XY trajectory component is missing (or setpoint is stale), hold the current XY point.
+		// This prevents pos_sp from tracking the current position sample and drifting away in HOLD.
+		if (!traj_x_finite || !traj_y_finite) {
+			if (!_hold_xy_initialized) {
+				_hold_x = local_pos.x;
+				_hold_y = local_pos.y;
+				_hold_xy_initialized = true;
+			}
 		}
 
-		if (PX4_ISFINITE(traj_sp.position[1])) {
-			pos_sp(1) = traj_sp.position[1];
+		if (traj_x_finite) {
+			pos_sp(0) = traj_sp.position[0];
+
+		} else {
+			pos_sp(0) = _hold_x;
 		}
+
+		if (traj_y_finite) {
+			pos_sp(1) = traj_sp.position[1];
+		} else {
+			pos_sp(1) = _hold_y;
+		}
+
+		if (traj_x_finite && traj_y_finite) {
+			_hold_xy_initialized = false;
+		}
+
+	} else if (!trajectory_setpoint_fresh) {
+		// Keep previous behavior on stale setpoint when XY control is not active.
+		if (!_hold_xy_initialized) {
+			_hold_x = local_pos.x;
+			_hold_y = local_pos.y;
+			_hold_xy_initialized = true;
+		}
+
+		pos_sp(0) = _hold_x;
+		pos_sp(1) = _hold_y;
 	}
+
+	pos_sp(0) = 0.0f;
+	pos_sp(1) = 0.0f;
 
 	matrix::Vector3f pos_err = pos_sp - pos;
 
@@ -159,6 +235,18 @@ void IfodronePositionControl::Run()
 	matrix::Vector3f thrust_sp_body;
 	thrust_sp_body.setZero();
 
+	// TODO - convert to inertial reference frame and compute real z_accel value needed for hover, instead of assuming 1G in body frame
+	vehicle_attitude_s att{};
+	_vehicle_attitude_sub.copy(&att);
+	const Quatf q_current(att.q);
+	const Eulerf euler_current(q_current);
+
+	const float roll_current = euler_current.phi();
+	const float pitch_current = euler_current.theta();
+	const float yaw_current = euler_current.psi();
+
+
+
 	if (run_xy_control || run_z_control) {
 		thrust_sp_body(0) = accel_sp(0) / CONSTANTS_ONE_G;
 		thrust_sp_body(1) = accel_sp(1) / CONSTANTS_ONE_G;
@@ -185,14 +273,14 @@ void IfodronePositionControl::Run()
 	}
 
 	float yaw_sp = 0.0f;
-	if (has_trajectory_setpoint && PX4_ISFINITE(traj_sp.yaw)) {
+	if (trajectory_setpoint_fresh && PX4_ISFINITE(traj_sp.yaw)) {
 		yaw_sp = traj_sp.yaw;
 
 	} else if (PX4_ISFINITE(local_pos.heading)) {
 		yaw_sp = local_pos.heading;
 	}
 
-	const float yawspeed_sp = (has_trajectory_setpoint && PX4_ISFINITE(traj_sp.yawspeed)) ? traj_sp.yawspeed : 0.0f;
+	const float yawspeed_sp = (trajectory_setpoint_fresh && PX4_ISFINITE(traj_sp.yawspeed)) ? traj_sp.yawspeed : 0.0f;
 
 	// Debug output (1 Hz)
 	static hrt_abstime last_dbg_ts = 0;
