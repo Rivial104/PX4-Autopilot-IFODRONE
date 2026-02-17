@@ -108,22 +108,22 @@ void ActuatorEffectivenessIfodrone::updateSetpoint(const matrix::Vector<float, N
 	_yaw_tilt_saturation_flags.tilt_yaw_neg = false;
 	_yaw_tilt_saturation_flags.tilt_yaw_pos = false;
 
-	static hrt_abstime last_dbg = 0;
-	const hrt_abstime now = hrt_absolute_time();
+	// static hrt_abstime last_dbg = 0;
+	// const hrt_abstime now = hrt_absolute_time();
 
-	if (now - last_dbg > 1000000) {
-		last_dbg = now;
+	// if (now - last_dbg > 1000000) {
+	// 	last_dbg = now;
 
-		const float t0 = (_tilts.count() > 0) ? actuator_sp(_first_tilt_idx + 0) : NAN;
-		const float t1 = (_tilts.count() > 1) ? actuator_sp(_first_tilt_idx + 1) : NAN;
-		const float t2 = (_tilts.count() > 2) ? actuator_sp(_first_tilt_idx + 2) : NAN;
-		const float t3 = (_tilts.count() > 3) ? actuator_sp(_first_tilt_idx + 3) : NAN;
+		// const float t0 = (_tilts.count() > 0) ? actuator_sp(_first_tilt_idx + 0) : NAN;
+		// const float t1 = (_tilts.count() > 1) ? actuator_sp(_first_tilt_idx + 1) : NAN;
+		// const float t2 = (_tilts.count() > 2) ? actuator_sp(_first_tilt_idx + 2) : NAN;
+		// const float t3 = (_tilts.count() > 3) ? actuator_sp(_first_tilt_idx + 3) : NAN;
 
-		PX4_INFO("IFO CA: roll=%.3f pitch=%.3f tz=%.3f tilt=[%.3f %.3f %.3f %.3f]",
-			 (double)control_sp(ControlAxis::ROLL), (double)control_sp(ControlAxis::PITCH),
-			 (double)control_sp(ControlAxis::THRUST_Z),
-			 (double)t0, (double)t1, (double)t2, (double)t3);
-	}
+		// PX4_INFO("IFO CA: roll=%.3f pitch=%.3f tz=%.3f tilt=[%.3f %.3f %.3f %.3f]",
+		// 	 (double)control_sp(ControlAxis::ROLL), (double)control_sp(ControlAxis::PITCH),
+		// 	 (double)control_sp(ControlAxis::THRUST_Z),
+		// 	 (double)t0, (double)t1, (double)t2, (double)t3);
+	// }
 }
 
 void ActuatorEffectivenessIfodrone::getUnallocatedControl(int matrix_index, control_allocator_status_s &status)

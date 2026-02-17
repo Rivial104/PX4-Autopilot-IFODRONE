@@ -14,6 +14,8 @@
 #include <lib/mathlib/mathlib.h>
 #include <lib/matrix/matrix/math.hpp>
 
+using namespace matrix;
+
 IfodronePositionControl::IfodronePositionControl() :
 	ModuleParams(nullptr),
 	ScheduledWorkItem(MODULE_NAME, px4::wq_configurations::nav_and_controllers)
@@ -235,7 +237,9 @@ void IfodronePositionControl::Run()
 	matrix::Vector3f thrust_sp_body;
 	thrust_sp_body.setZero();
 
-	// TODO - convert to inertial reference frame and compute real z_accel value needed for hover, instead of assuming 1G in body frame
+	// Convert accel setpoint from NED frame to body frame
+	// XY: Rotate by yaw so side motor tilts push in the correct world direction
+	// Z: Compensate for tilt angle (tilted body needs more thrust to maintain vertical force)
 	vehicle_attitude_s att{};
 	_vehicle_attitude_sub.copy(&att);
 	const Quatf q_current(att.q);
@@ -245,11 +249,19 @@ void IfodronePositionControl::Run()
 	const float pitch_current = euler_current.theta();
 	const float yaw_current = euler_current.psi();
 
+	// Rotate NED XY acceleration into body frame (yaw rotation)
+	const float cos_yaw = cosf(yaw_current);
+	const float sin_yaw = sinf(yaw_current);
+	const float accel_body_x =  cos_yaw * accel_sp(0) + sin_yaw * accel_sp(1);
+	const float accel_body_y = -sin_yaw * accel_sp(0) + cos_yaw * accel_sp(1);
 
+	// Tilt compensation: vertical component of body-Z thrust = T * cos(roll) * cos(pitch)
+	// To maintain desired vertical force: T_corrected = T_desired / cos_tilt
+	const float cos_tilt = fmaxf(cosf(roll_current) * cosf(pitch_current), 0.5f);
 
 	if (run_xy_control || run_z_control) {
-		thrust_sp_body(0) = accel_sp(0) / CONSTANTS_ONE_G;
-		thrust_sp_body(1) = accel_sp(1) / CONSTANTS_ONE_G;
+		thrust_sp_body(0) = accel_body_x / CONSTANTS_ONE_G;
+		thrust_sp_body(1) = accel_body_y / CONSTANTS_ONE_G;
 
 		const float thrust_xy_max = math::constrain(_param_ifo_thr_xy_max.get(), 0.0f, 1.0f);
 		matrix::Vector2f thrust_xy(thrust_sp_body(0), thrust_sp_body(1));
@@ -267,7 +279,8 @@ void IfodronePositionControl::Run()
 		const float thrust_max = math::constrain(_param_ifo_thr_max.get(), thrust_min, 1.0f);
 
 		// NED: positive acceleration setpoint in +Z (down) requires less upward thrust.
-		float thrust_z = hover_thrust - accel_sp(2) * (hover_thrust / CONSTANTS_ONE_G);
+		// Compensate for tilt: when body is tilted, need more thrust to maintain vertical force.
+		float thrust_z = (hover_thrust - accel_sp(2) * (hover_thrust / CONSTANTS_ONE_G)) / cos_tilt;
 		thrust_z = math::constrain(thrust_z, thrust_min, thrust_max);
 		thrust_sp_body(2) = run_z_control ? -thrust_z : 0.0f;
 	}
@@ -282,15 +295,16 @@ void IfodronePositionControl::Run()
 
 	const float yawspeed_sp = (trajectory_setpoint_fresh && PX4_ISFINITE(traj_sp.yawspeed)) ? traj_sp.yawspeed : 0.0f;
 
-	// Debug output (1 Hz)
-	static hrt_abstime last_dbg_ts = 0;
-	if (now - last_dbg_ts > DEBUG_INTERVAL_US) {
-		last_dbg_ts = now;
-		PX4_INFO("IFO_DBG: pos=(%.2f %.2f %.2f) sp=(%.2f %.2f %.2f) thr=(%.3f %.3f %.3f)",
-			 (double)local_pos.x, (double)local_pos.y, (double)local_pos.z,
-			 (double)pos_sp(0), (double)pos_sp(1), (double)pos_sp(2),
-			 (double)thrust_sp_body(0), (double)thrust_sp_body(1), (double)thrust_sp_body(2));
-	}
+	// // Debug output (1 Hz)
+	// static hrt_abstime last_dbg_ts = 0;
+	// if (now - last_dbg_ts > DEBUG_INTERVAL_US) {
+	// 	last_dbg_ts = now;
+	// 	PX4_INFO("IFO_DBG: pos=(%.2f %.2f %.2f) sp=(%.2f %.2f %.2f) thr=(%.3f %.3f %.3f) yaw=%.1f cos_tilt=%.3f",
+	// 		 (double)local_pos.x, (double)local_pos.y, (double)local_pos.z,
+	// 		 (double)pos_sp(0), (double)pos_sp(1), (double)pos_sp(2),
+	// 		 (double)thrust_sp_body(0), (double)thrust_sp_body(1), (double)thrust_sp_body(2),
+	// 		 (double)math::degrees(yaw_current), (double)cos_tilt);
+	// }
 
 	vehicle_local_position_setpoint_s local_pos_sp{};
 	local_pos_sp.timestamp = now;
@@ -310,18 +324,13 @@ void IfodronePositionControl::Run()
 	local_pos_sp.yawspeed = yawspeed_sp;
 	_local_pos_sp_pub.publish(local_pos_sp);
 
-	vehicle_thrust_setpoint_s thrust_sp{};
-	thrust_sp.timestamp = now;
-	thrust_sp.timestamp_sample = local_pos.timestamp_sample;
-	thrust_sp.xyz[0] = thrust_sp_body(0);
-	thrust_sp.xyz[1] = thrust_sp_body(1);
-	thrust_sp.xyz[2] = thrust_sp_body(2);
-	_thrust_setpoint_pub.publish(thrust_sp);
+	// Thrust flows to control allocator via attitude controller (att_sp.thrust_body),
+	// NOT directly. Attitude controller publishes vehicle_thrust_setpoint.
 
 	vehicle_attitude_setpoint_s att_sp{};
 	att_sp.timestamp = now;
 	att_sp.yaw_sp_move_rate = yawspeed_sp;
-	const matrix::Quatf q_sp(matrix::Eulerf(0.0f, 0.0f, yaw_sp));
+	const Quatf q_sp(Eulerf(0.0f, 0.0f, yaw_sp));
 	q_sp.copyTo(att_sp.q_d);
 	att_sp.thrust_body[0] = thrust_sp_body(0);
 	att_sp.thrust_body[1] = thrust_sp_body(1);
