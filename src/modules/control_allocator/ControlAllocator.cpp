@@ -471,8 +471,10 @@ void
 ControlAllocator::update_effectiveness_matrix_if_needed(EffectivenessUpdateReason reason)
 {
 	ActuatorEffectiveness::Configuration config{};
+	const bool high_rate_no_external_updates = (_effectiveness_source_id == EffectivenessSource::IFODRONE);
 
 	if (reason == EffectivenessUpdateReason::NO_EXTERNAL_UPDATE
+	    && !high_rate_no_external_updates
 	    && hrt_elapsed_time(&_last_effectiveness_update) < 100_ms) { // rate-limit updates
 		return;
 	}

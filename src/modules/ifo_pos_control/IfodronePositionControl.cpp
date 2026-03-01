@@ -199,9 +199,6 @@ void IfodronePositionControl::Run()
 		pos_sp(1) = _hold_y;
 	}
 
-	pos_sp(0) = 0.0f;
-	pos_sp(1) = 0.0f;
-
 	matrix::Vector3f pos_err = pos_sp - pos;
 
 	if (!run_xy_control) {

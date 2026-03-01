@@ -8,14 +8,8 @@ px4_add_module(
 	MODULE modules__ifo_pos_control
 	MAIN ifo_pos_control
 	SRCS
-		IfodronePositionControl.cpp
-		IfodronePositionControl.hpp
-		../mc_pos_control/GotoControl/GotoControl.cpp
-		Takeoff.cpp
-		Takeoff.hpp
+		IfoPositionControl.cpp
+		IfoPositionControl.hpp
 	DEPENDS
 		mathlib
-		motion_planning
-		perf
-		hysteresis
 )

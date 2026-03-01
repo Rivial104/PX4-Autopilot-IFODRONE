@@ -62,4 +62,15 @@ protected:
 	};
 
 	YawTiltSaturationFlags _yaw_tilt_saturation_flags{};
+	ActuatorVector _last_actuator_sp{};
+	bool _has_last_actuator_sp{false};
+	bool _matrix_update_needed{true};
+
+	int _sat_upper_count{0};
+	int _sat_lower_count{0};
+	uint64_t _last_diag_log{0};
+
+	static constexpr float TILT_MATRIX_UPDATE_THRESHOLD{0.02f};
+	static constexpr float UNALLOCATED_LOG_THRESHOLD{0.08f};
+	static constexpr uint64_t DIAG_LOG_INTERVAL_US{200000};
 };

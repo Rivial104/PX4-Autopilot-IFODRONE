@@ -20,7 +20,7 @@ bool
 ActuatorEffectivenessIfodrone::getEffectivenessMatrix(Configuration &configuration,
 		EffectivenessUpdateReason external_update)
 {
-	if (external_update == EffectivenessUpdateReason::NO_EXTERNAL_UPDATE) {
+	if (external_update == EffectivenessUpdateReason::NO_EXTERNAL_UPDATE && !_matrix_update_needed) {
 		return false;
 	}
 
@@ -29,7 +29,14 @@ ActuatorEffectivenessIfodrone::getEffectivenessMatrix(Configuration &configurati
 
 	// IFODRONE: main motors always use differential thrust for yaw.
 	// Side motor tilts handle roll/pitch only (not yaw).
-	_mc_rotors.enableYawByDifferentialThrust(true);
+	_mc_rotors.enableYawByDifferentialThrust(!_tilts.hasYawControl());
+
+	// Re-linearize rotor axes around the latest tilt actuator positions.
+	if (external_update == EffectivenessUpdateReason::NO_EXTERNAL_UPDATE
+	    && _has_last_actuator_sp
+	    && _first_tilt_idx >= 0) {
+		_mc_rotors.updateAxisFromTiltSetpoints(_tilts, _last_actuator_sp, _first_tilt_idx);
+	}
 
 	const bool motors_added_successfully = _mc_rotors.addActuators(configuration);
 
@@ -38,20 +45,12 @@ ActuatorEffectivenessIfodrone::getEffectivenessMatrix(Configuration &configurati
 	_tilts.updateTorqueSign(_mc_rotors.geometry());
 	const bool tilts_added_successfully = _tilts.addActuators(configuration);
 
-	// Override tilt effectiveness for IFODRONE roll/pitch stabilization.
-	// Standard PX4 tilt code only models Yaw/Pitch. IFODRONE needs:
-	//   - Tilt 0 (front motor at +X): pitch torque
-	//   - Tilt 1 (right motor at +Y): roll torque
-	//   - Tilt 2 (back motor at -X): pitch torque (opposite sign)
-	//   - Tilt 3 (left motor at -Y): roll torque (opposite sign)
-	// NOTE: If drone stabilizes in wrong direction, flip all pitch/roll signs.
 	auto &eff = configuration.effectiveness_matrices[configuration.selected_matrix];
 
 	for (int i = 0; i < _tilts.count(); ++i) {
 		const int idx = _first_tilt_idx + i;
 		eff(ControlAxis::ROLL, idx)  = 0.0f;
 		eff(ControlAxis::PITCH, idx) = 0.0f;
-		eff(ControlAxis::YAW, idx)   = 0.0f;
 	}
 
 	if (_tilts.count() >= 4) {
@@ -74,15 +73,7 @@ ActuatorEffectivenessIfodrone::getEffectivenessMatrix(Configuration &configurati
 		}
 	}
 
-	// const float trim0 = (_tilts.count() > 0) ? _tilt_offsets(_first_tilt_idx + 0) : NAN;
-	// const float trim1 = (_tilts.count() > 1) ? _tilt_offsets(_first_tilt_idx + 1) : NAN;
-	// const float trim2 = (_tilts.count() > 2) ? _tilt_offsets(_first_tilt_idx + 2) : NAN;
-	// const float trim3 = (_tilts.count() > 3) ? _tilt_offsets(_first_tilt_idx + 3) : NAN;
-
-	// PX4_INFO("IFO CA matrix: rotors=%d tilts=%d first_tilt_idx=%d yaw_diff=%d trim=[%.3f %.3f %.3f %.3f]",
-	// 	 _mc_rotors.geometry().num_rotors, _tilts.count(), _first_tilt_idx,
-	// 	 !_mc_rotors.geometry().yaw_by_differential_thrust_disabled,
-	// 	 (double)trim0, (double)trim1, (double)trim2, (double)trim3);
+	_matrix_update_needed = false;
 
 	return (motors_added_successfully && tilts_added_successfully);
 }
@@ -90,6 +81,7 @@ ActuatorEffectivenessIfodrone::getEffectivenessMatrix(Configuration &configurati
 void ActuatorEffectivenessIfodrone::updateSetpoint(const matrix::Vector<float, NUM_AXES> &control_sp, int matrix_index,
 		ActuatorVector &actuator_sp, const ActuatorVector &actuator_min, const ActuatorVector &actuator_max)
 {
+	(void)control_sp;
 	(void)matrix_index;
 
 	// Keep tilt neutral orientation centered at "up" without using static trim.
@@ -107,6 +99,44 @@ void ActuatorEffectivenessIfodrone::updateSetpoint(const matrix::Vector<float, N
 	// Tilts don't provide yaw on IFODRONE (main motors handle yaw via differential thrust)
 	_yaw_tilt_saturation_flags.tilt_yaw_neg = false;
 	_yaw_tilt_saturation_flags.tilt_yaw_pos = false;
+
+	// Keep diagnostics and request matrix refresh when tilt commands change.
+	bool tilt_changed = !_has_last_actuator_sp;
+	const int num_tilts = _tilts.count();
+
+	for (int i = 0; i < num_tilts; ++i) {
+		const int idx = i + _first_tilt_idx;
+
+		if (_has_last_actuator_sp && fabsf(actuator_sp(idx) - _last_actuator_sp(idx)) > TILT_MATRIX_UPDATE_THRESHOLD) {
+			tilt_changed = true;
+		}
+	}
+
+	const int num_used_actuators = (_first_tilt_idx >= 0) ? math::min(NUM_ACTUATORS, _first_tilt_idx + num_tilts) : 0;
+	_sat_upper_count = 0;
+	_sat_lower_count = 0;
+
+	for (int i = 0; i < num_used_actuators; ++i) {
+		const float sp = actuator_sp(i);
+
+		if (!PX4_ISFINITE(sp)) {
+			continue;
+		}
+
+		if (sp >= actuator_max(i) - FLT_EPSILON) {
+			++_sat_upper_count;
+
+		} else if (sp <= actuator_min(i) + FLT_EPSILON) {
+			++_sat_lower_count;
+		}
+	}
+
+	_last_actuator_sp = actuator_sp;
+	_has_last_actuator_sp = true;
+
+	if (tilt_changed) {
+		_matrix_update_needed = true;
+	}
 
 	// static hrt_abstime last_dbg = 0;
 	// const hrt_abstime now = hrt_absolute_time();
@@ -128,6 +158,8 @@ void ActuatorEffectivenessIfodrone::updateSetpoint(const matrix::Vector<float, N
 
 void ActuatorEffectivenessIfodrone::getUnallocatedControl(int matrix_index, control_allocator_status_s &status)
 {
+	(void)matrix_index;
+
 	// Note: the values '-1', '1' and '0' are just to indicate a negative,
 	// positive or no saturation to the rate controller. The actual magnitude is not used.
 	if (_yaw_tilt_saturation_flags.tilt_yaw_pos) {
@@ -139,4 +171,19 @@ void ActuatorEffectivenessIfodrone::getUnallocatedControl(int matrix_index, cont
 	} else {
 		status.unallocated_torque[2] = 0.f;
 	}
+
+	// const Vector3f unallocated_torque(status.unallocated_torque[0], status.unallocated_torque[1], status.unallocated_torque[2]);
+	// const Vector3f unallocated_thrust(status.unallocated_thrust[0], status.unallocated_thrust[1], status.unallocated_thrust[2]);
+	// const bool unallocated_large = unallocated_torque.norm() > UNALLOCATED_LOG_THRESHOLD
+	// 			       || unallocated_thrust.norm() > UNALLOCATED_LOG_THRESHOLD;
+	// const bool saturated = (_sat_upper_count > 0) || (_sat_lower_count > 0);
+	// const hrt_abstime now = hrt_absolute_time();
+
+	// if ((unallocated_large || saturated) && now - _last_diag_log > DIAG_LOG_INTERVAL_US) {
+	// 	_last_diag_log = now;
+	// 	PX4_WARN("IFO CA: unalloc_t=(%.3f %.3f %.3f) unalloc_f=(%.3f %.3f %.3f) sat(u=%d l=%d)",
+	// 		 (double)status.unallocated_torque[0], (double)status.unallocated_torque[1], (double)status.unallocated_torque[2],
+	// 		 (double)status.unallocated_thrust[0], (double)status.unallocated_thrust[1], (double)status.unallocated_thrust[2],
+	// 		 _sat_upper_count, _sat_lower_count);
+	// }
 }

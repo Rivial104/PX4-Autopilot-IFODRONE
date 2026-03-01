@@ -1,90 +1,22 @@
 /**
- * IFODRONE Position Controller Parameters
+ * IFODRONE Position Filter Parameters
  */
 
 /**
- * Position Z P gain
+ * IFODRONE position filter mode
  *
- * Proportional gain for altitude control
+ * When enabled, intercepts mc_pos_control's attitude setpoint and
+ * redistributes thrust for the IFODRONE body-frame motors (level body,
+ * XY thrust via tilt motors).
  *
- * @min 0.0
- * @max 5.0
- * @decimal 2
+ * 0: Disabled (mc_pos_control attitude setpoint passes through)
+ * 1: Enabled (level body, XY thrust to tilt motors)
+ *
+ * @min 0
+ * @max 1
  * @group IFODRONE Position Control
  */
-PARAM_DEFINE_FLOAT(IFO_POS_Z_P, 1.0f);
-
-/**
- * Velocity Z P gain
- *
- * Proportional gain for vertical velocity control
- *
- * @min 0.0
- * @max 10.0
- * @decimal 2
- * @group IFODRONE Position Control
- */
-PARAM_DEFINE_FLOAT(IFO_VEL_Z_P, 0.5f);
-
-/**
- * Position XY P gain
- *
- * Proportional gain for horizontal position control (tilt motors)
- *
- * @min 0.0
- * @max 5.0
- * @decimal 2
- * @group IFODRONE Position Control
- */
-PARAM_DEFINE_FLOAT(IFO_POS_XY_P, 0.8f);
-
-/**
- * Velocity XY P gain
- *
- * Proportional gain for horizontal velocity control (tilt motors)
- *
- * @min 0.0
- * @max 10.0
- * @decimal 2
- * @group IFODRONE Position Control
- */
-PARAM_DEFINE_FLOAT(IFO_VEL_XY_P, 0.4f);
-
-/**
- * Hover thrust
- *
- * Normalized thrust needed to hover (0..1)
- *
- * @min 0.1
- * @max 0.9
- * @decimal 2
- * @group IFODRONE Position Control
- */
-PARAM_DEFINE_FLOAT(IFO_THR_HOVER, 0.5f);
-
-/**
- * Maximum thrust
- *
- * Maximum normalized thrust (0..1)
- *
- * @min 0.0
- * @max 1.0
- * @decimal 2
- * @group IFODRONE Position Control
- */
-PARAM_DEFINE_FLOAT(IFO_THR_MAX, 0.9f);
-
-/**
- * Minimum thrust
- *
- * Minimum normalized thrust (0..1)
- *
- * @min 0.0
- * @max 0.5
- * @decimal 2
- * @group IFODRONE Position Control
- */
-PARAM_DEFINE_FLOAT(IFO_THR_MIN, 0.1f);
+PARAM_DEFINE_INT32(IFO_POS_MODE, 0);
 
 /**
  * Maximum XY thrust

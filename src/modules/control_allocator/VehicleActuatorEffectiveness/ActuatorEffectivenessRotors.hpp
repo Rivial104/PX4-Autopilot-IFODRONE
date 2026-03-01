@@ -110,6 +110,16 @@ public:
 	 */
 	uint32_t updateAxisFromTilts(const ActuatorEffectivenessTilts &tilts, float tilt_control);
 
+	/**
+	 * Sets each motor axis from per-tilt actuator setpoints.
+	 * @param tilts configured tilt servos
+	 * @param actuator_sp full actuator setpoint vector
+	 * @param first_tilt_idx first tilt actuator index in actuator_sp
+	 * @return the motors as bitset which are not tiltable
+	 */
+	uint32_t updateAxisFromTiltSetpoints(const ActuatorEffectivenessTilts &tilts,
+					     const ActuatorVector &actuator_sp, int first_tilt_idx);
+
 	const Geometry &geometry() const { return _geometry; }
 
 	/**
@@ -149,6 +159,7 @@ private:
 	ParamHandles _param_handles[NUM_ROTORS_MAX];
 
 	Geometry _geometry{};
+	matrix::Vector3f _base_axis[NUM_ROTORS_MAX] {};
 
 	DEFINE_PARAMETERS(
 		(ParamInt<px4::params::CA_ROTOR_COUNT>) _param_ca_rotor_count

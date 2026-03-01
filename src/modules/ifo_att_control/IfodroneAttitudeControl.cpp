@@ -112,25 +112,24 @@ void IfodroneAttitudeControl::Run()
 		// Get desired yaw from attitude setpoint quaternion
 		const Quatf q_desired(att_sp.q_d);
 		const Eulerf euler_desired(q_desired);
-		const float yaw_setpoint = euler_desired.psi();
+		const float yaw_setpoint = PX4_ISFINITE(euler_desired.psi()) ? euler_desired.psi() : yaw_current;
+		// const float yaw_setpoint = yaw_current;
 
 		// Attitude errors (setpoint - current)
-		const float roll_error = roll_setpoint - roll_current;
+		// Roll is wrapped to avoid discontinuity at +/-pi.
+		const float roll_error = matrix::wrap_pi(roll_setpoint - roll_current);
 		const float pitch_error = pitch_setpoint - pitch_current;
 
 		// Yaw error with wrap-around handling
-		float yaw_error = yaw_setpoint - yaw_current;
-		if (yaw_error > M_PI_F) {
-			yaw_error -= 2.0f * M_PI_F;
-		} else if (yaw_error < -M_PI_F) {
-			yaw_error += 2.0f * M_PI_F;
-		}
+		const float yaw_error = matrix::wrap_pi(yaw_setpoint - yaw_current);
 
 		vehicle_angular_velocity_s rates{};
 		_vehicle_angular_velocity_sub.copy(&rates);
 
 		torque(0) = _kp_att * roll_error - _kd_att * rates.xyz[0];
 		torque(1) = _kp_att * pitch_error - _kd_att * rates.xyz[1];
+		torque(2) = math::constrain(-_kp_yaw * yaw_error - _kd_yaw * rates.xyz[2],
+					    -_yaw_torque_limit, _yaw_torque_limit);
 
 		// P controller for attitude stabilization
 		// Torque = Kp * error
