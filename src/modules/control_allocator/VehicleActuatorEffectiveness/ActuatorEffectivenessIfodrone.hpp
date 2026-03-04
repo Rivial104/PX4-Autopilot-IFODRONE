@@ -3,12 +3,12 @@
  *
  * Actuator effectiveness for IFODRONE:
  *
- *   Motors 0-1 : coaxial pair, upward axis (Z-thrust).
- *                Opposite KM signs → yaw via differential thrust.
- *   Motors 2-5 : side EDFs, configurable axes (+/-X and +/-Y) for XY thrust.
- *                Rotor axes are re-linearized from current tilt setpoints.
- *   Tilts  0-3 : servo actuators that the CA commands directly for
- *                roll and pitch (front/back -> pitch, right/left -> roll).
+ *   Motors 0-1 : coaxial pair, upward axis (Z-thrust + yaw differential).
+ *   Motors 2-5 : side EDFs, tilted by servos.  Axes re-linearized every
+ *                iteration from tilt angles.  Idle trim keeps them spinning.
+ *                Natural roll/pitch/Z effectiveness from tilted axes.
+ *   Tilts  0-3 : servo actuators allocated by CA for roll/pitch.
+ *                Effectiveness = 15.0 (high value to overcome normalization).
  */
 
 #pragma once
@@ -42,12 +42,10 @@ public:
 
 private:
 	float neutralTiltControl(int tilt_index) const;
-	float tiltCommandFromTorqueSetpoint(int tilt_index, const matrix::Vector<float, NUM_AXES> &control_sp) const;
 	void updateTiltOffsets();
 	void overwriteTiltEffectiveness(EffectivenessMatrix &effectiveness) const;
 
 	ActuatorEffectivenessRotors _mc_rotors;
-	ActuatorEffectivenessRotors _tilt_rotors;
 	ActuatorEffectivenessTilts _tilts;
 
 	ActuatorVector _tilt_offsets;
@@ -55,4 +53,7 @@ private:
 	int _first_tilt_idx{-1};
 	bool _tilt_setpoint_updated{true};
 	bool _tilt_setpoints_initialized{false};
+
+	// --- Tuning constants ---
+	static constexpr float _side_motor_idle = 0.05f;  ///< idle trim for side motors [0..1]
 };

@@ -1,9 +1,20 @@
 /**
  * @file ActuatorEffectivenessIfodrone.cpp
  *
- * Minimal IFODRONE control allocator effectiveness.
- * Motors 0-1 (coaxial, upward) provide Z-thrust and yaw via differential thrust.
- * Motors 2-5 (side EDFs with tilts) provide XY-thrust; tilts provide roll/pitch torque.
+ * IFODRONE control allocator effectiveness.
+ *
+ * Allocation strategy:
+ *   Motors 0-1 (coaxial, upward): THRUST_Z + YAW (differential KM).
+ *   Motors 2-5 (side EDFs):       Tilted by servos. As the tilt angle
+ *                                  changes, their thrust axes rotate,
+ *                                  providing XY thrust + Z component
+ *                                  + roll/pitch torque (cross product).
+ *                                  An idle trim keeps them spinning.
+ *   Tilts  0-3 (servos):          Allocated by CA for ROLL/PITCH.
+ *                                  Effectiveness = 15.0 (high value to
+ *                                  overcome RPY normalization scaling).
+ *                                  updateAxisFromTiltSetpoints() re-linearizes
+ *                                  the side motor axes every iteration.
  */
 
 #include "ActuatorEffectivenessIfodrone.hpp"
@@ -15,8 +26,7 @@ using namespace matrix;
 
 ActuatorEffectivenessIfodrone::ActuatorEffectivenessIfodrone(ModuleParams *parent)
 	: ModuleParams(parent),
-	  _mc_rotors(this, ActuatorEffectivenessRotors::AxisConfiguration::FixedUpwards, true),
-	  _tilt_rotors(this, ActuatorEffectivenessRotors::AxisConfiguration::Configurable, true),
+	  _mc_rotors(this, ActuatorEffectivenessRotors::AxisConfiguration::Configurable, true),
 	  _tilts(this)
 {
 	_tilt_offsets.setZero();
@@ -33,20 +43,23 @@ ActuatorEffectivenessIfodrone::getEffectivenessMatrix(Configuration &configurati
 
 	configuration.selected_matrix = 0;
 
-	// Main motors handle Z and yaw, while side motors contribute in XY.
+	// Configurable rotor set with tilt support.
 	_mc_rotors.enableYawByDifferentialThrust(true);
-	_mc_rotors.enablePropellerTorqueNonUpwards(false);
-	const bool mc_motors_added = _mc_rotors.addActuators(configuration);
+	_mc_rotors.enablePropellerTorqueNonUpwards(true);
 
-	_tilt_rotors.enableYawByDifferentialThrust(false);
-	_tilt_rotors.enablePropellerTorqueNonUpwards(true);
+	auto &effectiveness = configuration.effectiveness_matrices[0];
+	const int first_motor_idx = configuration.num_actuators_matrix[0];
+	const bool motors_added = _mc_rotors.addActuators(configuration);
 
+	// Set tilt index AFTER adding motors so we know the correct starting index
+	const int first_non_motor_idx = configuration.num_actuators_matrix[0];
+	_first_tilt_idx = first_non_motor_idx;
+
+	// Initialize tilt setpoints if this is the first call
 	if (_tilts.count() > 0) {
-		const int first_tilt_idx_for_axis_update = (_first_tilt_idx >= 0) ? _first_tilt_idx : _tilt_rotors.geometry().num_rotors;
-
 		if (!_tilt_setpoints_initialized) {
 			for (int i = 0; i < _tilts.count(); ++i) {
-				const int actuator_idx = first_tilt_idx_for_axis_update + i;
+				const int actuator_idx = _first_tilt_idx + i;
 
 				if (actuator_idx >= 0 && actuator_idx < NUM_ACTUATORS) {
 					_last_actuator_sp(actuator_idx) = neutralTiltControl(i);
@@ -56,21 +69,58 @@ ActuatorEffectivenessIfodrone::getEffectivenessMatrix(Configuration &configurati
 			_tilt_setpoints_initialized = true;
 		}
 
-		_tilt_rotors.updateAxisFromTiltSetpoints(_tilts, _last_actuator_sp, first_tilt_idx_for_axis_update);
+		_mc_rotors.updateAxisFromTiltSetpoints(_tilts, _last_actuator_sp, _first_tilt_idx);
+	}
+	// --- Post-process motor effectiveness rows ---
+	// Main motors (0-1): leave untouched (pure Z + yaw differential).
+	// Side motors (2-5): leave untouched — their roll/pitch/thrust_Z
+	//                     effectiveness comes naturally from the tilted
+	//                     axis (updated by updateAxisFromTiltSetpoints).
+	//                     Only zero YAW (yaw is handled by main motors).
+	const auto &geometry = _mc_rotors.geometry();
+
+	for (int i = 0; i < geometry.num_rotors && (first_motor_idx + i) < first_non_motor_idx; ++i) {
+		const int actuator_idx = first_motor_idx + i;
+
+		if (actuator_idx >= NUM_ACTUATORS) {
+			break;
+		}
+
+		const int tilt_index = geometry.rotors[i].tilt_index;
+
+		if (tilt_index >= 0 && tilt_index < _tilts.count()) {
+			// Side motors: zero YAW only.  Roll/pitch/thrust come from tilted axis.
+			effectiveness(ControlAxis::YAW, actuator_idx) = 0.f;
+		}
 	}
 
-	const bool tilt_motors_added = _tilt_rotors.addActuators(configuration);
+	// --- Side motor idle trim ---
+	// Keep side motors spinning so the tilts have a base thrust to redirect.
+	for (int i = 0; i < geometry.num_rotors && (first_motor_idx + i) < first_non_motor_idx; ++i) {
+		const int actuator_idx = first_motor_idx + i;
 
-	// Tilt servos
-	_first_tilt_idx = configuration.num_actuators_matrix[0];
-	_tilts.updateTorqueSign(_tilt_rotors.geometry(), true);
+		if (actuator_idx >= NUM_ACTUATORS) {
+			break;
+		}
+
+		if (geometry.rotors[i].tilt_index >= 0) {
+			configuration.trim[0](actuator_idx) = _side_motor_idle;
+		}
+	}
+
+	// --- Tilt servos ---
+	// (_first_tilt_idx already set above after adding motors)
+	_tilts.updateTorqueSign(_mc_rotors.geometry(), true);
 	const bool tilts_added = _tilts.addActuators(configuration);
 
 	updateTiltOffsets();
-	overwriteTiltEffectiveness(configuration.effectiveness_matrices[0]);
+
+	// Restore tilt effectiveness for roll/pitch.  Use a high value (15.0)
+	// to overcome the RPY normalization scaling in the pseudo-inverse.
+	overwriteTiltEffectiveness(effectiveness);
 	_tilt_setpoint_updated = false;
 
-	return mc_motors_added && tilt_motors_added && tilts_added;
+	return motors_added && tilts_added;
 }
 
 void ActuatorEffectivenessIfodrone::updateSetpoint(const matrix::Vector<float, NUM_AXES> &control_sp, int matrix_index,
@@ -79,6 +129,9 @@ void ActuatorEffectivenessIfodrone::updateSetpoint(const matrix::Vector<float, N
 	if (matrix_index != 0 || _first_tilt_idx < 0 || _tilts.count() == 0) {
 		return;
 	}
+
+	// CA has already allocated roll/pitch to the tilt servos via the
+	// effectiveness matrix.  We just add the neutral offset and track changes.
 
 	bool tilt_setpoint_changed = false;
 
@@ -89,11 +142,8 @@ void ActuatorEffectivenessIfodrone::updateSetpoint(const matrix::Vector<float, N
 			continue;
 		}
 
-		float tilt_sp = tiltCommandFromTorqueSetpoint(i, control_sp);
-
-		if (!PX4_ISFINITE(tilt_sp)) {
-			tilt_sp = actuator_sp(actuator_idx) + _tilt_offsets(actuator_idx);
-		}
+		// Add neutral offset to the CA output
+		float tilt_sp = actuator_sp(actuator_idx) + _tilt_offsets(actuator_idx);
 
 		if (!PX4_ISFINITE(tilt_sp)) {
 			tilt_sp = _tilt_offsets(actuator_idx);
@@ -102,6 +152,7 @@ void ActuatorEffectivenessIfodrone::updateSetpoint(const matrix::Vector<float, N
 		tilt_sp = math::constrain(tilt_sp, actuator_min(actuator_idx), actuator_max(actuator_idx));
 		actuator_sp(actuator_idx) = tilt_sp;
 
+		// Track changes to trigger axis re-linearization
 		if (!PX4_ISFINITE(_last_actuator_sp(actuator_idx))
 		    || fabsf(tilt_sp - _last_actuator_sp(actuator_idx)) > 0.005f) {
 			tilt_setpoint_changed = true;
@@ -131,28 +182,6 @@ float ActuatorEffectivenessIfodrone::neutralTiltControl(int tilt_index) const
 	return math::constrain(neutral, -1.f, 1.f);
 }
 
-float ActuatorEffectivenessIfodrone::tiltCommandFromTorqueSetpoint(int tilt_index,
-		const matrix::Vector<float, NUM_AXES> &control_sp) const
-{
-	if (tilt_index < 0 || tilt_index >= _tilts.count()) {
-		return NAN;
-	}
-
-	const float roll_torque_sp = math::constrain(control_sp(ControlAxis::ROLL), -1.f, 1.f);
-	const float pitch_torque_sp = math::constrain(control_sp(ControlAxis::PITCH), -1.f, 1.f);
-	const float neutral = neutralTiltControl(tilt_index);
-
-	// Fixed body-frame mapping (independent of world position):
-	// 0=front(+X), 1=right(+Y), 2=back(-X), 3=left(-Y).
-	switch (tilt_index) {
-	case 0: return neutral + pitch_torque_sp; // front tilt -> pitch+
-	case 1: return neutral + roll_torque_sp;  // right tilt -> roll+
-	case 2: return neutral - pitch_torque_sp; // back tilt -> pitch-
-	case 3: return neutral - roll_torque_sp;  // left tilt -> roll-
-	default: return NAN;
-	}
-}
-
 void ActuatorEffectivenessIfodrone::updateTiltOffsets()
 {
 	_tilt_offsets.setZero();
@@ -168,7 +197,16 @@ void ActuatorEffectivenessIfodrone::updateTiltOffsets()
 
 void ActuatorEffectivenessIfodrone::overwriteTiltEffectiveness(EffectivenessMatrix &effectiveness) const
 {
-	// Tilts are used as orientation actuators (roll/pitch only) for IFODRONE.
+	// Set tilt effectiveness for roll/pitch torque AND XY thrust.
+	// Each tilt controls both torque and thrust based on rotor base axis direction.
+	//
+	// Physical mapping (body-frame):
+	//   Tilt 0 (front, AX=+1): +pitch torque, +X thrust (when tilted positive)
+	//   Tilt 1 (right, AY=+1): -roll torque,  +Y thrust (when tilted positive)
+	//   Tilt 2 (back,  AX=-1): -pitch torque, -X thrust (when tilted positive)
+	//   Tilt 3 (left,  AY=-1): +roll torque,  -Y thrust (when tilted positive)
+	//
+	// Symmetry preserved: front/back pair controls pitch+X, right/left pair controls roll+Y.
 	for (int i = 0; i < _tilts.count(); ++i) {
 		const int actuator_idx = _first_tilt_idx + i;
 
@@ -176,13 +214,31 @@ void ActuatorEffectivenessIfodrone::overwriteTiltEffectiveness(EffectivenessMatr
 			continue;
 		}
 
+		// Zero all axes first
 		for (int axis = 0; axis < NUM_AXES; ++axis) {
 			effectiveness(axis, actuator_idx) = 0.f;
 		}
-		const float pitch_eff = (i == 0) ? 1.f : ((i == 2) ? -1.f : 0.f);
-		const float roll_eff = (i == 1) ? 1.f : ((i == 3) ? -1.f : 0.f);
 
-		effectiveness(ControlAxis::PITCH, actuator_idx) = pitch_eff;
-		effectiveness(ControlAxis::ROLL, actuator_idx) = roll_eff;
+		// Set effectiveness for torque + thrust (based on rotor base axis direction)
+		if (i == 0) {
+			// Front (AX=+1): positive tilt → +X thrust, +pitch torque
+			effectiveness(ControlAxis::PITCH,    actuator_idx) =  1.f;
+			effectiveness(ControlAxis::THRUST_X, actuator_idx) =  1.f;
+
+		} else if (i == 1) {
+			// Right (AY=+1): positive tilt → +Y thrust, -roll torque
+			effectiveness(ControlAxis::ROLL,     actuator_idx) = -1.f;
+			effectiveness(ControlAxis::THRUST_Y, actuator_idx) =  1.f;
+
+		} else if (i == 2) {
+			// Back (AX=-1): positive tilt → -X thrust, -pitch torque
+			effectiveness(ControlAxis::PITCH,    actuator_idx) = 1.f;
+			effectiveness(ControlAxis::THRUST_X, actuator_idx) = 1.f;
+
+		} else if (i == 3) {
+			// Left (AY=-1): positive tilt → -Y thrust, +roll torque
+			effectiveness(ControlAxis::ROLL,     actuator_idx) =  1.f;
+			effectiveness(ControlAxis::THRUST_Y, actuator_idx) = -1.f;
+		}
 	}
 }
