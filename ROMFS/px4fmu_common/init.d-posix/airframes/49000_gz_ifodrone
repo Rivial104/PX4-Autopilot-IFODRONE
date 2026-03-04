@@ -133,8 +133,8 @@ param set-default CA_SV_TL0_TD 0
 param set-default CA_SV_TL0_CT 1
 param set-default SIM_GZ_SV_FUNC1 201
 # GZ bridge uses angle params (MINA/MAXA) for servo output mapping
-param set-default SIM_GZ_SV_MINA1 -90.0
-param set-default SIM_GZ_SV_MAXA1 90.0
+param set-default SIM_GZ_SV_MINA1 -45.0
+param set-default SIM_GZ_SV_MAXA1 45.0
 param set-default SIM_GZ_SV_MIN1 0
 param set-default SIM_GZ_SV_MAX1 1000
 
@@ -144,30 +144,30 @@ param set-default CA_SV_TL1_MAXA 90.0
 param set-default CA_SV_TL1_TD 0
 param set-default CA_SV_TL1_CT 1
 param set-default SIM_GZ_SV_FUNC2 202
-param set-default SIM_GZ_SV_MINA2 -90.0
-param set-default SIM_GZ_SV_MAXA2 90.0
+param set-default SIM_GZ_SV_MINA2 -45.0
+param set-default SIM_GZ_SV_MAXA2 45.0
 param set-default SIM_GZ_SV_MIN2 0
 param set-default SIM_GZ_SV_MAX2 1000
 
 # Tilt 2: Back motor (rotor 4) - tilts around Y axis
-param set-default CA_SV_TL2_MINA -90.0
-param set-default CA_SV_TL2_MAXA 90.0
+param set-default CA_SV_TL2_MINA -45.0
+param set-default CA_SV_TL2_MAXA 45.0
 param set-default CA_SV_TL2_TD 0
 param set-default CA_SV_TL2_CT 1
 param set-default SIM_GZ_SV_FUNC3 203
-param set-default SIM_GZ_SV_MINA3 -90.0
-param set-default SIM_GZ_SV_MAXA3 90.0
+param set-default SIM_GZ_SV_MINA3 -45.0
+param set-default SIM_GZ_SV_MAXA3 45.0
 param set-default SIM_GZ_SV_MIN3 0
 param set-default SIM_GZ_SV_MAX3 1000
 
 # Tilt 3: Left motor (rotor 5) - tilts around X axis
-param set-default CA_SV_TL3_MINA -90.0
-param set-default CA_SV_TL3_MAXA 90.0
+param set-default CA_SV_TL3_MINA -45.0
+param set-default CA_SV_TL3_MAXA 45.0
 param set-default CA_SV_TL3_TD 0
 param set-default CA_SV_TL3_CT 1
 param set-default SIM_GZ_SV_FUNC4 204
-param set-default SIM_GZ_SV_MINA4 -90.0
-param set-default SIM_GZ_SV_MAXA4 90.0
+param set-default SIM_GZ_SV_MINA4 -45.0
+param set-default SIM_GZ_SV_MAXA4 45.0
 param set-default SIM_GZ_SV_MIN4 0
 param set-default SIM_GZ_SV_MAX4 1000
 
@@ -189,6 +189,9 @@ param set-default NAV_DLL_ACT 0
 
 # IFODRONE position filter: enable attitude setpoint override
 param set-default IFO_POS_MODE 1
+
+# IFODRONE attitude control: force level (roll=0, pitch=0)
+param set-default IFO_ATT_MODE 1
 
 # mc_pos_control params for IFODRONE
 param set-default MPC_THR_HOVER 0.65

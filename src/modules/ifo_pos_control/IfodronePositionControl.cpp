@@ -78,6 +78,7 @@ void IfodronePositionControl::Run()
 	_vehicle_control_mode_sub.copy(&control_mode);
 
 	vehicle_local_position_s local_pos{};
+
 	if (!_local_pos_sub.copy(&local_pos)) {
 		perf_end(_cycle_perf);
 		return;
@@ -140,6 +141,7 @@ void IfodronePositionControl::Run()
 				_hold_position_initialized = true;
 				PX4_INFO("IFO_DBG: z_sp latched to %.3f", (double)_hold_z);
 			}
+
 			z_sp = _hold_z;
 		}
 	}
@@ -179,6 +181,7 @@ void IfodronePositionControl::Run()
 
 		if (traj_y_finite) {
 			pos_sp(1) = traj_sp.position[1];
+
 		} else {
 			pos_sp(1) = _hold_y;
 		}
@@ -283,6 +286,7 @@ void IfodronePositionControl::Run()
 	}
 
 	float yaw_sp = 0.0f;
+
 	if (trajectory_setpoint_fresh && PX4_ISFINITE(traj_sp.yaw)) {
 		yaw_sp = traj_sp.yaw;
 

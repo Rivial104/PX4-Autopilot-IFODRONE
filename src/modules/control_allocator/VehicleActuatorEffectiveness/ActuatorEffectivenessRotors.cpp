@@ -298,6 +298,7 @@ uint32_t ActuatorEffectivenessRotors::updateAxisFromTiltSetpoints(const Actuator
 
 		if (base_axis_norm > FLT_EPSILON) {
 			base_axis /= base_axis_norm;
+
 		} else {
 			base_axis = Vector3f(0.f, 0.f, -1.f);
 		}
@@ -308,6 +309,7 @@ uint32_t ActuatorEffectivenessRotors::updateAxisFromTiltSetpoints(const Actuator
 
 		if (fabsf(base_axis(0)) >= fabsf(base_axis(1))) {
 			hinge_axis = Vector3f(0.f, (base_axis(0) >= 0.f) ? 1.f : -1.f, 0.f);
+
 		} else {
 			hinge_axis = Vector3f((base_axis(1) >= 0.f) ? -1.f : 1.f, 0.f, 0.f);
 		}

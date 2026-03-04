@@ -24,9 +24,14 @@ mc_pos_control start
 ifo_pos_control start
 
 #
-# Start IfoDrone Attitude Controller (PD stabilization, thrust passthrough)
+# Start IfoDrone Attitude Controller (passthrough – forced level, standard quaternion P-ctrl)
 #
 ifo_att_control start
+
+#
+# Start MC Rate Controller (converts rate setpoints → torque/thrust)
+#
+mc_rate_control start
 
 #
 # Start Hover Thrust Estimator (needed for thrust estimation)

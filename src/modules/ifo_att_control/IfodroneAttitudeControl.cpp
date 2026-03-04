@@ -44,6 +44,7 @@ void IfodroneAttitudeControl::Run()
 
 	// Update parameters if changed
 	parameter_update_s params;
+
 	if (_parameter_update_sub.updated()) {
 		_parameter_update_sub.update(&params);
 		updateParams();
@@ -55,6 +56,7 @@ void IfodroneAttitudeControl::Run()
 
 	// Get current attitude
 	vehicle_attitude_s att{};
+
 	if (!_vehicle_attitude_sub.copy(&att)) {
 		return;
 	}
@@ -163,6 +165,7 @@ void IfodroneAttitudeControl::Run()
 		torque.setZero();
 		thrust.setZero();
 	}
+
 	// NOTE: When armed but no setpoint, keep previous values
 
 	// ================================================================

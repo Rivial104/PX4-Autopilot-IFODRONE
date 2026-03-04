@@ -54,6 +54,7 @@ public:
 	static int print_usage(const char *reason = nullptr)
 	{
 		if (reason) { PX4_WARN("%s", reason); }
+
 		PX4_INFO("usage: ifo_pos_control start|stop|status");
 		return 0;
 	}

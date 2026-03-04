@@ -1,13 +1,14 @@
 /**
  * @file ActuatorEffectivenessIfodrone.hpp
  *
- * Actuator effectiveness for IfoDrone configuration:
- * - 2 main motors (indices 0, 1) oriented in Z-axis for vertical thrust
- *   - Yaw control via differential thrust (CW/CCW)
- * - 4 side motors (indices 2, 3, 4, 5) in plus configuration with tilt capability
- *   - Roll control via right/left motor tilts (motors 3, 5)
- *   - Pitch control via front/back motor tilts (motors 2, 4)
+ * Actuator effectiveness for IFODRONE:
  *
+ *   Motors 0-1 : coaxial pair, upward axis (Z-thrust).
+ *                Opposite KM signs → yaw via differential thrust.
+ *   Motors 2-5 : side EDFs, configurable axes (+/-X and +/-Y) for XY thrust.
+ *                Rotor axes are re-linearized from current tilt setpoints.
+ *   Tilts  0-3 : servo actuators that the CA commands directly for
+ *                roll and pitch (front/back -> pitch, right/left -> roll).
  */
 
 #pragma once
@@ -24,6 +25,9 @@ public:
 
 	bool getEffectivenessMatrix(Configuration &configuration, EffectivenessUpdateReason external_update) override;
 
+	void updateSetpoint(const matrix::Vector<float, NUM_AXES> &control_sp, int matrix_index, ActuatorVector &actuator_sp,
+			    const ActuatorVector &actuator_min, const ActuatorVector &actuator_max) override;
+
 	void getDesiredAllocationMethod(AllocationMethod allocation_method_out[MAX_NUM_MATRICES]) const override
 	{
 		allocation_method_out[0] = AllocationMethod::SEQUENTIAL_DESATURATION;
@@ -34,43 +38,21 @@ public:
 		normalize[0] = true;
 	}
 
-	void updateSetpoint(const matrix::Vector<float, NUM_AXES> &control_sp, int matrix_index, ActuatorVector &actuator_sp,
-			    const ActuatorVector &actuator_min, const ActuatorVector &actuator_max) override;
-
 	const char *name() const override { return "IfoDrone"; }
 
-	void getUnallocatedControl(int matrix_index, control_allocator_status_s &status) override;
+private:
+	float neutralTiltControl(int tilt_index) const;
+	float tiltCommandFromTorqueSetpoint(int tilt_index, const matrix::Vector<float, NUM_AXES> &control_sp) const;
+	void updateTiltOffsets();
+	void overwriteTiltEffectiveness(EffectivenessMatrix &effectiveness) const;
 
-protected:
-	ActuatorVector _tilt_offsets;
 	ActuatorEffectivenessRotors _mc_rotors;
+	ActuatorEffectivenessRotors _tilt_rotors;
 	ActuatorEffectivenessTilts _tilts;
 
-	// Motor indices
-	int _first_main_idx{0};                        ///< Index of first main motor (Z-axis)
-	int _first_side_idx{MAIN_MOTORS_NUM};          ///< Index of first side motor (tilting)
-	int _first_tilt_idx{-1};                       ///< Index of first tilt servo
-
-	// Motor counts
-	static constexpr int MAIN_MOTORS_NUM{2};       ///< Number of main Z-axis motors
-	static constexpr int SIDE_MOTORS_NUM{4};       ///< Number of side tilting motors
-	static constexpr int MOTORS_NUM{MAIN_MOTORS_NUM + SIDE_MOTORS_NUM};
-
-	struct YawTiltSaturationFlags {
-		bool tilt_yaw_pos{false};
-		bool tilt_yaw_neg{false};
-	};
-
-	YawTiltSaturationFlags _yaw_tilt_saturation_flags{};
-	ActuatorVector _last_actuator_sp{};
-	bool _has_last_actuator_sp{false};
-	bool _matrix_update_needed{true};
-
-	int _sat_upper_count{0};
-	int _sat_lower_count{0};
-	uint64_t _last_diag_log{0};
-
-	static constexpr float TILT_MATRIX_UPDATE_THRESHOLD{0.02f};
-	static constexpr float UNALLOCATED_LOG_THRESHOLD{0.08f};
-	static constexpr uint64_t DIAG_LOG_INTERVAL_US{200000};
+	ActuatorVector _tilt_offsets;
+	ActuatorVector _last_actuator_sp;
+	int _first_tilt_idx{-1};
+	bool _tilt_setpoint_updated{true};
+	bool _tilt_setpoints_initialized{false};
 };
