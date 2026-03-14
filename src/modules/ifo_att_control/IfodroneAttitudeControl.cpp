@@ -166,6 +166,34 @@ void IfodroneAttitudeControl::Run()
 	// NOTE: When armed but no setpoint, keep previous values
 
 	// ================================================================
+	// COMPUTE TILT SERVO ANGLES
+	// Tilt angle = asin(torque / (R * thrust))
+	// Normalized to [-1, 1] range for servo output
+	// ================================================================
+	constexpr float ct = 200.0f; // motor constant for scaling
+	constexpr float R = 0.10f;
+	constexpr float max_servos_angle = math::radians(45.0f);
+	constexpr float min_thrust = 0.05f; // avoid division by zero
+
+	const float thrust_x = fabsf(thrust(0)) > min_thrust ? thrust(0) : min_thrust;
+	const float thrust_y = fabsf(thrust(1)) > min_thrust ? thrust(1) : min_thrust;
+
+	// asin argument must be clamped to [-1, 1]
+	const float pitch_asin_arg = -math::constrain(torque(1) / (R * thrust_x*ct), -1.0f, 1.0f);
+	const float roll_asin_arg  = -math::constrain(torque(0) / (R * thrust_y*ct), -1.0f, 1.0f);
+
+	const float pitch_tilt_angle = asinf(pitch_asin_arg);
+	const float roll_tilt_angle  = asinf(roll_asin_arg);
+
+	PX4_INFO("Torque: (%.2f, %.2f, %.2f) | Thrust: (%.2f, %.2f, %.2f) | Tilt angles: (%.1f, %.1f)",
+		 (double)torque(0), (double)torque(1), (double)torque(2),
+		 (double)thrust(0), (double)thrust(1), (double)thrust(2),
+		 (double)math::degrees(pitch_tilt_angle), (double)math::degrees(roll_tilt_angle));
+
+	const float pitch_angle_normalized = math::constrain(pitch_tilt_angle / max_servos_angle, -1.0f, 1.0f);
+	const float roll_angle_normalized  = math::constrain(roll_tilt_angle / max_servos_angle, -1.0f, 1.0f);
+
+	// ================================================================
 	// PUBLISH THRUST SETPOINT
 	// X, Y: from tilt motors (horizontal position control)
 	// Z: from main motors (altitude control)
@@ -190,6 +218,17 @@ void IfodroneAttitudeControl::Run()
 	torque_sp.xyz[1] = torque(1);  // Pitch torque (tilt motors)
 	torque_sp.xyz[2] = torque(2);  // Yaw torque (main motors differential)
 	_torque_pub.publish(torque_sp);
+
+
+	// Publish servo angles for tilt control (normalized to [-1, 1])
+	actuator_servos_s theta_T{};
+	theta_T.timestamp = now;
+	theta_T.timestamp_sample = att.timestamp;
+	theta_T.control[0] =  pitch_angle_normalized;  // Front  servo -> pitch+
+	theta_T.control[1] =  roll_angle_normalized;   // Right  servo -> roll+
+	theta_T.control[2] = -pitch_angle_normalized;  // Back   servo -> pitch-
+	theta_T.control[3] = -roll_angle_normalized;   // Left   servo -> roll-
+	_theta_pub.publish(theta_T);
 
 	perf_count(_control_updated_perf);
 }
