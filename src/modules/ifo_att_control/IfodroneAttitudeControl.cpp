@@ -117,8 +117,8 @@ void IfodroneAttitudeControl::Run()
 		const float yaw_rate_setpoint = PX4_ISFINITE(att_sp.yaw_sp_move_rate) ? att_sp.yaw_sp_move_rate : 0.f;
 
 		// Euler angles (orientation) errors
-		const float roll_error = roll_setpoint - roll_current;
-		const float pitch_error = pitch_setpoint - pitch_current;
+		const float roll_error = matrix::wrap_pi(roll_setpoint - roll_current);
+		const float pitch_error = matrix::wrap_pi(pitch_setpoint - pitch_current);
 
 		// Yaw error with wrap-around handling
 		const float yaw_error = matrix::wrap_pi(yaw_setpoint - yaw_current);
