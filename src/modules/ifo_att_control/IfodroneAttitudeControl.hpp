@@ -88,8 +88,9 @@ private:
 
 	static constexpr float _kp_att{1.8f};
 	static constexpr float _kd_att{0.1f};
-	static constexpr float _kp_yaw{0.12f};
-	static constexpr float _kd_yaw{0.4f};
+	static constexpr float _kp_yaw{0.08f};
+	static constexpr float _kd_yaw{0.25f};
+	static constexpr float _kff_yaw{0.04f};
 	static constexpr float _yaw_torque_limit{2.0f};
 
 	perf_counter_t _loop_interval_perf{perf_alloc(PC_INTERVAL, MODULE_NAME": interval")};

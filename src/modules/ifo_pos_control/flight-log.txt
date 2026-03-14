@@ -1,0 +1,955 @@
+.
+INFO  [gz_bridge] world: default, model: ifodrone_0
+INFO  [lockstep_scheduler] setting initial absolute time to 4156000 us
+INFO  [init] Setting camera to follow ifodrone_0
+INFO  [init] Camera follow offset set to -2.0, -2.0, 2.0
+INFO  [commander] LED: open /dev/led0 failed (22)
+WARN  [health_and_arming_checks] Preflight Fail: ekf2 missing data
+INFO  [ifo_pos_control] IFO position filter initialized (mode=1)
+INFO  [ifo_att_control] IFO attitude control initialized - active stabilization mode
+INFO  [uxrce_dds_client] init UDP agent IP:127.0.0.1, port:8888
+INFO  [mavlink] mode: Normal, data rate: 4000000 B/s on udp port 18570 remote port 14550
+INFO  [mavlink] partner IP: 127.0.0.1
+INFO  [mavlink] mode: Onboard, data rate: 4000000 B/s on udp port 14580 remote port 14540
+INFO  [mavlink] mode: Onboard, data rate: 4000 B/s on udp port 14280 remote port 14030
+INFO  [mavlink] mode: Gimbal, data rate: 400000 B/s on udp port 13030 remote port 13280
+INFO  [logger] logger started (mode=all)
+INFO  [logger] Start file log (type: full)
+INFO  [logger] [logger] ./log/2026-03-14/07_23_50.ulg
+INFO  [logger] Opened full log file: ./log/2026-03-14/07_23_50.ulg
+INFO  [mavlink] MAVLink only on localhost (set param MAV_{i}_BROADCAST = 1 to enable network)
+INFO  [mavlink] MAVLink only on localhost (set param MAV_{i}_BROADCAST = 1 to enable network)
+INFO  [px4] Startup script returned successfully
+pxh> INFO  [tone_alarm] home set
+INFO  [tone_alarm] notify positive
+INFO  [commander] Ready for takeoff!
+pxh> commander takeoff
+pxh> INFO  [commander] Armed by internal command
+INFO  [navigator] Using default takeoff altitude: 2.5 m
+INFO  [tone_alarm] arming warning
+INFO  [commander] Takeoff detected
+INFO  [navigator] Executing Mission
+INFO  [navigator] Climb to 10.0 meters above home
+
+pxh> \
+Invalid command: \
+type 'help' for a list of commands
+pxh>
+pxh>
+pxh>
+pxh> listener actuator_motors
+
+TOPIC: actuator_motors
+ actuator_motors
+    timestamp: 33132000 (0.000000 seconds ago)
+    timestamp_sample: 33132000 (0 us before timestamp)
+    control: [0.29029, 0.29029, 0.00000, 0.00000, 0.00000, 0.00000, nan, nan, nan, nan, nan, nan]
+    reversible_flags: 0
+
+pxh> listener actuator_motors
+
+TOPIC: actuator_motors
+ actuator_motors
+    timestamp: 36448000 (0.000000 seconds ago)
+    timestamp_sample: 36448000 (0 us before timestamp)
+    control: [0.29028, 0.29028, 0.00000, 0.00000, 0.00000, 0.00000, nan, nan, nan, nan, nan, nan]
+    reversible_flags: 0
+
+pxh> listener trajectory_setpoint
+
+TOPIC: trajectory_setpoint
+ trajectory_setpoint
+    timestamp: 45732000 (0.008000 seconds ago)
+    position: [-1.08434, 1.70778, -9.60011]
+    velocity: [-1.66206, 3.14471, -0.13663]
+    acceleration: [-1.34596, 3.00000, 0.16749]
+    jerk: [-4.00000, 4.00000, 4.00000]
+    yaw: 2.08963
+    yawspeed: 0.00000
+pxh> listener trajectory_setpoint
+
+TOPIC: trajectory_setpoint
+ trajectory_setpoint
+    timestamp: 47988000 (0.008000 seconds ago)
+    position: [-1.08434, 1.70778, -9.60011]
+    velocity: [-1.66206, 3.14471, -0.13663]
+    acceleration: [-1.34596, 3.00000, 0.16749]
+    jerk: [-4.00000, 4.00000, 4.00000]
+    yaw: 2.08953
+    yawspeed: 0.00000
+pxh> listener trajectory_setpoint
+
+TOPIC: trajectory_setpoint
+ trajectory_setpoint
+    timestamp: 48732000 (0.004000 seconds ago)
+    position: [-1.08434, 1.70778, -9.60011]
+    velocity: [-1.66206, 3.14471, -0.13663]
+    acceleration: [-1.34596, 3.00000, 0.16749]
+    jerk: [-4.00000, 4.00000, 4.00000]
+    yaw: 2.08955
+    yawspeed: 0.00000
+pxh> listener trajectory_setpoint
+
+TOPIC: trajectory_setpoint
+ trajectory_setpoint
+    timestamp: 49852000 (0.012000 seconds ago)
+    position: [-1.08434, 1.70778, -9.60011]
+    velocity: [-1.66206, 3.14471, -0.13663]
+    acceleration: [-1.34596, 3.00000, 0.16749]
+    jerk: [-4.00000, 4.00000, 4.00000]
+    yaw: 2.08954
+    yawspeed: 0.00000
+pxh> listener trajectory_setpoint
+
+TOPIC: trajectory_setpoint
+ trajectory_setpoint
+    timestamp: 50668000 (0.012000 seconds ago)
+    position: [-1.08434, 1.70778, -9.60011]
+    velocity: [-1.66206, 3.14471, -0.13663]
+    acceleration: [-1.34596, 3.00000, 0.16749]
+    jerk: [-4.00000, 4.00000, 4.00000]
+    yaw: 2.08961
+    yawspeed: 0.00000
+pxh> listener trajectory_setpoint
+
+TOPIC: trajectory_setpoint
+ trajectory_setpoint
+    timestamp: 51412000 (0.016000 seconds ago)
+    position: [-1.08434, 1.70778, -9.60011]
+    velocity: [-1.66206, 3.14471, -0.13663]
+    acceleration: [-1.34596, 3.00000, 0.16749]
+    jerk: [-4.00000, 4.00000, 4.00000]
+    yaw: 2.08957
+    yawspeed: 0.00000
+pxh> listener trajectory_setpoint
+
+TOPIC: trajectory_setpoint
+ trajectory_setpoint
+    timestamp: 52132000 (0.016000 seconds ago)
+    position: [-1.08434, 1.70778, -9.60011]
+    velocity: [-1.66206, 3.14471, -0.13663]
+    acceleration: [-1.34596, 3.00000, 0.16749]
+    jerk: [-4.00000, 4.00000, 4.00000]
+    yaw: 2.08953
+    yawspeed: 0.00000
+pxh> listener trajectory_setpoint
+
+TOPIC: trajectory_setpoint
+ trajectory_setpoint
+    timestamp: 52908000 (0.024000 seconds ago)
+    position: [-1.08434, 1.70778, -9.60011]
+    velocity: [-1.66206, 3.14471, -0.13663]
+    acceleration: [-1.34596, 3.00000, 0.16749]
+    jerk: [-4.00000, 4.00000, 4.00000]
+    yaw: 2.08951
+    yawspeed: 0.00000
+pxh> listener trajectory_setpoint
+
+TOPIC: trajectory_setpoint
+ trajectory_setpoint
+    timestamp: 53588000 (0.008000 seconds ago)
+    position: [-1.08434, 1.70778, -9.60011]
+    velocity: [-1.66206, 3.14471, -0.13663]
+    acceleration: [-1.34596, 3.00000, 0.16749]
+    jerk: [-4.00000, 4.00000, 4.00000]
+    yaw: 2.08956
+    yawspeed: 0.00000
+pxh> listener trajectory_setpoint
+
+TOPIC: trajectory_setpoint
+ trajectory_setpoint
+    timestamp: 54172000 (0.004000 seconds ago)
+    position: [-1.08434, 1.70778, -9.60011]
+    velocity: [-1.66206, 3.14471, -0.13663]
+    acceleration: [-1.34596, 3.00000, 0.16749]
+    jerk: [-4.00000, 4.00000, 4.00000]
+    yaw: 2.08952
+    yawspeed: 0.00000
+pxh> listener actuator_motors
+
+TOPIC: actuator_motors
+ actuator_motors
+    timestamp: 55412000 (0.004000 seconds ago)
+    timestamp_sample: 55412000 (0 us before timestamp)
+    control: [0.29029, 0.29029, 0.00000, 0.00000, 0.00000, 0.00000, nan, nan, nan, nan, nan, nan]
+    reversible_flags: 0
+
+pxh> listener actuator_motors
+
+TOPIC: actuator_motors
+ actuator_motors
+    timestamp: 56516000 (0.000000 seconds ago)
+    timestamp_sample: 56516000 (0 us before timestamp)
+    control: [0.29022, 0.29022, 0.00000, 0.00000, 0.00000, 0.00000, nan, nan, nan, nan, nan, nan]
+    reversible_flags: 0
+
+pxh> listener actuator_motors
+
+TOPIC: actuator_motors
+ actuator_motors
+    timestamp: 57260000 (0.000000 seconds ago)
+    timestamp_sample: 57260000 (0 us before timestamp)
+    control: [0.29030, 0.29030, 0.00000, 0.00000, 0.00000, 0.00000, nan, nan, nan, nan, nan, nan]
+    reversible_flags: 0
+
+pxh> listener actuator_motors
+
+TOPIC: actuator_motors
+ actuator_motors
+    timestamp: 57968000 (0.004000 seconds ago)
+    timestamp_sample: 57968000 (0 us before timestamp)
+    control: [0.29014, 0.29014, 0.00000, 0.00000, 0.00000, 0.00000, nan, nan, nan, nan, nan, nan]
+    reversible_flags: 0
+
+pxh> listener actuator_motors
+
+TOPIC: actuator_motors
+ actuator_motors
+    timestamp: 58732000 (0.004000 seconds ago)
+    timestamp_sample: 58732000 (0 us before timestamp)
+    control: [0.29022, 0.29022, 0.00000, 0.00000, 0.00000, 0.00000, nan, nan, nan, nan, nan, nan]
+    reversible_flags: 0
+
+pxh> listener actuator_motors
+
+TOPIC: actuator_motors
+ actuator_motors
+    timestamp: 59504000 (0.000000 seconds ago)
+    timestamp_sample: 59504000 (0 us before timestamp)
+    control: [0.29032, 0.29032, 0.00000, 0.00000, 0.00000, 0.00000, nan, nan, nan, nan, nan, nan]
+    reversible_flags: 0
+
+pxh> listener actuator_motors
+
+TOPIC: actuator_motors
+ actuator_motors
+    timestamp: 60180000 (0.000000 seconds ago)
+    timestamp_sample: 60180000 (0 us before timestamp)
+    control: [0.28420, 0.28420, 0.00000, 0.00000, 0.00000, 0.00000, nan, nan, nan, nan, nan, nan]
+    reversible_flags: 0
+
+pxh> listener actuator_motors
+
+TOPIC: actuator_motors
+ actuator_motors
+    timestamp: 60764000 (0.000000 seconds ago)
+    timestamp_sample: 60764000 (0 us before timestamp)
+    control: [0.29092, 0.29092, 0.00000, 0.00000, 0.00000, 0.00000, nan, nan, nan, nan, nan, nan]
+    reversible_flags: 0
+
+pxh> listener actuator_motors
+
+TOPIC: actuator_motors
+ actuator_motors
+    timestamp: 61332000 (0.004000 seconds ago)
+    timestamp_sample: 61332000 (0 us before timestamp)
+    control: [0.29033, 0.29033, 0.00000, 0.00000, 0.00000, 0.00000, nan, nan, nan, nan, nan, nan]
+    reversible_flags: 0
+
+pxh> listener actuator_motors
+
+TOPIC: actuator_motors
+ actuator_motors
+    timestamp: 61840000 (0.000000 seconds ago)
+    timestamp_sample: 61840000 (0 us before timestamp)
+    control: [0.28299, 0.28299, 0.00000, 0.00000, 0.00000, 0.00000, nan, nan, nan, nan, nan, nan]
+    reversible_flags: 0
+
+pxh> listener trajectory_setpoint
+
+TOPIC: trajectory_setpoint
+ trajectory_setpoint
+    timestamp: 62612000 (0.012000 seconds ago)
+    position: [-1.08439, 1.70787, -9.60011]
+    velocity: [-1.66210, 3.14480, -0.13663]
+    acceleration: [-1.34596, 3.00000, 0.16749]
+    jerk: [0.00000, 0.00000, 0.00000]
+    yaw: 2.08959
+    yawspeed: 0.00000
+pxh> listener trajectory_setpoint
+
+TOPIC: trajectory_setpoint
+ trajectory_setpoint
+    timestamp: 65412000 (0.008000 seconds ago)
+    position: [-1.08802, 1.71474, -9.60041]
+    velocity: [-1.66504, 3.15135, -0.13626]
+    acceleration: [-1.34596, 3.00000, 0.16750]
+    jerk: [-4.00000, 4.00000, 4.00000]
+    yaw: 2.08946
+    yawspeed: 0.00000
+pxh> listener trajectory_setpoint
+
+TOPIC: trajectory_setpoint
+ trajectory_setpoint
+    timestamp: 66412000 (0.016000 seconds ago)
+    position: [-1.08802, 1.71474, -9.60041]
+    velocity: [-1.66504, 3.15135, -0.13626]
+    acceleration: [-1.34596, 3.00000, 0.16750]
+    jerk: [-4.00000, 4.00000, 4.00000]
+    yaw: 2.08955
+    yawspeed: 0.00000
+pxh> listener trajectory_setpoint
+
+TOPIC: trajectory_setpoint
+ trajectory_setpoint
+    timestamp: 67028000 (0.024000 seconds ago)
+    position: [-1.08803, 1.71476, -9.60041]
+    velocity: [-1.66505, 3.15137, -0.13626]
+    acceleration: [-1.34596, 3.00000, 0.16750]
+    jerk: [0.00000, 0.00000, 0.00000]
+    yaw: 2.08957
+    yawspeed: 0.00000
+pxh> listener trajectory_setpoint
+
+TOPIC: trajectory_setpoint
+ trajectory_setpoint
+    timestamp: 67708000 (0.008000 seconds ago)
+    position: [-1.09180, 1.72190, -9.60072]
+    velocity: [-1.66810, 3.15816, -0.13588]
+    acceleration: [-1.34596, 3.00000, 0.16751]
+    jerk: [0.00000, 0.00000, 0.00000]
+    yaw: 2.08950
+    yawspeed: 0.00000
+pxh> listener trajectory_setpoint
+
+TOPIC: trajectory_setpoint
+ trajectory_setpoint
+    timestamp: 68308000 (0.004000 seconds ago)
+    position: [-1.09574, 1.72937, -9.60104]
+    velocity: [-1.67127, 3.16524, -0.13548]
+    acceleration: [-1.34596, 3.00000, 0.16752]
+    jerk: [0.00000, 0.00000, 0.00000]
+    yaw: 2.08947
+    yawspeed: 0.00000
+pxh> listener trajectory_setpoint
+
+TOPIC: trajectory_setpoint
+ trajectory_setpoint
+    timestamp: 68852000 (0.012000 seconds ago)
+    position: [-1.09624, 1.73031, -9.60108]
+    velocity: [-1.67167, 3.16613, -0.13543]
+    acceleration: [-1.34596, 3.00000, 0.16753]
+    jerk: [-4.00000, 4.00000, 4.00000]
+    yaw: 2.08942
+    yawspeed: 0.00000
+pxh> listener trajectory_setpoint
+
+TOPIC: trajectory_setpoint
+ trajectory_setpoint
+    timestamp: 69492000 (0.004000 seconds ago)
+    position: [-1.09624, 1.73031, -9.60108]
+    velocity: [-1.67167, 3.16613, -0.13543]
+    acceleration: [-1.34596, 3.00000, 0.16753]
+    jerk: [-4.00000, 4.00000, 4.00000]
+    yaw: 2.08940
+    yawspeed: 0.00000
+pxh> listener trajectory_setpoint
+
+TOPIC: trajectory_setpoint
+ trajectory_setpoint
+    timestamp: 70052000 (0.016000 seconds ago)
+    position: [-1.09624, 1.73031, -9.60108]
+    velocity: [-1.67167, 3.16613, -0.13543]
+    acceleration: [-1.34596, 3.00000, 0.16753]
+    jerk: [-4.00000, 4.00000, 4.00000]
+    yaw: 2.08940
+    yawspeed: 0.00000
+pxh> listener trajectory_setpoint
+
+TOPIC: trajectory_setpoint
+ trajectory_setpoint
+    timestamp: 70628000 (0.016000 seconds ago)
+    position: [-1.09624, 1.73031, -9.60108]
+    velocity: [-1.67167, 3.16613, -0.13543]
+    acceleration: [-1.34596, 3.00000, 0.16753]
+    jerk: [-4.00000, 4.00000, 4.00000]
+    yaw: 2.08943
+    yawspeed: 0.00000
+pxh> listener trajectory_setpoint
+
+TOPIC: trajectory_setpoint
+ trajectory_setpoint
+    timestamp: 71252000 (0.000000 seconds ago)
+    position: [-1.09624, 1.73031, -9.60108]
+    velocity: [-1.67167, 3.16613, -0.13543]
+    acceleration: [-1.34596, 3.00000, 0.16753]
+    jerk: [-4.00000, 4.00000, 4.00000]
+    yaw: 2.08944
+    yawspeed: 0.00000
+pxh> listener trajectory_setpoint
+
+TOPIC: trajectory_setpoint
+ trajectory_setpoint
+    timestamp: 71852000 (0.012000 seconds ago)
+    position: [-1.09624, 1.73031, -9.60108]
+    velocity: [-1.67167, 3.16613, -0.13543]
+    acceleration: [-1.34596, 3.00000, 0.16753]
+    jerk: [-4.00000, 4.00000, 4.00000]
+    yaw: 2.08952
+    yawspeed: 0.00000
+pxh> listener trajectory_setpoint
+
+TOPIC: trajectory_setpoint
+ trajectory_setpoint
+    timestamp: 72468000 (0.000000 seconds ago)
+    position: [-1.09624, 1.73031, -9.60108]
+    velocity: [-1.67167, 3.16613, -0.13543]
+    acceleration: [-1.34596, 3.00000, 0.16753]
+    jerk: [-4.00000, 4.00000, 4.00000]
+    yaw: 2.08957
+    yawspeed: 0.00000
+pxh> listener trajectory_setpoint
+
+TOPIC: trajectory_setpoint
+ trajectory_setpoint
+    timestamp: 73108000 (0.012000 seconds ago)
+    position: [-1.09624, 1.73031, -9.60108]
+    velocity: [-1.67167, 3.16613, -0.13543]
+    acceleration: [-1.34596, 3.00000, 0.16753]
+    jerk: [-4.00000, 4.00000, 4.00000]
+    yaw: 2.08956
+    yawspeed: 0.00000
+pxh> listener trajectory_setpoint
+
+TOPIC: trajectory_setpoint
+ trajectory_setpoint
+    timestamp: 73732000 (0.012000 seconds ago)
+    position: [-1.09624, 1.73031, -9.60108]
+    velocity: [-1.67167, 3.16613, -0.13543]
+    acceleration: [-1.34596, 3.00000, 0.16753]
+    jerk: [-4.00000, 4.00000, 4.00000]
+    yaw: 2.08952
+    yawspeed: 0.00000
+pxh> listener trajectory_setpoint
+
+TOPIC: trajectory_setpoint
+ trajectory_setpoint
+    timestamp: 74388000 (0.004000 seconds ago)
+    position: [-1.09624, 1.73031, -9.60108]
+    velocity: [-1.67167, 3.16613, -0.13543]
+    acceleration: [-1.34596, 3.00000, 0.16753]
+    jerk: [-4.00000, 4.00000, 4.00000]
+    yaw: 2.08952
+    yawspeed: 0.00000
+pxh> listener trajectory_setpoint
+
+TOPIC: trajectory_setpoint
+ trajectory_setpoint
+    timestamp: 74908000 (0.024000 seconds ago)
+    position: [-1.09624, 1.73031, -9.60108]
+    velocity: [-1.67167, 3.16613, -0.13543]
+    acceleration: [-1.34596, 3.00000, 0.16753]
+    jerk: [-4.00000, 4.00000, 4.00000]
+    yaw: 2.08954
+    yawspeed: 0.00000
+pxh> listener trajectory_setpoint
+
+TOPIC: trajectory_setpoint
+ trajectory_setpoint
+    timestamp: 75388000 (0.004000 seconds ago)
+    position: [-1.09624, 1.73031, -9.60108]
+    velocity: [-1.67167, 3.16613, -0.13543]
+    acceleration: [-1.34596, 3.00000, 0.16753]
+    jerk: [-4.00000, 4.00000, 4.00000]
+    yaw: 2.08953
+    yawspeed: 0.00000
+pxh> listener trajectory_setpoint
+
+TOPIC: trajectory_setpoint
+ trajectory_setpoint
+    timestamp: 75812000 (0.016000 seconds ago)
+    position: [-1.09624, 1.73031, -9.60108]
+    velocity: [-1.67167, 3.16613, -0.13543]
+    acceleration: [-1.34596, 3.00000, 0.16753]
+    jerk: [-4.00000, 4.00000, 4.00000]
+    yaw: 2.08951
+    yawspeed: 0.00000
+pxh> listener trajectory_setpoint
+
+TOPIC: trajectory_setpoint
+ trajectory_setpoint
+    timestamp: 76292000 (0.000000 seconds ago)
+    position: [-1.09624, 1.73031, -9.60108]
+    velocity: [-1.67167, 3.16613, -0.13543]
+    acceleration: [-1.34596, 3.00000, 0.16753]
+    jerk: [-4.00000, 4.00000, 4.00000]
+    yaw: 2.08951
+    yawspeed: 0.00000
+pxh> listener trajectory_setpoint
+
+TOPIC: trajectory_setpoint
+ trajectory_setpoint
+    timestamp: 76732000 (0.008000 seconds ago)
+    position: [-1.09624, 1.73031, -9.60108]
+    velocity: [-1.67167, 3.16613, -0.13543]
+    acceleration: [-1.34596, 3.00000, 0.16753]
+    jerk: [-4.00000, 4.00000, 4.00000]
+    yaw: 2.08951
+    yawspeed: 0.00000
+pxh> listener trajectory_setpoint
+
+TOPIC: trajectory_setpoint
+ trajectory_setpoint
+    timestamp: 77228000 (0.000000 seconds ago)
+    position: [-1.09624, 1.73031, -9.60108]
+    velocity: [-1.67167, 3.16613, -0.13543]
+    acceleration: [-1.34596, 3.00000, 0.16753]
+    jerk: [-4.00000, 4.00000, 4.00000]
+    yaw: 2.08955
+    yawspeed: 0.00000
+pxh> listener actuator_motors
+
+TOPIC: actuator_motors
+ actuator_motors
+    timestamp: 78036000 (0.000000 seconds ago)
+    timestamp_sample: 78036000 (0 us before timestamp)
+    control: [0.28882, 0.28882, 0.00000, 0.00000, 0.00000, 0.00000, nan, nan, nan, nan, nan, nan]
+    reversible_flags: 0
+
+pxh> listener trajectory_setpoint
+
+TOPIC: trajectory_setpoint
+ trajectory_setpoint
+    timestamp: 79068000 (0.020000 seconds ago)
+    position: [-1.09624, 1.73031, -9.60108]
+    velocity: [-1.67167, 3.16613, -0.13543]
+    acceleration: [-1.34596, 3.00000, 0.16753]
+    jerk: [-4.00000, 4.00000, 4.00000]
+    yaw: 2.08972
+    yawspeed: 0.00000
+pxh> listener trajectory_setpoint
+
+TOPIC: trajectory_setpoint
+ trajectory_setpoint
+    timestamp: 79828000 (0.000000 seconds ago)
+    position: [-1.09624, 1.73031, -9.60108]
+    velocity: [-1.67167, 3.16613, -0.13543]
+    acceleration: [-1.34596, 3.00000, 0.16753]
+    jerk: [-4.00000, 4.00000, 4.00000]
+    yaw: 2.08982
+    yawspeed: 0.00000
+pxh> listener trajectory_setpoint
+
+TOPIC: trajectory_setpoint
+ trajectory_setpoint
+    timestamp: 80588000 (0.012000 seconds ago)
+    position: [-1.09624, 1.73031, -9.60108]
+    velocity: [-1.67167, 3.16613, -0.13543]
+    acceleration: [-1.34596, 3.00000, 0.16753]
+    jerk: [-4.00000, 4.00000, 4.00000]
+    yaw: 2.08982
+    yawspeed: 0.00000
+pxh> listener trajectory_setpoint
+
+TOPIC: trajectory_setpoint
+ trajectory_setpoint
+    timestamp: 81252000 (0.008000 seconds ago)
+    position: [-1.09624, 1.73031, -9.60108]
+    velocity: [-1.67167, 3.16613, -0.13543]
+    acceleration: [-1.34596, 3.00000, 0.16753]
+    jerk: [-4.00000, 4.00000, 4.00000]
+    yaw: 2.08977
+    yawspeed: 0.00000
+pxh> listener trajectory_setpoint
+
+TOPIC: trajectory_setpoint
+ trajectory_setpoint
+    timestamp: 81852000 (0.008000 seconds ago)
+    position: [-1.09624, 1.73031, -9.60108]
+    velocity: [-1.67167, 3.16613, -0.13543]
+    acceleration: [-1.34596, 3.00000, 0.16753]
+    jerk: [-4.00000, 4.00000, 4.00000]
+    yaw: 2.08977
+    yawspeed: 0.00000
+pxh> listener trajectory_setpoint
+
+TOPIC: trajectory_setpoint
+ trajectory_setpoint
+    timestamp: 82508000 (0.004000 seconds ago)
+    position: [-1.09624, 1.73031, -9.60108]
+    velocity: [-1.67167, 3.16613, -0.13543]
+    acceleration: [-1.34596, 3.00000, 0.16753]
+    jerk: [-4.00000, 4.00000, 4.00000]
+    yaw: 2.08975
+    yawspeed: 0.00000
+pxh> listener trajectory_setpoint
+
+TOPIC: trajectory_setpoint
+ trajectory_setpoint
+    timestamp: 83148000 (0.024000 seconds ago)
+    position: [-1.09624, 1.73031, -9.60108]
+    velocity: [-1.67167, 3.16613, -0.13543]
+    acceleration: [-1.34596, 3.00000, 0.16753]
+    jerk: [-4.00000, 4.00000, 4.00000]
+    yaw: 2.08969
+    yawspeed: 0.00000
+pxh> listener trajectory_setpoint
+
+TOPIC: trajectory_setpoint
+ trajectory_setpoint
+    timestamp: 83852000 (0.000000 seconds ago)
+    position: [-1.09624, 1.73031, -9.60108]
+    velocity: [-1.67167, 3.16613, -0.13543]
+    acceleration: [-1.34596, 3.00000, 0.16753]
+    jerk: [-4.00000, 4.00000, 4.00000]
+    yaw: 2.08958
+    yawspeed: 0.00000
+pxh> listener trajectory_setpoint
+
+TOPIC: trajectory_setpoint
+ trajectory_setpoint
+    timestamp: 84492000 (0.008000 seconds ago)
+    position: [-1.09624, 1.73031, -9.60108]
+    velocity: [-1.67167, 3.16613, -0.13543]
+    acceleration: [-1.34596, 3.00000, 0.16753]
+    jerk: [-4.00000, 4.00000, 4.00000]
+    yaw: 2.08940
+    yawspeed: 0.00000
+pxh> listener trajectory_setpoint
+
+TOPIC: trajectory_setpoint
+ trajectory_setpoint
+    timestamp: 85108000 (0.004000 seconds ago)
+    position: [-1.09624, 1.73031, -9.60108]
+    velocity: [-1.67167, 3.16613, -0.13543]
+    acceleration: [-1.34596, 3.00000, 0.16753]
+    jerk: [-4.00000, 4.00000, 4.00000]
+    yaw: 2.08918
+    yawspeed: 0.00000
+pxh> listener trajectory_setpoint
+
+TOPIC: trajectory_setpoint
+ trajectory_setpoint
+    timestamp: 85708000 (0.020000 seconds ago)
+    position: [-1.09624, 1.73031, -9.60108]
+    velocity: [-1.67167, 3.16613, -0.13543]
+    acceleration: [-1.34596, 3.00000, 0.16753]
+    jerk: [-4.00000, 4.00000, 4.00000]
+    yaw: 2.08898
+    yawspeed: 0.00000
+pxh> listener trajectory_setpoint
+
+TOPIC: trajectory_setpoint
+ trajectory_setpoint
+    timestamp: 86348000 (0.000000 seconds ago)
+    position: [-1.09624, 1.73031, -9.60108]
+    velocity: [-1.67167, 3.16613, -0.13543]
+    acceleration: [-1.34596, 3.00000, 0.16753]
+    jerk: [-4.00000, 4.00000, 4.00000]
+    yaw: 2.08866
+    yawspeed: 0.00000
+pxh> listener trajectory_setpoint
+
+TOPIC: trajectory_setpoint
+ trajectory_setpoint
+    timestamp: 86988000 (0.020000 seconds ago)
+    position: [-1.09624, 1.73031, -9.60108]
+    velocity: [-1.67167, 3.16613, -0.13543]
+    acceleration: [-1.34596, 3.00000, 0.16753]
+    jerk: [-4.00000, 4.00000, 4.00000]
+    yaw: 2.08807
+    yawspeed: 0.00000
+pxh> listener trajectory_setpoint
+
+TOPIC: trajectory_setpoint
+ trajectory_setpoint
+    timestamp: 87572000 (0.016000 seconds ago)
+    position: [-1.09624, 1.73031, -9.60108]
+    velocity: [-1.67167, 3.16613, -0.13543]
+    acceleration: [-1.34596, 3.00000, 0.16753]
+    jerk: [-4.00000, 4.00000, 4.00000]
+    yaw: 2.08736
+    yawspeed: 0.00000
+pxh> listener trajectory_setpoint
+
+TOPIC: trajectory_setpoint
+ trajectory_setpoint
+    timestamp: 88132000 (0.012000 seconds ago)
+    position: [-1.09624, 1.73031, -9.60108]
+    velocity: [-1.67167, 3.16613, -0.13543]
+    acceleration: [-1.34596, 3.00000, 0.16753]
+    jerk: [-4.00000, 4.00000, 4.00000]
+    yaw: 2.08653
+    yawspeed: 0.00000
+pxh> listener trajectory_setpoint
+
+TOPIC: trajectory_setpoint
+ trajectory_setpoint
+    timestamp: 88668000 (0.016000 seconds ago)
+    position: [-1.09624, 1.73031, -9.60108]
+    velocity: [-1.67167, 3.16613, -0.13543]
+    acceleration: [-1.34596, 3.00000, 0.16753]
+    jerk: [-4.00000, 4.00000, 4.00000]
+    yaw: 2.08548
+    yawspeed: -0.00153
+pxh> listener trajectory_setpoint
+
+TOPIC: trajectory_setpoint
+ trajectory_setpoint
+    timestamp: 89228000 (0.012000 seconds ago)
+    position: [-1.09624, 1.73031, -9.60108]
+    velocity: [-1.67167, 3.16613, -0.13543]
+    acceleration: [-1.34596, 3.00000, 0.16753]
+    jerk: [-4.00000, 4.00000, 4.00000]
+    yaw: 2.08405
+    yawspeed: -0.00230
+pxh> listener trajectory_setpoint
+
+TOPIC: trajectory_setpoint
+ trajectory_setpoint
+    timestamp: 89788000 (0.016000 seconds ago)
+    position: [-1.09624, 1.73031, -9.60108]
+    velocity: [-1.67167, 3.16613, -0.13543]
+    acceleration: [-1.34596, 3.00000, 0.16753]
+    jerk: [-4.00000, 4.00000, 4.00000]
+    yaw: 2.08224
+    yawspeed: -0.00255
+pxh> listener trajectory_setpoint
+
+TOPIC: trajectory_setpoint
+ trajectory_setpoint
+    timestamp: 90388000 (0.000000 seconds ago)
+    position: [-1.09624, 1.73031, -9.60108]
+    velocity: [-1.67167, 3.16613, -0.13543]
+    acceleration: [-1.34596, 3.00000, 0.16753]
+    jerk: [4.00000, -4.00000, -4.00000]
+    yaw: 2.07374
+    yawspeed: -0.06981
+pxh> listener trajectory_setpoint
+
+TOPIC: trajectory_setpoint
+ trajectory_setpoint
+    timestamp: 90948000 (0.016000 seconds ago)
+    position: [-1.09624, 1.73031, -9.60108]
+    velocity: [-1.67167, 3.16613, -0.13543]
+    acceleration: [-1.34596, 3.00000, 0.16753]
+    jerk: [4.00000, -4.00000, -4.00000]
+    yaw: 1.97991
+    yawspeed: -0.26529
+pxh> listener trajectory_setpoint
+
+TOPIC: trajectory_setpoint
+ trajectory_setpoint
+    timestamp: 91548000 (0.012000 seconds ago)
+    position: [-1.09624, 1.73031, -9.60108]
+    velocity: [-1.67167, 3.16613, -0.13543]
+    acceleration: [-1.34596, 3.00000, 0.16753]
+    jerk: [4.00000, -4.00000, -4.00000]
+    yaw: 1.75790
+    yawspeed: -0.47473
+pxh> listener trajectory_setpoint
+
+TOPIC: trajectory_setpoint
+ trajectory_setpoint
+    timestamp: 92068000 (0.016000 seconds ago)
+    position: [-1.09624, 1.73031, -9.60108]
+    velocity: [-1.67167, 3.16613, -0.13543]
+    acceleration: [-1.34596, 3.00000, 0.16753]
+    jerk: [4.00000, -4.00000, -4.00000]
+    yaw: 1.46385
+    yawspeed: -0.65624
+pxh> listener trajectory_setpoint
+
+TOPIC: trajectory_setpoint
+ trajectory_setpoint
+    timestamp: 92628000 (0.016000 seconds ago)
+    position: [-1.09624, 1.73031, -9.60108]
+    velocity: [-1.67167, 3.16613, -0.13543]
+    acceleration: [-1.34596, 3.00000, 0.16753]
+    jerk: [4.00000, -4.00000, -4.00000]
+    yaw: 1.12298
+    yawspeed: -0.53891
+pxh> listener trajectory_setpoint
+
+TOPIC: trajectory_setpoint
+ trajectory_setpoint
+    timestamp: 93188000 (0.012000 seconds ago)
+    position: [-1.09624, 1.73031, -9.60108]
+    velocity: [-1.67167, 3.16613, -0.13543]
+    acceleration: [-1.34596, 3.00000, 0.16753]
+    jerk: [4.00000, -4.00000, -4.00000]
+    yaw: 0.85680
+    yawspeed: -0.41278
+pxh> listener trajectory_setpoint
+
+TOPIC: trajectory_setpoint
+ trajectory_setpoint
+    timestamp: 93692000 (0.008000 seconds ago)
+    position: [-1.09624, 1.73031, -9.60108]
+    velocity: [-1.67167, 3.16613, -0.13543]
+    acceleration: [-1.34596, 3.00000, 0.16753]
+    jerk: [4.00000, -4.00000, -4.00000]
+    yaw: 0.67304
+    yawspeed: -0.31735
+pxh> listener trajectory_setpoint
+
+TOPIC: trajectory_setpoint
+ trajectory_setpoint
+    timestamp: 94188000 (0.004000 seconds ago)
+    position: [-1.09624, 1.73031, -9.60108]
+    velocity: [-1.67167, 3.16613, -0.13543]
+    acceleration: [-1.34596, 3.00000, 0.16753]
+    jerk: [4.00000, -4.00000, -4.00000]
+    yaw: 0.55326
+    yawspeed: -0.15547
+pxh> listener trajectory_setpoint
+
+TOPIC: trajectory_setpoint
+ trajectory_setpoint
+    timestamp: 94732000 (0.012000 seconds ago)
+    position: [-1.09624, 1.73031, -9.60108]
+    velocity: [-1.67167, 3.16613, -0.13543]
+    acceleration: [-1.34596, 3.00000, 0.16753]
+    jerk: [4.00000, -4.00000, -4.00000]
+    yaw: 0.51864
+    yawspeed: 0.00000
+pxh> listener trajectory_setpoint
+
+TOPIC: trajectory_setpoint
+ trajectory_setpoint
+    timestamp: 95308000 (0.016000 seconds ago)
+    position: [-1.43729, 2.38879, -9.62666]
+    velocity: [-1.85637, 3.66841, -0.13468]
+    acceleration: [-0.57796, 2.23200, -0.01863]
+    jerk: [4.00000, -4.00000, -4.00000]
+    yaw: 0.51864
+    yawspeed: 0.00000
+pxh> listener trajectory_setpoint
+
+TOPIC: trajectory_setpoint
+ trajectory_setpoint
+    timestamp: 95868000 (0.004000 seconds ago)
+    position: [-2.00961, 3.58839, -9.66847]
+    velocity: [-1.84724, 4.16210, -0.14034]
+    acceleration: [0.63804, 1.01600, -0.01863]
+    jerk: [4.00000, -4.00000, 0.00000]
+    yaw: 0.51864
+    yawspeed: 0.00000
+pxh> listener trajectory_setpoint
+
+TOPIC: trajectory_setpoint
+ trajectory_setpoint
+    timestamp: 96348000 (0.012000 seconds ago)
+    position: [-2.49845, 4.77899, -9.70836]
+    velocity: [-1.61708, 4.29169, -0.14309]
+    acceleration: [1.25047, 0.03074, 0.00422]
+    jerk: [4.00000, 4.00000, 4.00000]
+    yaw: 0.51864
+    yawspeed: 0.00000
+pxh> listener trajectory_setpoint
+
+TOPIC: trajectory_setpoint
+ trajectory_setpoint
+    timestamp: 96868000 (0.020000 seconds ago)
+    position: [-2.83169, 5.78173, -9.74128]
+    velocity: [-1.22368, 4.38210, -0.13955]
+    acceleration: [1.92247, 0.72965, 0.03267]
+    jerk: [-4.00000, -4.00000, 4.00000]
+    yaw: 0.51864
+    yawspeed: 0.00000
+pxh> listener trajectory_setpoint
+
+TOPIC: trajectory_setpoint
+ trajectory_setpoint
+    timestamp: 97428000 (0.000000 seconds ago)
+    position: [-3.18505, 7.41372, -9.79043]
+    velocity: [-0.78706, 4.43665, -0.12753]
+    acceleration: [0.45047, -0.06774, 0.03267]
+    jerk: [-4.00000, 0.00000, 0.00000]
+    yaw: 0.51864
+    yawspeed: 0.00000
+pxh> listener trajectory_setpoint
+
+TOPIC: trajectory_setpoint
+ trajectory_setpoint
+    timestamp: 97972000 (0.004000 seconds ago)
+    position: [-3.65388, 9.81724, -9.85457]
+    velocity: [-1.13387, 4.39980, -0.10574]
+    acceleration: [-1.72553, -0.06774, 0.05870]
+    jerk: [-4.00000, 0.00000, 0.00000]
+    yaw: 0.51864
+    yawspeed: 0.00000
+pxh> listener trajectory_setpoint
+
+TOPIC: trajectory_setpoint
+ trajectory_setpoint
+    timestamp: 98468000 (0.020000 seconds ago)
+    position: [-4.48322, 11.99109, -9.89782]
+    velocity: [-2.19790, 4.35993, -0.06523]
+    acceleration: [-1.97980, -0.29174, 0.09794]
+    jerk: [-4.00000, -4.00000, 0.00000]
+    yaw: 0.51864
+    yawspeed: 0.00000
+pxh> listener trajectory_setpoint
+
+TOPIC: trajectory_setpoint
+ trajectory_setpoint
+    timestamp: 99092000 (0.012000 seconds ago)
+    position: [-6.16666, 14.61530, -9.91968]
+    velocity: [-2.95296, 4.10413, -0.01081]
+    acceleration: [0.01256, 0.12148, -0.00102]
+    jerk: [4.00000, 0.00000, 0.00000]
+    yaw: 0.51864
+    yawspeed: 0.00000
+pxh> listener trajectory_setpoint
+
+TOPIC: trajectory_setpoint
+ trajectory_setpoint
+    timestamp: 99668000 (0.016000 seconds ago)
+    position: [-7.78278, 17.01286, -9.92514]
+    velocity: [-2.66827, 4.23071, -0.00692]
+    acceleration: [0.15163, 0.08763, 0.01106]
+    jerk: [0.00000, -4.00000, 0.00000]
+    yaw: 0.51864
+    yawspeed: 0.00000
+pxh> listener trajectory_setpointWARN  [health_and_arming_checks] Preflight Fail: Attitude failure (pitch)
+
+
+TOPIC: trajectory_setpoint
+ trajectory_setpoint
+    timestamp: 100228000 (0.000000 seconds ago)
+    position: [-9.25589, 19.39439, -9.92817]
+    velocity: [-2.59923, 4.27217, -0.00430]
+    acceleration: [0.10017, 0.05967, 0.00246]
+    jerk: [-4.00000, 0.00000, 0.00000]
+    yaw: 0.51864
+    yawspeed: 0.00000
+pxh> listener trajectory_setpoint
+
+TOPIC: trajectory_setpoint
+ trajectory_setpoint
+    timestamp: 100772000 (0.008000 seconds ago)
+    position: [-10.65796, 21.72536, -9.93008]
+    velocity: [-2.55898, 4.29552, -0.00283]
+    acceleration: [0.01837, 0.01837, 0.00235]
+    jerk: [-4.00000, -4.00000, 0.00000]
+    yaw: 0.51864
+    yawspeed: 0.00000
+pxh> listener trajectory_setpoint
+
+TOPIC: trajectory_setpoint
+ trajectory_setpoint
+    timestamp: 101332000 (0.000000 seconds ago)
+    position: [-12.08354, 24.13527, -9.93141]
+    velocity: [-2.53448, 4.31004, -0.00198]
+    acceleration: [0.00000, 0.00000, 0.00000]
+    jerk: [0.00000, 0.00000, 0.00000]
+    yaw: 0.51864
+    yawspeed: 0.00000
+pxh> listener trajectory_setpoint
+
+TOPIC: trajectory_setpoint
+ trajectory_setpoint
+    timestamp: 101852000 (0.012000 seconds ago)
+    position: [-13.39871, 26.37809, -9.93234]
+    velocity: [-2.52609, 4.31496, -0.00168]
+    acceleration: [0.00000, 0.00000, 0.00000]
+    jerk: [0.00000, 0.00000, 0.00000]
+    yaw: 0.51864
+    yawspeed: 0.00000
+pxh> WARN  [health_and_arming_checks] Preflight Fail: Attitude failure (roll)
+
+PX4 Exiting...
+pxh> Exiting NOW.
+ninja: build stopped: interrupted by user.
+make: *** [Makefile:222: px4_sitl_default] Interrupt

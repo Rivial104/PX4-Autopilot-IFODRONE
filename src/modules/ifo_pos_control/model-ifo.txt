@@ -841,7 +841,7 @@
       <timeConstantUp>0.0125</timeConstantUp>
       <timeConstantDown>0.025</timeConstantDown>
       <maxRotVelocity>1500</maxRotVelocity>
-      <motorConstant>6e-08</motorConstant>
+      <motorConstant>6e-07</motorConstant>
       <momentConstant>0.06</momentConstant>
       <commandSubTopic>command/motor_speed</commandSubTopic>
       <motorNumber>2</motorNumber>
@@ -860,7 +860,7 @@
       <timeConstantUp>0.0125</timeConstantUp>
       <timeConstantDown>0.025</timeConstantDown>
       <maxRotVelocity>1500</maxRotVelocity>
-      <motorConstant>6e-08</motorConstant>
+      <motorConstant>6e-07</motorConstant>
       <momentConstant>0.06</momentConstant>
       <commandSubTopic>command/motor_speed</commandSubTopic>
       <motorNumber>3</motorNumber>
@@ -879,7 +879,7 @@
       <timeConstantUp>0.0125</timeConstantUp>
       <timeConstantDown>0.025</timeConstantDown>
       <maxRotVelocity>1500</maxRotVelocity>
-      <motorConstant>6e-08</motorConstant>
+      <motorConstant>6e-07</motorConstant>
       <momentConstant>0.06</momentConstant>
       <commandSubTopic>command/motor_speed</commandSubTopic>
       <motorNumber>4</motorNumber>
@@ -898,7 +898,7 @@
       <timeConstantUp>0.0125</timeConstantUp>
       <timeConstantDown>0.025</timeConstantDown>
       <maxRotVelocity>1500</maxRotVelocity>
-      <motorConstant>6e-08</motorConstant>
+      <motorConstant>6e-07</motorConstant>
       <momentConstant>0.06</momentConstant>
       <commandSubTopic>command/motor_speed</commandSubTopic>
       <motorNumber>5</motorNumber>

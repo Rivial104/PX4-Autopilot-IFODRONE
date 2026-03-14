@@ -64,52 +64,76 @@ void IfoPositionControl::Run()
 		return;
 	}
 
-	// Get current vehicle attitude for yaw (NED→body rotation)
+	// Get current vehicle attitude only as fallback when mc_pos_control does not provide yaw.
 	vehicle_attitude_s att{};
 	_vehicle_attitude_sub.copy(&att);
 	const Quatf q_current(att.q);
 	const Eulerf euler_current(q_current);
 	const float yaw_current = euler_current.psi();
 
+	vehicle_local_position_s local_pos{};
+	const bool has_local_pos = _vehicle_local_position_sub.copy(&local_pos);
+
 	// mc_pos_control's thrust is in NED frame (via PositionControl::_thr_sp)
-	const float thr_ned_x = PX4_ISFINITE(local_pos_sp.thrust[0]) ? local_pos_sp.thrust[0] : 0.f;
-	const float thr_ned_y = PX4_ISFINITE(local_pos_sp.thrust[1]) ? local_pos_sp.thrust[1] : 0.f;
-	const float thr_ned_z = PX4_ISFINITE(local_pos_sp.thrust[2]) ? local_pos_sp.thrust[2] : 0.f;
-
-	// Rotate NED XY thrust into body frame using current yaw
-	const float cos_yaw = cosf(yaw_current);
-	const float sin_yaw = sinf(yaw_current);
-	float thr_body_x =  cos_yaw * thr_ned_x + sin_yaw * thr_ned_y;
-	float thr_body_y = -sin_yaw * thr_ned_x + cos_yaw * thr_ned_y;
-
-	// Clamp horizontal thrust to IFO_THR_XY_MAX
-	const float thr_xy_max = math::constrain(_param_ifo_thr_xy_max.get(), 0.f, 1.f);
-	Vector2f thr_xy(thr_body_x, thr_body_y);
-	const float thr_xy_norm = thr_xy.norm();
-
-	if (thr_xy_norm > thr_xy_max && thr_xy_norm > 1e-5f) {
-		thr_xy *= thr_xy_max / thr_xy_norm;
-		thr_body_x = thr_xy(0);
-		thr_body_y = thr_xy(1);
-	}
+	const float thrx_I = PX4_ISFINITE(local_pos_sp.thrust[0]) ? local_pos_sp.thrust[0] : 0.f;
+	const float thry_I = PX4_ISFINITE(local_pos_sp.thrust[1]) ? local_pos_sp.thrust[1] : 0.f;
+	const float thrz_I = PX4_ISFINITE(local_pos_sp.thrust[2]) ? local_pos_sp.thrust[2] : 0.f;
 
 	// Yaw setpoint from mc_pos_control
 	const float yaw_sp = PX4_ISFINITE(local_pos_sp.yaw) ? local_pos_sp.yaw : yaw_current;
 	const float yawspeed_sp = PX4_ISFINITE(local_pos_sp.yawspeed) ? local_pos_sp.yawspeed : 0.f;
 
+	Vector2f thrust_xy_I{thrx_I, thry_I};
+	thrust_xy_I *= math::max(_param_ifo_xy_thr_scl.get(), 0.f);
+
+	if (has_local_pos && local_pos.v_xy_valid) {
+		const Vector2f vel_sp_I{
+			PX4_ISFINITE(local_pos_sp.vx) ? local_pos_sp.vx : 0.f,
+			PX4_ISFINITE(local_pos_sp.vy) ? local_pos_sp.vy : 0.f
+		};
+		const Vector2f vel_I{local_pos.vx, local_pos.vy};
+		const Vector2f vel_error_I = vel_sp_I - vel_I;
+
+		thrust_xy_I += vel_error_I * _param_ifo_xy_vel_p.get();
+	}
+
+	const Vector2f acc_sp_I{
+		PX4_ISFINITE(local_pos_sp.acceleration[0]) ? local_pos_sp.acceleration[0] : 0.f,
+		PX4_ISFINITE(local_pos_sp.acceleration[1]) ? local_pos_sp.acceleration[1] : 0.f
+	};
+	thrust_xy_I += acc_sp_I * _param_ifo_xy_acc_ff.get();
+
+	// Build the desired level attitude first, then rotate the full thrust vector from NED into that body frame.
+	const Quatf q_sp(Eulerf(0.f, 0.f, yaw_sp));
+	const Dcmf R_IB = Dcmf(q_sp).transpose();
+	const Vector3f thrust_I{thrust_xy_I(0), thrust_xy_I(1), thrz_I};
+	const Vector3f thrust_body = R_IB * thrust_I;
+
+	float thrx_B = thrust_body(0);
+	float thry_B = thrust_body(1);
+	const float thrz_B = thrust_body(2);
+
+	// Clamp horizontal thrust to IFO_THR_XY_MAX
+	const float thr_xy_max = math::constrain(_param_ifo_thr_xy_max.get(), 0.f, 1.f);
+	Vector2f thr_xy(thrx_B, thry_B);
+	const float thr_xy_norm = thr_xy.norm();
+
+	if (thr_xy_norm > thr_xy_max && thr_xy_norm > 1e-5f) {
+		thr_xy *= thr_xy_max / thr_xy_norm;
+		thrx_B = thr_xy(0);
+		thry_B = thr_xy(1);
+	}
+
 	// Build level attitude setpoint: roll=0, pitch=0, desired yaw
 	vehicle_attitude_setpoint_s att_sp{};
 	att_sp.timestamp = hrt_absolute_time();
 	att_sp.yaw_sp_move_rate = yawspeed_sp;
-
-	const Quatf q_sp(Eulerf(0.f, 0.f, yaw_sp));
 	q_sp.copyTo(att_sp.q_d);
 
 	// Body-frame thrust: XY from tilt motors, Z from main motors
-	// When body is level, NED Z maps directly to body Z
-	att_sp.thrust_body[0] = thr_body_x;
-	att_sp.thrust_body[1] = thr_body_y;
-	att_sp.thrust_body[2] = thr_ned_z;
+	att_sp.thrust_body[0] = thrx_B;
+	att_sp.thrust_body[1] = thry_B;
+	att_sp.thrust_body[2] = thrz_B;
 
 	_vehicle_attitude_setpoint_pub.publish(att_sp);
 

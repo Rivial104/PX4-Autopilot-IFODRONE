@@ -109,11 +109,12 @@ void IfodroneAttitudeControl::Run()
 		const float roll_setpoint = 0.0f;
 		const float pitch_setpoint = 0.0f;
 
-		// Get desired yaw from attitude setpoint quaternion
+		// Get desired yaw from attitude setpoint quaternion.
+		// yaw_sp_move_rate is the standard PX4 yaw feed-forward generated upstream.
 		const Quatf q_desired(att_sp.q_d);
 		const Eulerf euler_desired(q_desired);
 		const float yaw_setpoint = PX4_ISFINITE(euler_desired.psi()) ? euler_desired.psi() : yaw_current;
-		// const float yaw_setpoint = yaw_current;
+		const float yaw_rate_setpoint = PX4_ISFINITE(att_sp.yaw_sp_move_rate) ? att_sp.yaw_sp_move_rate : 0.f;
 
 		// Euler angles (orientation) errors
 		const float roll_error = roll_setpoint - roll_current;
@@ -127,7 +128,9 @@ void IfodroneAttitudeControl::Run()
 
 		torque(0) = _kp_att * roll_error - _kd_att * rates.xyz[0];
 		torque(1) = _kp_att * pitch_error - _kd_att * rates.xyz[1];
-		torque(2) = math::constrain(-_kp_yaw * yaw_error - _kd_yaw * rates.xyz[2],
+		torque(2) = math::constrain(-_kp_yaw * yaw_error
+					    - _kd_yaw * rates.xyz[2]
+					    - _kff_yaw * yaw_rate_setpoint,
 					    -_yaw_torque_limit, _yaw_torque_limit);
 
 		// P controller for attitude stabilization
@@ -166,10 +169,20 @@ void IfodroneAttitudeControl::Run()
 
 	// ================================================================
 	// COMPUTE TILT SERVO ANGLES
-	// Map normalized roll/pitch torque demand directly to symmetric tilt commands.
+	// Use tilt magnitude only; torque sign is handled by motor differential thrust in the allocator.
 	// ================================================================
-	const float pitch_angle_normalized = math::constrain(torque(1), -1.0f, 1.0f);
-	const float roll_angle_normalized  = math::constrain(torque(0), -1.0f, 1.0f);
+	const float pitch_tilt_magnitude = math::constrain(fabsf(torque(1)), 0.0f, 1.0f);
+	const float roll_tilt_magnitude  = math::constrain(fabsf(torque(0)), 0.0f, 1.0f);
+
+	// Publish servo angles first so the allocator can rebuild the matrix from the current tilt state.
+	actuator_servos_s theta_T{};
+	theta_T.timestamp = now;
+	theta_T.timestamp_sample = att.timestamp;
+	theta_T.control[0] = pitch_tilt_magnitude; // Front
+	theta_T.control[1] = roll_tilt_magnitude;  // Right
+	theta_T.control[2] = pitch_tilt_magnitude; // Back
+	theta_T.control[3] = roll_tilt_magnitude;  // Left
+	_theta_pub.publish(theta_T);
 
 	// ================================================================
 	// PUBLISH THRUST SETPOINT
@@ -196,17 +209,6 @@ void IfodroneAttitudeControl::Run()
 	torque_sp.xyz[1] = torque(1);  // Pitch torque (tilt motors)
 	torque_sp.xyz[2] = torque(2);  // Yaw torque (main motors differential)
 	_torque_pub.publish(torque_sp);
-
-
-	// Publish servo angles for tilt control (normalized to [-1, 1])
-	actuator_servos_s theta_T{};
-	theta_T.timestamp = now;
-	theta_T.timestamp_sample = att.timestamp;
-	theta_T.control[0] = -pitch_angle_normalized;  // Front  servo -> pitch+
-	theta_T.control[1] = -roll_angle_normalized;   // Right  servo -> roll+
-	theta_T.control[2] = pitch_angle_normalized;  // Back   servo -> pitch-
-	theta_T.control[3] = roll_angle_normalized;   // Left   servo -> roll-
-	_theta_pub.publish(theta_T);
 
 	perf_count(_control_updated_perf);
 }
@@ -235,6 +237,8 @@ void IfodroneAttitudeControl::_parameters_updated()
 int IfodroneAttitudeControl::print_status()
 {
 	PX4_INFO("IFO module running");
+	perf_print_counter(_loop_interval_perf);
+	perf_print_counter(_control_updated_perf);
 	return 0;
 }
 
