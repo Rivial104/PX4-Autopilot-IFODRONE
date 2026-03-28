@@ -30,6 +30,7 @@
 #include <uORB/topics/vehicle_attitude_setpoint.h>
 #include <uORB/topics/vehicle_local_position.h>
 #include <uORB/topics/vehicle_local_position_setpoint.h>
+#include <uORB/topics/vehicle_thrust_setpoint.h>
 
 using namespace time_literals;
 
@@ -62,6 +63,9 @@ private:
 
 	// Overwrites mc_pos_control's vehicle_attitude_setpoint
 	uORB::Publication<vehicle_attitude_setpoint_s> _vehicle_attitude_setpoint_pub{ORB_ID(vehicle_attitude_setpoint)};
+
+	// Body-frame thrust setpoint directly to ControlAllocator (bypasses ifo_att_control pass-through)
+	uORB::Publication<vehicle_thrust_setpoint_s> _vehicle_thrust_setpoint_pub{ORB_ID(vehicle_thrust_setpoint)};
 
 	DEFINE_PARAMETERS(
 		(ParamInt<px4::params::IFO_POS_MODE>) _param_ifo_pos_mode,

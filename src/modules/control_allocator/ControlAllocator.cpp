@@ -447,6 +447,21 @@ ControlAllocator::Run()
 
 			_control_allocation[i]->clipActuatorSetpoint();
 		}
+
+		// if (_effectiveness_source_id == EffectivenessSource::IFODRONE && _num_control_allocation > 0) {
+		// 	static hrt_abstime last_debug{0};
+
+		// 	if (hrt_elapsed_time(&last_debug) > 250_ms) {
+		// 		const auto &act = _control_allocation[0]->_actuator_sp;
+		// 		PX4_INFO("CA_IFO sp_tq=(%.2f %.2f %.2f) sp_thr=(%.2f %.2f %.2f) "
+		// 			 "mot=[%.2f %.2f %.2f %.2f %.2f %.2f]",
+		// 			 (double)c[0](0), (double)c[0](1), (double)c[0](2),
+		// 			 (double)c[0](3), (double)c[0](4), (double)c[0](5),
+		// 			 (double)act(0), (double)act(1), (double)act(2),
+		// 			 (double)act(3), (double)act(4), (double)act(5));
+		// 		last_debug = now;
+		// 	}
+		// }
 	}
 
 	// Publish actuator setpoint and allocator status

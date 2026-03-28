@@ -58,6 +58,7 @@ void IfoPositionControl::Run()
 
 	// Read the local position setpoint published by mc_pos_control
 	vehicle_local_position_setpoint_s local_pos_sp{};
+	const hrt_abstime now = hrt_absolute_time();
 
 	if (!_local_pos_sp_sub.copy(&local_pos_sp)) {
 		perf_end(_cycle_perf);
@@ -67,51 +68,36 @@ void IfoPositionControl::Run()
 	// Get current vehicle attitude only as fallback when mc_pos_control does not provide yaw.
 	vehicle_attitude_s att{};
 	_vehicle_attitude_sub.copy(&att);
-	const Quatf q_current(att.q);
-	const Eulerf euler_current(q_current);
-	const float yaw_current = euler_current.psi();
-
-	vehicle_local_position_s local_pos{};
-	const bool has_local_pos = _vehicle_local_position_sub.copy(&local_pos);
+	const Eulerf euler_current(Quatf(att.q));
 
 	// mc_pos_control's thrust is in NED frame (via PositionControl::_thr_sp)
 	const float thrx_I = PX4_ISFINITE(local_pos_sp.thrust[0]) ? local_pos_sp.thrust[0] : 0.f;
 	const float thry_I = PX4_ISFINITE(local_pos_sp.thrust[1]) ? local_pos_sp.thrust[1] : 0.f;
 	const float thrz_I = PX4_ISFINITE(local_pos_sp.thrust[2]) ? local_pos_sp.thrust[2] : 0.f;
 
-	// Yaw setpoint from mc_pos_control
-	const float yaw_sp = PX4_ISFINITE(local_pos_sp.yaw) ? local_pos_sp.yaw : yaw_current;
+	// Use navigator yaw setpoint; fall back to current yaw to avoid sudden rotations.
+	const float yaw_sp_traj = PX4_ISFINITE(local_pos_sp.yaw) ? local_pos_sp.yaw : NAN;
+	const float yaw_sp = PX4_ISFINITE(yaw_sp_traj) ? yaw_sp_traj : euler_current.psi();
+
 	const float yawspeed_sp = PX4_ISFINITE(local_pos_sp.yawspeed) ? local_pos_sp.yawspeed : 0.f;
 
+	// local_pos_sp.thrust already contains the normalized closed-loop output of mc_pos_control.
+	// This filter should only rotate and clamp it for the IFODRONE allocator, not run another XY loop on top.
 	Vector2f thrust_xy_I{thrx_I, thry_I};
 	thrust_xy_I *= math::max(_param_ifo_xy_thr_scl.get(), 0.f);
 
-	if (has_local_pos && local_pos.v_xy_valid) {
-		const Vector2f vel_sp_I{
-			PX4_ISFINITE(local_pos_sp.vx) ? local_pos_sp.vx : 0.f,
-			PX4_ISFINITE(local_pos_sp.vy) ? local_pos_sp.vy : 0.f
-		};
-		const Vector2f vel_I{local_pos.vx, local_pos.vy};
-		const Vector2f vel_error_I = vel_sp_I - vel_I;
-
-		thrust_xy_I += vel_error_I * _param_ifo_xy_vel_p.get();
-	}
-
-	const Vector2f acc_sp_I{
-		PX4_ISFINITE(local_pos_sp.acceleration[0]) ? local_pos_sp.acceleration[0] : 0.f,
-		PX4_ISFINITE(local_pos_sp.acceleration[1]) ? local_pos_sp.acceleration[1] : 0.f
-	};
-	thrust_xy_I += acc_sp_I * _param_ifo_xy_acc_ff.get();
-
-	// Build the desired level attitude first, then rotate the full thrust vector from NED into that body frame.
+	// Attitude setpoint quaternion: level body (roll=0, pitch=0) with navigator yaw.
 	const Quatf q_sp(Eulerf(0.f, 0.f, yaw_sp));
+
+	// Rotate into the level body frame commanded for IFODRONE. Using the actual roll/pitch here
+	// would project vertical thrust into XY and break the normalized thrust contract when attitude diverges.
 	const Dcmf R_IB = Dcmf(q_sp).transpose();
 	const Vector3f thrust_I{thrust_xy_I(0), thrust_xy_I(1), thrz_I};
 	const Vector3f thrust_body = R_IB * thrust_I;
 
 	float thrx_B = thrust_body(0);
 	float thry_B = thrust_body(1);
-	const float thrz_B = thrust_body(2);
+	float thrz_B = thrust_body(2);
 
 	// Clamp horizontal thrust to IFO_THR_XY_MAX
 	const float thr_xy_max = math::constrain(_param_ifo_thr_xy_max.get(), 0.f, 1.f);
@@ -124,10 +110,25 @@ void IfoPositionControl::Run()
 		thry_B = thr_xy(1);
 	}
 
+	// Keep the published body-frame thrust normalized. Main motors only provide upward body-Z thrust.
+	thrx_B = math::constrain(thrx_B, -1.f, 1.f);
+	thry_B = math::constrain(thry_B, -1.f, 1.f);
+	thrz_B = math::constrain(thrz_B, -1.f, 0.f);
+
+	// Publish body-frame thrust directly to ControlAllocator
+	vehicle_thrust_setpoint_s thrust_sp{};
+	thrust_sp.timestamp = now;
+	thrust_sp.timestamp_sample = att.timestamp;
+	thrust_sp.xyz[0] = thrx_B;
+	thrust_sp.xyz[1] = thry_B;
+	thrust_sp.xyz[2] = thrz_B;
+	_vehicle_thrust_setpoint_pub.publish(thrust_sp);
+
 	// Build level attitude setpoint: roll=0, pitch=0, desired yaw
 	vehicle_attitude_setpoint_s att_sp{};
-	att_sp.timestamp = hrt_absolute_time();
+	att_sp.timestamp = now;
 	att_sp.yaw_sp_move_rate = yawspeed_sp;
+
 	q_sp.copyTo(att_sp.q_d);
 
 	// Body-frame thrust: XY from tilt motors, Z from main motors
@@ -136,6 +137,21 @@ void IfoPositionControl::Run()
 	att_sp.thrust_body[2] = thrz_B;
 
 	_vehicle_attitude_setpoint_pub.publish(att_sp);
+
+	// static hrt_abstime last_debug{0};
+
+	// if (hrt_elapsed_time(&last_debug) > 250_ms) {
+	// 	PX4_INFO("IFO_POS sp_pos=(%.2f %.2f %.2f) sp_vel=(%.2f %.2f %.2f) sp_acc=(%.2f %.2f %.2f) "
+	// 		 "thr_I=(%.2f %.2f %.2f) yaw_sp=%.1f yaw_curr=%.1f thr_B=(%.2f %.2f %.2f)",
+	// 		 (double)local_pos_sp.x, (double)local_pos_sp.y, (double)local_pos_sp.z,
+	// 		 (double)local_pos_sp.vx, (double)local_pos_sp.vy, (double)local_pos_sp.vz,
+	// 		 (double)local_pos_sp.acceleration[0], (double)local_pos_sp.acceleration[1],
+	// 		 (double)local_pos_sp.acceleration[2],
+	// 		 (double)thrx_I, (double)thry_I, (double)thrz_I,
+	// 		 (double)math::degrees(yaw_sp), (double)math::degrees(euler_current.psi()),
+	// 		 (double)thrx_B, (double)thry_B, (double)thrz_B);
+	// 	last_debug = now;
+	// }
 
 	perf_end(_cycle_perf);
 }

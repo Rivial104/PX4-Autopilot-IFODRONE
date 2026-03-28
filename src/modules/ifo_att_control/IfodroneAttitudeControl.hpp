@@ -91,7 +91,8 @@ private:
 	static constexpr float _kp_yaw{0.08f};
 	static constexpr float _kd_yaw{0.25f};
 	static constexpr float _kff_yaw{0.04f};
-	static constexpr float _yaw_torque_limit{2.0f};
+	static constexpr float _att_torque_limit{1.0f};
+	static constexpr float _yaw_torque_limit{1.0f};
 
 	perf_counter_t _loop_interval_perf{perf_alloc(PC_INTERVAL, MODULE_NAME": interval")};
 	perf_counter_t _control_updated_perf{perf_alloc(PC_COUNT, MODULE_NAME": calibration updated")};
