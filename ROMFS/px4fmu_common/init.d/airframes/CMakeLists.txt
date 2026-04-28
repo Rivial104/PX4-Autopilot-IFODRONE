@@ -157,6 +157,13 @@ if(CONFIG_MODULES_ROVER_ACKERMANN)
 	)
 endif()
 
+if(CONFIG_MODULES_IFO_ATT_CONTROL)
+	px4_add_romfs_files(
+		# [4072] IFODRONE hardware airframe (Matek H743 Slim V3)
+		4072_ifodrone
+	)
+endif()
+
 if(CONFIG_MODULES_ROVER_MECANUM)
 	px4_add_romfs_files(
 		# [52000, 52999] Mecanum rovers

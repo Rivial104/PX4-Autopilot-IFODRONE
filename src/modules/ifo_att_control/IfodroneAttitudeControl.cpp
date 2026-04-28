@@ -95,7 +95,7 @@ void IfodroneAttitudeControl::Run()
 	const bool run_attitude_control = control_mode.flag_armed &&
 					  control_mode.flag_control_attitude_enabled;
 
-	if (run_attitude_control && has_setpoint) {
+	if (run_attitude_control) {
 
 		// Current attitude as Euler angles
 		const Quatf q_current(att.q);
@@ -105,16 +105,30 @@ void IfodroneAttitudeControl::Run()
 		const float pitch_current = euler_current.theta(); // Current pitch
 		const float yaw_current = euler_current.psi();     // Current yaw
 
-		// SETPOINT: Always level (roll=0, pitch=0), yaw from position controller
+		// SETPOINT: Always level (roll=0, pitch=0).
+		// In STABILIZED mode this gives auto-level; pilot stick roll/pitch is intentionally ignored.
 		const float roll_setpoint = 0.0f;
 		const float pitch_setpoint = 0.0f;
 
-		// Get desired yaw from attitude setpoint quaternion.
-		// yaw_sp_move_rate is the standard PX4 yaw feed-forward generated upstream.
-		const Quatf q_desired(att_sp.q_d);
-		const Eulerf euler_desired(q_desired);
-		const float yaw_setpoint = PX4_ISFINITE(euler_desired.psi()) ? euler_desired.psi() : yaw_current;
-		const float yaw_rate_setpoint = PX4_ISFINITE(att_sp.yaw_sp_move_rate) ? att_sp.yaw_sp_move_rate : 0.f;
+		// Yaw setpoint:
+		//  - if a vehicle_attitude_setpoint was received, use its q_d yaw (e.g. heading from
+		//    ifo_pos_control or flight_mode_manager);
+		//  - otherwise hold current yaw so the drone does not spin freely in stabilize mode.
+		float yaw_setpoint = yaw_current;
+		float yaw_rate_setpoint = 0.f;
+
+		if (has_setpoint) {
+			const Quatf q_desired(att_sp.q_d);
+			const Eulerf euler_desired(q_desired);
+
+			if (PX4_ISFINITE(euler_desired.psi())) {
+				yaw_setpoint = euler_desired.psi();
+			}
+
+			if (PX4_ISFINITE(att_sp.yaw_sp_move_rate)) {
+				yaw_rate_setpoint = att_sp.yaw_sp_move_rate;
+			}
+		}
 
 		// Euler angles (orientation) errors
 		const float roll_error = roll_setpoint - roll_current;

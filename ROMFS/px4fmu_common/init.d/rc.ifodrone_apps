@@ -1,9 +1,10 @@
 #!/bin/sh
 #
 # IfoDrone specific apps.
-# mc_pos_control handles position/velocity PID.
-# ifo_pos_control filter overrides attitude setpoint for IFODRONE body-frame thrust.
-# ifo_att_control handles attitude stabilization and thrust passthrough.
+# ifo_pos_control: trajectory_setpoint -> vehicle_thrust_setpoint (force, body frame).
+#   Force is position's responsibility only — attitude does not participate.
+# ifo_att_control: attitude stabilization -> vehicle_torque_setpoint (torque only).
+#   Torque is attitude's responsibility only — position does not participate.
 #
 # NOTE: Script variables are declared/initialized/unset in the rcS script.
 #
@@ -14,17 +15,12 @@
 control_allocator start
 
 #
-# Start standard MC Position Controller (position/velocity PID -> NED thrust)
-#
-mc_pos_control start
-
-#
-# Start IfoDrone Position Filter (rewrites attitude setpoint: level body, body-frame thrust)
+# Start IfoDrone Position Controller (trajectory_setpoint -> vehicle_thrust_setpoint)
 #
 ifo_pos_control start
 
 #
-# Start IfoDrone Attitude Controller (PD stabilization, thrust passthrough)
+# Start IfoDrone Attitude Controller (attitude stabilization -> vehicle_torque_setpoint)
 #
 ifo_att_control start
 

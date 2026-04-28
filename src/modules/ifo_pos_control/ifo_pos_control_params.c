@@ -1,6 +1,69 @@
 /**
- * IFODRONE Position Filter Parameters
+ * IFODRONE Position Control Parameters
  */
+
+/**
+ * Position Z proportional gain
+ * @min 0.0
+ * @max 5.0
+ * @decimal 2
+ * @group IFODRONE Position Control
+ */
+PARAM_DEFINE_FLOAT(IFO_POS_Z_P, 1.0f);
+
+/**
+ * Velocity Z proportional gain
+ * @min 0.0
+ * @max 2.0
+ * @decimal 3
+ * @group IFODRONE Position Control
+ */
+PARAM_DEFINE_FLOAT(IFO_VEL_Z_P, 0.2f);
+
+/**
+ * Position XY proportional gain
+ * @min 0.0
+ * @max 5.0
+ * @decimal 2
+ * @group IFODRONE Position Control
+ */
+PARAM_DEFINE_FLOAT(IFO_POS_XY_P, 0.95f);
+
+/**
+ * Velocity XY proportional gain
+ * @min 0.0
+ * @max 2.0
+ * @decimal 3
+ * @group IFODRONE Position Control
+ */
+PARAM_DEFINE_FLOAT(IFO_VEL_XY_P, 0.2f);
+
+/**
+ * Maximum thrust (main motors)
+ * @min 0.0
+ * @max 1.0
+ * @decimal 2
+ * @group IFODRONE Position Control
+ */
+PARAM_DEFINE_FLOAT(IFO_THR_MAX, 0.9f);
+
+/**
+ * Minimum thrust (main motors)
+ * @min 0.0
+ * @max 1.0
+ * @decimal 2
+ * @group IFODRONE Position Control
+ */
+PARAM_DEFINE_FLOAT(IFO_THR_MIN, 0.12f);
+
+/**
+ * Hover thrust (normalized, vehicle hovers at this value)
+ * @min 0.0
+ * @max 1.0
+ * @decimal 2
+ * @group IFODRONE Position Control
+ */
+PARAM_DEFINE_FLOAT(IFO_THR_HOVER, 0.5f);
 
 /**
  * IFODRONE position filter mode
