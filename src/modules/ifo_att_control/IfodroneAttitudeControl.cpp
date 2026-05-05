@@ -96,15 +96,21 @@ void IfodroneAttitudeControl::Run()
 	Vector3f torque(0.0f, 0.0f, 0.0f);
 	Vector3f thrust(0.0f, 0.0f, 0.0f);
 
-	// Run attitude stabilization when armed AND attitude control is enabled.
-	// For IFODRONE (MAV_TYPE 2 → ROTARY_WING), flag_control_attitude_enabled is true
-	// in both Manual and Stabilized modes — so servos always counteract orientation changes.
-	const bool run_attitude_control = control_mode.flag_armed &&
-					  control_mode.flag_control_attitude_enabled;
+	// Run attitude stabilization:
+	// - Manual mode: stabilization only when ARMED (armed → armed condition)
+	// - Stabilize mode: stabilization ALWAYS (works unarmed for continuous counteract of tilts)
+	// - For IFODRONE (MAV_TYPE 2 → ROTARY_WING), flag_control_attitude_enabled is true
+	//   in both Manual and Stabilized modes.
+	const bool is_stabilize_mode = control_mode.flag_control_attitude_enabled &&
+				       !control_mode.flag_control_manual_enabled;
+	const bool run_attitude_control = (control_mode.flag_armed && control_mode.flag_control_attitude_enabled) ||
+					  is_stabilize_mode; // Stabilize: work unarmed for continuous stabilization
 
 	// Manual/Stabilize mode: pilot controls throttle directly, no altitude/position hold.
 	// In these modes ifo_pos_control does not publish thrust, so we handle it here.
-	const bool manual_thrust_mode = control_mode.flag_control_manual_enabled &&
+	// Only when ARMED (throttle makes sense only when armed).
+	const bool manual_thrust_mode = control_mode.flag_armed &&
+					control_mode.flag_control_manual_enabled &&
 					!control_mode.flag_control_altitude_enabled;
 
 	if (run_attitude_control) {
@@ -188,8 +194,8 @@ void IfodroneAttitudeControl::Run()
 			thrust(2) = -throttle; // NED body Z: negative = up
 		}
 
-	} else if (!control_mode.flag_armed) {
-		// Not armed: zero everything
+	} else {
+		// Not running attitude control (Manual mode unarmed, or control disabled entirely)
 		torque.setZero();
 		thrust.setZero();
 	}
