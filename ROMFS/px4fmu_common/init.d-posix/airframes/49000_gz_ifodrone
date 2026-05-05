@@ -194,6 +194,22 @@ param set-default IFO_XY_THR_SCL 1.0
 param set-default IFO_XY_VEL_P 0.0
 param set-default IFO_XY_ACC_FF 0.0
 
+# IFODRONE keeps the body level by design - the only torque source is the tilt
+# servos, which produce small roll/pitch corrections. The default failure
+# detector (FD_FAIL_R/P = 60 deg, 0.5 s) treats normal IFODRONE behaviour as a
+# crash because any transient body roll triggers the position-recovery state.
+# Disable the roll/pitch arming-failure check; we still keep ALT and battery FD.
+param set-default FD_FAIL_R 80
+param set-default FD_FAIL_P 80
+param set-default FD_FAIL_R_TTRI 1.0
+param set-default FD_FAIL_P_TTRI 1.0
+
+# Auto/takeoff yaw mode: hold heading instead of yaw-along-trajectory.
+# Mode 0 (default) makes FlightTaskAuto rotate the heading toward the next
+# waypoint, which causes the IFODRONE to spin during HOLD because the smoothed
+# velocity vector wanders. Mode 4 = no auto-yaw, hold last commanded heading.
+param set-default MPC_YAW_MODE 4
+
 # mc_pos_control params for IFODRONE
 param set-default MPC_THR_HOVER 0.65
 param set-default MPC_TILTMAX_AIR 89

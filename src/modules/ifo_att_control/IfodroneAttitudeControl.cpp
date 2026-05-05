@@ -88,12 +88,24 @@ void IfodroneAttitudeControl::Run()
 	//   Yaw → from attitude setpoint (heading)
 	// ================================================================
 
+	// Get manual control input (for Manual/Stabilize throttle passthrough)
+	manual_control_setpoint_s manual_control{};
+	_manual_control_setpoint_sub.copy(&manual_control);
+
 	const hrt_abstime now = hrt_absolute_time();
 	Vector3f torque(0.0f, 0.0f, 0.0f);
 	Vector3f thrust(0.0f, 0.0f, 0.0f);
 
+	// Run attitude stabilization when armed AND attitude control is enabled.
+	// For IFODRONE (MAV_TYPE 2 → ROTARY_WING), flag_control_attitude_enabled is true
+	// in both Manual and Stabilized modes — so servos always counteract orientation changes.
 	const bool run_attitude_control = control_mode.flag_armed &&
 					  control_mode.flag_control_attitude_enabled;
+
+	// Manual/Stabilize mode: pilot controls throttle directly, no altitude/position hold.
+	// In these modes ifo_pos_control does not publish thrust, so we handle it here.
+	const bool manual_thrust_mode = control_mode.flag_control_manual_enabled &&
+					!control_mode.flag_control_altitude_enabled;
 
 	if (run_attitude_control) {
 
@@ -111,13 +123,20 @@ void IfodroneAttitudeControl::Run()
 		const float pitch_setpoint = 0.0f;
 
 		// Yaw setpoint:
-		//  - if a vehicle_attitude_setpoint was received, use its q_d yaw (e.g. heading from
+		//  - In manual mode, use yaw stick as yaw rate command (integrates heading)
+		//  - If a vehicle_attitude_setpoint was received, use its q_d yaw (e.g. heading from
 		//    ifo_pos_control or flight_mode_manager);
 		//  - otherwise hold current yaw so the drone does not spin freely in stabilize mode.
 		float yaw_setpoint = yaw_current;
 		float yaw_rate_setpoint = 0.f;
 
-		if (has_setpoint) {
+		if (manual_thrust_mode) {
+			// Manual/Stabilize: yaw stick → yaw rate (heading integrator)
+			static constexpr float YAW_RATE_MAX = 1.5f; // rad/s max yaw rate from stick
+			yaw_rate_setpoint = manual_control.yaw * YAW_RATE_MAX;
+			yaw_setpoint = yaw_current; // hold current heading (yaw rate does the turning)
+
+		} else if (has_setpoint) {
 			const Quatf q_desired(att_sp.q_d);
 			const Eulerf euler_desired(q_desired);
 
@@ -155,28 +174,19 @@ void IfodroneAttitudeControl::Run()
 		// torque(1) = _kp_att * pitch_error;  // Pitch torque
 		// torque(2) = 0.0f;    // Yaw torque
 
-		// Pass through thrust from position controller unchanged
-		// X, Y: side motors (horizontal position control)
-		// Z: main motors (altitude control)
-		// thrust(0) = att_sp.thrust_body[0];  // Forward/back
-		// thrust(1) = att_sp.thrust_body[1];  // Left/right
-		// thrust(2) = att_sp.thrust_body[2];  // Up/down (negative = up)
-
-		// static hrt_abstime last_debug{0};
-
-		// if (hrt_elapsed_time(&last_debug) > 250_ms) {
-		// 	PX4_INFO("IFO_ATT att=(%.1f %.1f %.1f) err=(%.1f %.1f %.1f) "
-		// 		 "thr=(%.2f %.2f %.2f) tq=(%.2f %.2f %.2f)",
-		// 		 (double)math::degrees(roll_current),
-		// 		 (double)math::degrees(pitch_current),
-		// 		 (double)math::degrees(yaw_current),
-		// 		 (double)math::degrees(roll_error),
-		// 		 (double)math::degrees(pitch_error),
-		// 		 (double)math::degrees(yaw_error),
-		// 		 (double)thrust(0), (double)thrust(1), (double)thrust(2),
-		// 		 (double)torque(0), (double)torque(1), (double)torque(2));
-		// 	last_debug = now;
-		// }
+		// ================================================================
+		// MANUAL/STABILIZE THRUST
+		// In Manual/Stabilize mode, pilot controls throttle directly.
+		// Stick range [-1, 1] mapped to thrust [0, 1] (Z body down = negative = up).
+		// XY thrust = 0 (no position control stick in these modes for IFODRONE).
+		// ================================================================
+		if (manual_thrust_mode) {
+			// Throttle stick: [-1, 1] → [0, 1] linear
+			const float throttle = (manual_control.throttle + 1.0f) * 0.5f;
+			thrust(0) = 0.0f;
+			thrust(1) = 0.0f;
+			thrust(2) = -throttle; // NED body Z: negative = up
+		}
 
 	} else if (!control_mode.flag_armed) {
 		// Not armed: zero everything
@@ -214,9 +224,20 @@ void IfodroneAttitudeControl::Run()
 	theta_T.control[3] =  roll_tilt;  // Left:   positive roll_tilt  → positive tilt → right side UP (antisymmetric)
 	_theta_pub.publish(theta_T);
 
-	// NOTE: vehicle_thrust_setpoint is published by ifo_pos_control directly.
-	// ifo_att_control runs at IMU rate and would overwrite the position controller's
-	// carefully computed body-frame thrust — so thrust publication lives upstream.
+	// ================================================================
+	// PUBLISH THRUST SETPOINT (Manual/Stabilize only)
+	// In altitude/position modes, ifo_pos_control publishes thrust.
+	// In Manual/Stabilize, this module publishes pilot's throttle.
+	// ================================================================
+	if (manual_thrust_mode) {
+		vehicle_thrust_setpoint_s thrust_sp{};
+		thrust_sp.timestamp = now;
+		thrust_sp.timestamp_sample = att.timestamp;
+		thrust_sp.xyz[0] = thrust(0);
+		thrust_sp.xyz[1] = thrust(1);
+		thrust_sp.xyz[2] = thrust(2);
+		_thrust_pub.publish(thrust_sp);
+	}
 
 	// ================================================================
 	// PUBLISH TORQUE SETPOINT

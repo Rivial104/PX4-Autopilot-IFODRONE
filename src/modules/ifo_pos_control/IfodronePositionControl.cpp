@@ -112,7 +112,17 @@ void IfodronePositionControl::Run()
 
 	// ---------------------------------------------------------------
 	// Resolve Z setpoint
+	//
+	// Tracking strategy:
+	//   - When a fresh setpoint with FINITE position[2] is available, follow it directly
+	//     (no proximity gating: previous version stopped tracking once within 20 cm,
+	//     which prevented the descend/hover phase from following the trajectory).
+	//   - When the trajectory is velocity-only (NaN position[2], finite velocity[2]),
+	//     skip position tracking by marking _hold_z as NAN-equivalent (use current z).
+	//   - When no fresh setpoint, snap _hold_z to the CURRENT altitude so the drone
+	//     stays in place instead of being yanked back to the last commanded altitude.
 	// ---------------------------------------------------------------
+	bool z_position_track = false;
 	float z_sp = _hold_z;
 
 	if (run_z_control) {
@@ -120,16 +130,22 @@ void IfodronePositionControl::Run()
 		if (goto_sp_fresh && PX4_ISFINITE(goto_sp.position[2])) {
 			_hold_z = goto_sp.position[2];
 			_hold_position_initialized = true;
+			z_position_track = true;
 
-		// Priority 2: trajectory_setpoint
+		// Priority 2: trajectory_setpoint position
 		} else if (traj_sp_fresh && PX4_ISFINITE(traj_sp.position[2])) {
-			if (!_hold_position_initialized || fabsf(traj_sp.position[2] - local_pos.z) > 0.2f) {
-				_hold_z = traj_sp.position[2];
-				_hold_position_initialized = true;
-			}
+			_hold_z = traj_sp.position[2];
+			_hold_position_initialized = true;
+			z_position_track = true;
 
-		// Priority 3: hold current altitude
-		} else if (!_hold_position_initialized) {
+		// Priority 3a: trajectory says "velocity only" (no position) -> follow current
+		// altitude, let velocity feed-forward drive the climb/descent.
+		} else if (traj_sp_fresh && PX4_ISFINITE(traj_sp.velocity[2])) {
+			_hold_z = local_pos.z;
+			_hold_position_initialized = true;
+
+		// Priority 3b: nothing fresh -> snap hold to current altitude
+		} else {
 			_hold_z = local_pos.z;
 			_hold_position_initialized = true;
 		}
@@ -141,43 +157,55 @@ void IfodronePositionControl::Run()
 
 	// ---------------------------------------------------------------
 	// Resolve XY setpoint
+	//
+	// We need three behaviors to cover the user-visible cases:
+	//   (A) Trajectory carries a finite XY position -> track it (HOLD/POSITION/AUTO).
+	//   (B) Trajectory carries velocity only (NaN position, finite velocity)
+	//       -> drone should move in that direction without being pulled back to a
+	//          stale position; pos_err must be 0 so only velocity feed-forward acts.
+	//   (C) Nothing fresh -> snap pos_sp to the CURRENT position so the drone holds
+	//       in place (do NOT pull back toward the last commanded XY).
 	// ---------------------------------------------------------------
+	bool xy_position_track = false;
 	Vector3f pos_sp = pos;
 	pos_sp(2) = z_sp;
 
 	if (armed && position_ctrl && local_pos.xy_valid) {
-		// Priority 1: goto_setpoint
+		// Priority 1: goto_setpoint XY (axis-wise FINITE check)
 		const bool gx = goto_sp_fresh && PX4_ISFINITE(goto_sp.position[0]);
 		const bool gy = goto_sp_fresh && PX4_ISFINITE(goto_sp.position[1]);
 
-		if (gx) { _hold_x = goto_sp.position[0]; _hold_xy_initialized = true; }
-		if (gy) { _hold_y = goto_sp.position[1]; _hold_xy_initialized = true; }
+		// Priority 2: trajectory_setpoint XY
+		const bool tx = traj_sp_fresh && PX4_ISFINITE(traj_sp.position[0]);
+		const bool ty = traj_sp_fresh && PX4_ISFINITE(traj_sp.position[1]);
 
-		if (!gx || !gy) {
-			// Priority 2: trajectory_setpoint
-			const bool tx = traj_sp_fresh && PX4_ISFINITE(traj_sp.position[0]);
-			const bool ty = traj_sp_fresh && PX4_ISFINITE(traj_sp.position[1]);
+		// Priority 2b: velocity-only trajectory (NaN position but finite velocity)
+		const bool tvx = traj_sp_fresh && PX4_ISFINITE(traj_sp.velocity[0]);
+		const bool tvy = traj_sp_fresh && PX4_ISFINITE(traj_sp.velocity[1]);
 
-			if (tx) { _hold_x = traj_sp.position[0]; _hold_xy_initialized = true; }
-			if (ty) { _hold_y = traj_sp.position[1]; _hold_xy_initialized = true; }
+		if (gx)      { _hold_x = goto_sp.position[0]; }
+		else if (tx) { _hold_x = traj_sp.position[0]; }
+		else         { _hold_x = local_pos.x; }   // velocity-only or stale -> snap to current
 
-			// Priority 3: hold
-			if (!_hold_xy_initialized) {
-				_hold_x = local_pos.x;
-				_hold_y = local_pos.y;
-				_hold_xy_initialized = true;
-			}
-		}
+		if (gy)      { _hold_y = goto_sp.position[1]; }
+		else if (ty) { _hold_y = traj_sp.position[1]; }
+		else         { _hold_y = local_pos.y; }
+
+		_hold_xy_initialized = true;
+		xy_position_track = (gx || tx) && (gy || ty);
+
+		// If trajectory is velocity-only but no position, do not engage position P
+		// (pos_err will be zeroed below). The velocity feed-forward alone drives motion.
+		(void)tvx; (void)tvy;
 
 		pos_sp(0) = _hold_x;
 		pos_sp(1) = _hold_y;
 
 	} else if (!goto_sp_fresh && !traj_sp_fresh) {
-		if (!_hold_xy_initialized) {
-			_hold_x = local_pos.x;
-			_hold_y = local_pos.y;
-			_hold_xy_initialized = true;
-		}
+		// Not in position control and no setpoint -> hold whatever we have NOW.
+		_hold_x = local_pos.x;
+		_hold_y = local_pos.y;
+		_hold_xy_initialized = true;
 
 		pos_sp(0) = _hold_x;
 		pos_sp(1) = _hold_y;
@@ -185,10 +213,14 @@ void IfodronePositionControl::Run()
 
 	// ---------------------------------------------------------------
 	// Cascaded P: position error → velocity setpoint
+	//
+	// Only engage the position P loop on axes where we are actually tracking a
+	// finite position setpoint. For velocity-only trajectories the velocity
+	// feed-forward below is the sole velocity command.
 	// ---------------------------------------------------------------
 	Vector3f pos_err = pos_sp - pos;
-	if (!run_xy_control) { pos_err(0) = 0.0f; pos_err(1) = 0.0f; }
-	if (!run_z_control)  { pos_err(2) = 0.0f; }
+	if (!run_xy_control || !xy_position_track) { pos_err(0) = 0.0f; pos_err(1) = 0.0f; }
+	if (!run_z_control  || !z_position_track)  { pos_err(2) = 0.0f; }
 
 	Vector3f vel_sp;
 	vel_sp(0) = pos_err(0) * _param_ifo_pos_xy_p.get();
@@ -244,6 +276,14 @@ void IfodronePositionControl::Run()
 
 	// ---------------------------------------------------------------
 	// Yaw setpoint
+	//
+	// Hold current heading by default. Only override if an explicit goto_sp
+	// heading is provided. We intentionally do NOT track traj_sp.yaw on every
+	// cycle: in Auto, FlightTaskAuto can derive yaw from the smoothed velocity
+	// vector, which during takeoff/hover oscillates with the platform and pulls
+	// the heading around (observed in flight: yaw drifted to -2.8 rad while
+	// the drone was supposed to hover). Holding heading keeps the body-frame
+	// thrust mapping stable.
 	// ---------------------------------------------------------------
 	const float yaw_current = PX4_ISFINITE(local_pos.heading) ? local_pos.heading : 0.0f;
 	float yaw_sp = yaw_current;
@@ -251,7 +291,9 @@ void IfodronePositionControl::Run()
 	if (goto_sp_fresh && goto_sp.flag_control_heading && PX4_ISFINITE(goto_sp.heading)) {
 		yaw_sp = goto_sp.heading;
 
-	} else if (traj_sp_fresh && PX4_ISFINITE(traj_sp.yaw)) {
+	} else if (traj_sp_fresh && PX4_ISFINITE(traj_sp.yaw) && PX4_ISFINITE(traj_sp.yawspeed)
+		   && fabsf(traj_sp.yawspeed) > 0.05f) {
+		// Only follow the trajectory yaw when an explicit yaw rate is being commanded.
 		yaw_sp = traj_sp.yaw;
 	}
 
