@@ -174,30 +174,32 @@ param set-default PWM_MAIN_DIS6 1000
 # For DShot: set DSHOT_CONFIG instead and leave PWM_MAIN_RATE at default.
 param set-default PWM_MAIN_RATE 400
 
-# ----- Tilt servos on S7..S10 -----
-param set-default PWM_MAIN_FUNC7  201
-param set-default PWM_MAIN_FUNC8  202
+# ----- Tilt servos: S9, S10, S11, S12 -----
+# tilt1 (front, func 201) -> MAIN12
+# tilt2 (right, func 202) -> MAIN11
+# tilt3 (back,  func 203) -> MAIN9
+# tilt4 (left,  func 204) -> MAIN10
+param set-default PWM_MAIN_FUNC7  0
+param set-default PWM_MAIN_FUNC8  0
 param set-default PWM_MAIN_FUNC9  203
 param set-default PWM_MAIN_FUNC10 204
+param set-default PWM_MAIN_FUNC11 202
+param set-default PWM_MAIN_FUNC12 201
 
 # Standard hobby servo range (1000..2000 us, neutral 1500 us).
 # Tune per servo and mechanical linkage.
-param set-default PWM_MAIN_MIN7  1000
-param set-default PWM_MAIN_MIN8  1000
 param set-default PWM_MAIN_MIN9  1000
 param set-default PWM_MAIN_MIN10 1000
-param set-default PWM_MAIN_MAX7  2000
-param set-default PWM_MAIN_MAX8  2000
+param set-default PWM_MAIN_MIN11 1000
+param set-default PWM_MAIN_MIN12 1000
 param set-default PWM_MAIN_MAX9  2000
 param set-default PWM_MAIN_MAX10 2000
-param set-default PWM_MAIN_DIS7  1500
-param set-default PWM_MAIN_DIS8  1500
+param set-default PWM_MAIN_MAX11 2000
+param set-default PWM_MAIN_MAX12 2000
 param set-default PWM_MAIN_DIS9  1500
 param set-default PWM_MAIN_DIS10 1500
-
-# Unused channels
-param set-default PWM_MAIN_FUNC11 0
-param set-default PWM_MAIN_FUNC12 0
+param set-default PWM_MAIN_DIS11 1500
+param set-default PWM_MAIN_DIS12 1500
 
 # ============================================
 # SAFETY / SYSTEM
