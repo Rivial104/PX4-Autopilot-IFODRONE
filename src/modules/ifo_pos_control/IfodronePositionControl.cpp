@@ -1,21 +1,22 @@
 /**
  * IFODRONE Position Controller
  *
- * Setpoint resolution (priority order):
- *   1. goto_setpoint.position  — direct target, no smoothing
- *   2. trajectory_setpoint     — from flight_mode_manager (vel/accel feedforward used)
- *   3. hold last commanded position
+ * Structure modeled after mc_pos_control but simplified for the IFODRONE
+ * airframe where position and orientation are decoupled.
  *
- * Cascaded P:
- *   pos_sp  →[P]→  vel_sp  →[P]→  accel_sp  →  body-frame thrust
+ * Uses the PositionControl library for cascaded P-position + PID-velocity
+ * to produce an acceleration setpoint, then converts acceleration to
+ * body-frame thrust assuming a level body (no pitch/roll).
  *
- * IFODRONE: body nominally level, no pitch/roll in force computation.
- * Only yaw rotation applied when converting NED XY → body XY.
+ * Supports:
+ *   - Offboard mode (external trajectory_setpoint)
+ *   - Manual/Position/Hold (trajectory_setpoint from flight_mode_manager)
+ *   - goto_setpoint (direct position target, converted here)
  */
 
 #include "IfodronePositionControl.hpp"
 
-#include <cmath>
+#include <float.h>
 #include <lib/mathlib/mathlib.h>
 #include <lib/matrix/matrix/math.hpp>
 
@@ -25,6 +26,8 @@ IfodronePositionControl::IfodronePositionControl() :
 	ModuleParams(nullptr),
 	ScheduledWorkItem(MODULE_NAME, px4::wq_configurations::nav_and_controllers)
 {
+	parameters_update(true);
+	_takeoff_status_pub.advertise();
 }
 
 IfodronePositionControl::~IfodronePositionControl()
@@ -39,12 +42,36 @@ bool IfodronePositionControl::init()
 		return false;
 	}
 
-	// Ramp starts at vel=0 (default _takeoff_ramp_vz_init=0), climbs to TAKEOFF_DESIRED_VZ.
-	_takeoff.setSpoolupTime(TAKEOFF_SPOOLUP_TIME);
-	_takeoff.setTakeoffRampTime(TAKEOFF_RAMP_TIME);
+	_time_stamp_last_loop = hrt_absolute_time();
+	ScheduleNow();
 
 	PX4_INFO("IFODRONE position controller initialized");
 	return true;
+}
+
+void IfodronePositionControl::parameters_update(bool force)
+{
+	if (_parameter_update_sub.updated() || force) {
+		parameter_update_s pupdate;
+		_parameter_update_sub.copy(&pupdate);
+		ModuleParams::updateParams();
+
+		// Set gains on the PositionControl library
+		_control.setPositionGains(Vector3f(_param_ifo_pos_xy_p.get(), _param_ifo_pos_xy_p.get(), _param_ifo_pos_z_p.get()));
+		_control.setVelocityGains(
+			Vector3f(_param_ifo_vel_xy_p.get(), _param_ifo_vel_xy_p.get(), _param_ifo_vel_z_p.get()),
+			Vector3f(_param_ifo_vel_xy_i.get(), _param_ifo_vel_xy_i.get(), _param_ifo_vel_z_i.get()),
+			Vector3f(_param_ifo_vel_xy_d.get(), _param_ifo_vel_xy_d.get(), _param_ifo_vel_z_d.get()));
+
+		_control.setHoverThrust(_param_ifo_thr_hover.get());
+		_control.setThrustLimits(_param_ifo_thr_min.get(), _param_ifo_thr_max.get());
+		_control.setHorizontalThrustMargin(_param_ifo_thr_xy_max.get());
+		_control.setTiltLimit(M_PI_2_F); // no tilt limit: IFODRONE is always level
+
+		_takeoff.setSpoolupTime(_param_com_spoolup_time.get());
+		_takeoff.setTakeoffRampTime(_param_ifo_tko_ramp_t.get());
+		_takeoff.generateInitialRampValue(_param_ifo_vel_z_p.get());
+	}
 }
 
 void IfodronePositionControl::Run()
@@ -55,329 +82,369 @@ void IfodronePositionControl::Run()
 		return;
 	}
 
+	// reschedule backup
+	ScheduleDelayed(100_ms);
+
+	parameters_update(false);
+
 	perf_begin(_cycle_perf);
 
-	if (_parameter_update_sub.updated()) {
-		parameter_update_s param_update;
-		_parameter_update_sub.copy(&param_update);
-		updateParams();
-	}
+	vehicle_local_position_s local_pos;
 
-	const hrt_abstime now = hrt_absolute_time();
+	if (_local_pos_sub.update(&local_pos)) {
+		const float dt = math::constrain(
+					 ((local_pos.timestamp_sample - _time_stamp_last_loop) * 1e-6f), 0.002f, 0.04f);
+		_time_stamp_last_loop = local_pos.timestamp_sample;
 
-	// --- Inputs ---
-	vehicle_control_mode_s control_mode{};
-	_vehicle_control_mode_sub.copy(&control_mode);
+		// --- Update control mode ---
+		if (_vehicle_control_mode_sub.updated()) {
+			const bool prev_pos_ctrl = _vehicle_control_mode.flag_multicopter_position_control_enabled;
 
-	vehicle_local_position_s local_pos{};
+			if (_vehicle_control_mode_sub.update(&_vehicle_control_mode)) {
+				if (!prev_pos_ctrl && _vehicle_control_mode.flag_multicopter_position_control_enabled) {
+					_time_position_control_enabled = _vehicle_control_mode.timestamp;
 
-	if (!_local_pos_sub.copy(&local_pos)) {
-		perf_end(_cycle_perf);
-		return;
-	}
+				} else if (prev_pos_ctrl && !_vehicle_control_mode.flag_multicopter_position_control_enabled) {
+					_setpoint = PositionControl::empty_trajectory_setpoint;
+				}
+			}
+		}
 
-	const float dt = (_last_run > 0)
-			 ? math::constrain((local_pos.timestamp_sample - _last_run) * 1e-6f, 0.002f, 0.04f)
-			 : 0.01f;
-	_last_run = local_pos.timestamp_sample;
+		_vehicle_land_detected_sub.update(&_vehicle_land_detected);
 
-	vehicle_land_detected_s land_detected{};
-	_vehicle_land_detected_sub.copy(&land_detected);
+		// --- Set vehicle states ---
+		PositionControlStates states{};
 
-	// --- Goto setpoint (priority 1: direct target position) ---
-	goto_setpoint_s goto_sp{};
-	const bool goto_sp_fresh = _goto_setpoint_sub.copy(&goto_sp)
-				   && (goto_sp.timestamp != 0)
-				   && (now - goto_sp.timestamp < TRAJ_SP_TIMEOUT_US);
-
-	// --- Trajectory setpoint (priority 2: from flight_mode_manager) ---
-	trajectory_setpoint_s traj_sp{};
-	const bool traj_sp_fresh = _trajectory_setpoint_sub.copy(&traj_sp)
-				   && (traj_sp.timestamp != 0)
-				   && (now <= traj_sp.timestamp + TRAJ_SP_TIMEOUT_US);
-
-	// --- Mode flags ---
-	const bool armed               = control_mode.flag_armed;
-	const bool altitude_ctrl       = control_mode.flag_control_altitude_enabled;
-	const bool position_ctrl       = control_mode.flag_control_position_enabled
-					 || control_mode.flag_multicopter_position_control_enabled;
-	const bool run_xy_control = armed && position_ctrl && local_pos.xy_valid && local_pos.v_xy_valid;
-	const bool run_z_control  = armed && altitude_ctrl  && local_pos.z_valid  && local_pos.v_z_valid;
-
-	if (!armed || !altitude_ctrl)  { _hold_position_initialized = false; }
-	if (!armed || !position_ctrl)  { _hold_xy_initialized = false; }
-
-	const Vector3f pos(local_pos.x, local_pos.y, local_pos.z);
-	const Vector3f vel(local_pos.vx, local_pos.vy, local_pos.vz);
-
-	// ---------------------------------------------------------------
-	// Resolve Z setpoint
-	//
-	// Tracking strategy:
-	//   - When a fresh setpoint with FINITE position[2] is available, follow it directly
-	//     (no proximity gating: previous version stopped tracking once within 20 cm,
-	//     which prevented the descend/hover phase from following the trajectory).
-	//   - When the trajectory is velocity-only (NaN position[2], finite velocity[2]),
-	//     skip position tracking by marking _hold_z as NAN-equivalent (use current z).
-	//   - When no fresh setpoint, snap _hold_z to the CURRENT altitude so the drone
-	//     stays in place instead of being yanked back to the last commanded altitude.
-	// ---------------------------------------------------------------
-	bool z_position_track = false;
-	float z_sp = _hold_z;
-
-	if (run_z_control) {
-		// Priority 1: goto_setpoint
-		if (goto_sp_fresh && PX4_ISFINITE(goto_sp.position[2])) {
-			_hold_z = goto_sp.position[2];
-			_hold_position_initialized = true;
-			z_position_track = true;
-
-		// Priority 2: trajectory_setpoint position
-		} else if (traj_sp_fresh && PX4_ISFINITE(traj_sp.position[2])) {
-			_hold_z = traj_sp.position[2];
-			_hold_position_initialized = true;
-			z_position_track = true;
-
-		// Priority 3a: trajectory says "velocity only" (no position) -> follow current
-		// altitude, let velocity feed-forward drive the climb/descent.
-		} else if (traj_sp_fresh && PX4_ISFINITE(traj_sp.velocity[2])) {
-			_hold_z = local_pos.z;
-			_hold_position_initialized = true;
-
-		// Priority 3b: nothing fresh -> snap hold to current altitude
+		if (local_pos.xy_valid) {
+			states.position.xy() = Vector2f(local_pos.x, local_pos.y);
 		} else {
-			_hold_z = local_pos.z;
-			_hold_position_initialized = true;
+			states.position(0) = states.position(1) = NAN;
 		}
 
-		z_sp = _hold_z;
-	}
-
-	_z_sp = z_sp;
-
-	// ---------------------------------------------------------------
-	// Resolve XY setpoint
-	//
-	// We need three behaviors to cover the user-visible cases:
-	//   (A) Trajectory carries a finite XY position -> track it (HOLD/POSITION/AUTO).
-	//   (B) Trajectory carries velocity only (NaN position, finite velocity)
-	//       -> drone should move in that direction without being pulled back to a
-	//          stale position; pos_err must be 0 so only velocity feed-forward acts.
-	//   (C) Nothing fresh -> snap pos_sp to the CURRENT position so the drone holds
-	//       in place (do NOT pull back toward the last commanded XY).
-	// ---------------------------------------------------------------
-	bool xy_position_track = false;
-	Vector3f pos_sp = pos;
-	pos_sp(2) = z_sp;
-
-	if (armed && position_ctrl && local_pos.xy_valid) {
-		// Priority 1: goto_setpoint XY (axis-wise FINITE check)
-		const bool gx = goto_sp_fresh && PX4_ISFINITE(goto_sp.position[0]);
-		const bool gy = goto_sp_fresh && PX4_ISFINITE(goto_sp.position[1]);
-
-		// Priority 2: trajectory_setpoint XY
-		const bool tx = traj_sp_fresh && PX4_ISFINITE(traj_sp.position[0]);
-		const bool ty = traj_sp_fresh && PX4_ISFINITE(traj_sp.position[1]);
-
-		// Priority 2b: velocity-only trajectory (NaN position but finite velocity)
-		const bool tvx = traj_sp_fresh && PX4_ISFINITE(traj_sp.velocity[0]);
-		const bool tvy = traj_sp_fresh && PX4_ISFINITE(traj_sp.velocity[1]);
-
-		if (gx)      { _hold_x = goto_sp.position[0]; }
-		else if (tx) { _hold_x = traj_sp.position[0]; }
-		else         { _hold_x = local_pos.x; }   // velocity-only or stale -> snap to current
-
-		if (gy)      { _hold_y = goto_sp.position[1]; }
-		else if (ty) { _hold_y = traj_sp.position[1]; }
-		else         { _hold_y = local_pos.y; }
-
-		_hold_xy_initialized = true;
-		xy_position_track = (gx || tx) && (gy || ty);
-
-		// If trajectory is velocity-only but no position, do not engage position P
-		// (pos_err will be zeroed below). The velocity feed-forward alone drives motion.
-		(void)tvx; (void)tvy;
-
-		pos_sp(0) = _hold_x;
-		pos_sp(1) = _hold_y;
-
-	} else if (!goto_sp_fresh && !traj_sp_fresh) {
-		// Not in position control and no setpoint -> hold whatever we have NOW.
-		_hold_x = local_pos.x;
-		_hold_y = local_pos.y;
-		_hold_xy_initialized = true;
-
-		pos_sp(0) = _hold_x;
-		pos_sp(1) = _hold_y;
-	}
-
-	// ---------------------------------------------------------------
-	// Cascaded P: position error → velocity setpoint
-	//
-	// Only engage the position P loop on axes where we are actually tracking a
-	// finite position setpoint. For velocity-only trajectories the velocity
-	// feed-forward below is the sole velocity command.
-	// ---------------------------------------------------------------
-	Vector3f pos_err = pos_sp - pos;
-	if (!run_xy_control || !xy_position_track) { pos_err(0) = 0.0f; pos_err(1) = 0.0f; }
-	if (!run_z_control  || !z_position_track)  { pos_err(2) = 0.0f; }
-
-	Vector3f vel_sp;
-	vel_sp(0) = pos_err(0) * _param_ifo_pos_xy_p.get();
-	vel_sp(1) = pos_err(1) * _param_ifo_pos_xy_p.get();
-	vel_sp(2) = pos_err(2) * _param_ifo_pos_z_p.get();
-
-	// Velocity feedforward from trajectory_setpoint (not available from goto_setpoint)
-	if (!goto_sp_fresh && traj_sp_fresh) {
-		if (run_xy_control) {
-			if (PX4_ISFINITE(traj_sp.velocity[0])) { vel_sp(0) += traj_sp.velocity[0]; }
-			if (PX4_ISFINITE(traj_sp.velocity[1])) { vel_sp(1) += traj_sp.velocity[1]; }
+		if (local_pos.z_valid) {
+			states.position(2) = local_pos.z;
+		} else {
+			states.position(2) = NAN;
 		}
 
-		if (run_z_control && PX4_ISFINITE(traj_sp.velocity[2])) {
-			vel_sp(2) += traj_sp.velocity[2];
-		}
-	}
-
-	// ---------------------------------------------------------------
-	// TakeoffHandling: clamp upward velocity during ramp
-	// ---------------------------------------------------------------
-	const bool want_takeoff = run_z_control && !land_detected.landed && (z_sp < local_pos.z - 0.2f);
-	_takeoff.updateTakeoffState(armed, land_detected.landed, want_takeoff, TAKEOFF_DESIRED_VZ, false, now);
-
-	if (run_z_control) {
-		// ramp goes 0 → TAKEOFF_DESIRED_VZ (negative NED); max() prevents exceeding upward limit
-		vel_sp(2) = math::max(vel_sp(2), _takeoff.updateRamp(dt, TAKEOFF_DESIRED_VZ));
-	}
-
-	// ---------------------------------------------------------------
-	// Cascaded P: velocity error → acceleration setpoint
-	// ---------------------------------------------------------------
-	Vector3f vel_err = vel_sp - vel;
-	if (!run_xy_control) { vel_err(0) = 0.0f; vel_err(1) = 0.0f; }
-	if (!run_z_control)  { vel_err(2) = 0.0f; }
-
-	Vector3f accel_sp;
-	accel_sp(0) = vel_err(0) * _param_ifo_vel_xy_p.get();
-	accel_sp(1) = vel_err(1) * _param_ifo_vel_xy_p.get();
-	accel_sp(2) = vel_err(2) * _param_ifo_vel_z_p.get();
-
-	// Acceleration feedforward from trajectory_setpoint
-	if (!goto_sp_fresh && traj_sp_fresh) {
-		if (run_xy_control) {
-			if (PX4_ISFINITE(traj_sp.acceleration[0])) { accel_sp(0) += traj_sp.acceleration[0]; }
-			if (PX4_ISFINITE(traj_sp.acceleration[1])) { accel_sp(1) += traj_sp.acceleration[1]; }
+		if (local_pos.v_xy_valid) {
+			states.velocity.xy() = Vector2f(local_pos.vx, local_pos.vy);
+		} else {
+			states.velocity(0) = states.velocity(1) = NAN;
 		}
 
-		if (run_z_control && PX4_ISFINITE(traj_sp.acceleration[2])) {
-			accel_sp(2) += traj_sp.acceleration[2];
-		}
-	}
-
-	// ---------------------------------------------------------------
-	// Yaw setpoint
-	//
-	// Hold current heading by default. Only override if an explicit goto_sp
-	// heading is provided. We intentionally do NOT track traj_sp.yaw on every
-	// cycle: in Auto, FlightTaskAuto can derive yaw from the smoothed velocity
-	// vector, which during takeoff/hover oscillates with the platform and pulls
-	// the heading around (observed in flight: yaw drifted to -2.8 rad while
-	// the drone was supposed to hover). Holding heading keeps the body-frame
-	// thrust mapping stable.
-	// ---------------------------------------------------------------
-	const float yaw_current = PX4_ISFINITE(local_pos.heading) ? local_pos.heading : 0.0f;
-	float yaw_sp = yaw_current;
-
-	if (goto_sp_fresh && goto_sp.flag_control_heading && PX4_ISFINITE(goto_sp.heading)) {
-		yaw_sp = goto_sp.heading;
-
-	} else if (traj_sp_fresh && PX4_ISFINITE(traj_sp.yaw) && PX4_ISFINITE(traj_sp.yawspeed)
-		   && fabsf(traj_sp.yawspeed) > 0.05f) {
-		// Only follow the trajectory yaw when an explicit yaw rate is being commanded.
-		yaw_sp = traj_sp.yaw;
-	}
-
-	const float yawspeed_sp = (!goto_sp_fresh && traj_sp_fresh && PX4_ISFINITE(traj_sp.yawspeed))
-				  ? traj_sp.yawspeed : 0.0f;
-
-	// ---------------------------------------------------------------
-	// Acceleration → body-frame thrust
-	// IFODRONE: body level, no pitch/roll. Yaw rotation only.
-	// ---------------------------------------------------------------
-	Vector3f thrust_sp_body;
-	thrust_sp_body.setZero();
-
-	if (run_xy_control || run_z_control) {
-		const float cos_yaw = cosf(yaw_current);
-		const float sin_yaw = sinf(yaw_current);
-
-		// NED XY → body XY (yaw rotation only, no tilt)
-		const float ax_body =  cos_yaw * accel_sp(0) + sin_yaw * accel_sp(1);
-		const float ay_body = -sin_yaw * accel_sp(0) + cos_yaw * accel_sp(1);
-
-		thrust_sp_body(0) = run_xy_control ? ax_body / CONSTANTS_ONE_G : 0.0f;
-		thrust_sp_body(1) = run_xy_control ? ay_body / CONSTANTS_ONE_G : 0.0f;
-
-		// Clamp XY thrust magnitude
-		const float thr_xy_max = math::constrain(_param_ifo_thr_xy_max.get(), 0.0f, 1.0f);
-		Vector2f thr_xy(thrust_sp_body(0), thrust_sp_body(1));
-		const float thr_xy_norm = thr_xy.norm();
-
-		if (thr_xy_norm > thr_xy_max && thr_xy_norm > 1e-5f) {
-			thr_xy *= thr_xy_max / thr_xy_norm;
-			thrust_sp_body(0) = thr_xy(0);
-			thrust_sp_body(1) = thr_xy(1);
+		if (local_pos.v_z_valid) {
+			states.velocity(2) = local_pos.vz;
+		} else {
+			states.velocity(2) = NAN;
 		}
 
-		// Z thrust: hover baseline corrected by NED Z acceleration.
-		// No tilt compensation — IFODRONE main motors always along body Z.
-		// NED: accel_sp(2) > 0 means down → less upward thrust needed.
-		const float hover_thr = math::constrain(_param_ifo_thr_hover.get(), 0.0f, 1.0f);
-		const float thr_min   = math::constrain(_param_ifo_thr_min.get(),   0.0f, 1.0f);
-		const float thr_max   = math::constrain(_param_ifo_thr_max.get(),   thr_min, 1.0f);
-		const float thrust_z  = math::constrain(
-						hover_thr - accel_sp(2) * (hover_thr / CONSTANTS_ONE_G),
-						thr_min, thr_max);
-		thrust_sp_body(2) = run_z_control ? -thrust_z : 0.0f;
+		// Use velocity derivative as acceleration estimate
+		states.acceleration = Vector3f(local_pos.ax, local_pos.ay, local_pos.az);
+		states.yaw = local_pos.heading;
+
+		// --- Handle goto_setpoint → trajectory_setpoint conversion ---
+		// If a goto_setpoint is available and no trajectory_setpoint was freshly published,
+		// convert goto to a trajectory_setpoint (simple: position target, no smoothing).
+		if (_vehicle_control_mode.flag_multicopter_position_control_enabled
+		    && !_trajectory_setpoint_sub.updated()) {
+
+			goto_setpoint_s goto_sp;
+
+			if (_goto_setpoint_sub.update(&goto_sp) && goto_sp.timestamp != 0
+			    && (hrt_absolute_time() - goto_sp.timestamp < TRAJECTORY_STREAM_TIMEOUT_US)) {
+
+				// Convert goto to trajectory setpoint
+				trajectory_setpoint_s traj = PositionControl::empty_trajectory_setpoint;
+				traj.timestamp = goto_sp.timestamp;
+				traj.position[0] = goto_sp.position[0];
+				traj.position[1] = goto_sp.position[1];
+				traj.position[2] = goto_sp.position[2];
+
+				if (goto_sp.flag_control_heading && PX4_ISFINITE(goto_sp.heading)) {
+					traj.yaw = goto_sp.heading;
+				}
+
+				_setpoint = traj;
+			}
+		}
+
+		// --- Read trajectory setpoint ---
+		_trajectory_setpoint_sub.update(&_setpoint);
+		adjustSetpointForEKFResets(local_pos, _setpoint);
+
+		// --- Failsafe if no setpoint since control enabled ---
+		if (_vehicle_control_mode.flag_multicopter_position_control_enabled) {
+			if ((_setpoint.timestamp < _time_position_control_enabled)
+			    && (local_pos.timestamp_sample > _time_position_control_enabled)) {
+				_setpoint = generateFailsafeSetpoint(local_pos.timestamp_sample, states);
+			}
+		}
+
+		// --- Run position control ---
+		if (_vehicle_control_mode.flag_multicopter_position_control_enabled
+		    && (_setpoint.timestamp >= _time_position_control_enabled)) {
+
+			// Update constraints
+			_vehicle_constraints_sub.update(&_vehicle_constraints);
+
+			if (!PX4_ISFINITE(_vehicle_constraints.speed_up)
+			    || (_vehicle_constraints.speed_up > _param_ifo_vel_max_up.get())) {
+				_vehicle_constraints.speed_up = _param_ifo_vel_max_up.get();
+			}
+
+			// Offboard: determine want_takeoff
+			if (_vehicle_control_mode.flag_control_offboard_enabled) {
+				const bool want_takeoff = _vehicle_control_mode.flag_armed
+							  && (local_pos.timestamp_sample < _setpoint.timestamp + 1_s);
+
+				if (want_takeoff && PX4_ISFINITE(_setpoint.position[2])
+				    && (_setpoint.position[2] < states.position(2))) {
+					_vehicle_constraints.want_takeoff = true;
+
+				} else if (want_takeoff && PX4_ISFINITE(_setpoint.velocity[2])
+					   && (_setpoint.velocity[2] < 0.f)) {
+					_vehicle_constraints.want_takeoff = true;
+
+				} else if (want_takeoff && PX4_ISFINITE(_setpoint.acceleration[2])
+					   && (_setpoint.acceleration[2] < 0.f)) {
+					_vehicle_constraints.want_takeoff = true;
+
+				} else {
+					_vehicle_constraints.want_takeoff = false;
+				}
+
+				_vehicle_constraints.speed_up = _param_ifo_vel_max_up.get();
+				_vehicle_constraints.speed_down = _param_ifo_vel_max_dn.get();
+			}
+
+			// Takeoff state machine
+			_takeoff.updateTakeoffState(
+				_vehicle_control_mode.flag_armed, _vehicle_land_detected.landed,
+				_vehicle_constraints.want_takeoff,
+				_vehicle_constraints.speed_up, false, local_pos.timestamp_sample);
+
+			const bool not_taken_off = (_takeoff.getTakeoffState() < TakeoffState::rampup);
+			const bool flying = (_takeoff.getTakeoffState() >= TakeoffState::flight);
+			const bool flying_but_ground_contact = (flying && _vehicle_land_detected.ground_contact);
+
+			if (!flying) {
+				_control.setHoverThrust(_param_ifo_thr_hover.get());
+			}
+
+			// During ramp, don't allow acceleration feedforward to interfere
+			if (_takeoff.getTakeoffState() == TakeoffState::rampup && PX4_ISFINITE(_setpoint.velocity[2])) {
+				_setpoint.acceleration[2] = NAN;
+			}
+
+			if (not_taken_off || flying_but_ground_contact) {
+				// On ground: zero everything, push down
+				_setpoint = PositionControl::empty_trajectory_setpoint;
+				_setpoint.timestamp = local_pos.timestamp_sample;
+				Vector3f(0.f, 0.f, 100.f).copyTo(_setpoint.acceleration);
+				_control.resetIntegral();
+			}
+
+			// Velocity limits with takeoff ramp
+			const float speed_up = _takeoff.updateRamp(dt,
+					       PX4_ISFINITE(_vehicle_constraints.speed_up) ? _vehicle_constraints.speed_up : _param_ifo_vel_max_up.get());
+			const float speed_down = PX4_ISFINITE(_vehicle_constraints.speed_down)
+						 ? _vehicle_constraints.speed_down : _param_ifo_vel_max_dn.get();
+
+			// Allow ramping from zero thrust on takeoff
+			const float minimum_thrust = flying ? _param_ifo_thr_min.get() : 0.f;
+			_control.setThrustLimits(minimum_thrust, _param_ifo_thr_max.get());
+
+			_control.setVelocityLimits(
+				_param_ifo_vel_max_xy.get(),
+				math::min(speed_up, _param_ifo_vel_max_up.get()),
+				math::max(speed_down, 0.f));
+
+			_control.setInputSetpoint(_setpoint);
+
+			// If no XY control input, reset XY integrator
+			if ((!PX4_ISFINITE(_setpoint.velocity[0]) || !PX4_ISFINITE(_setpoint.velocity[1]))
+			    && (!PX4_ISFINITE(_setpoint.position[0]) || !PX4_ISFINITE(_setpoint.position[1]))) {
+				_control.resetIntegralXY();
+			}
+
+			_control.setState(states);
+
+			// Run PID control (position → velocity → acceleration → thrust internally)
+			if (!_control.update(dt)) {
+				// Failed: try failsafe
+				_control.setInputSetpoint(generateFailsafeSetpoint(local_pos.timestamp_sample, states));
+				_control.setVelocityLimits(_param_ifo_vel_max_xy.get(), _param_ifo_vel_max_up.get(),
+							   _param_ifo_vel_max_dn.get());
+				_control.update(dt);
+			}
+
+			// --- Get library outputs ---
+			vehicle_local_position_setpoint_s local_pos_sp{};
+			_control.getLocalPositionSetpoint(local_pos_sp);
+
+			// --- IFODRONE-specific: convert acceleration to body-frame thrust ---
+			// The library computes thrust assuming a tilted body. We override with our
+			// level-body assumption: Z independent, XY via yaw rotation.
+			const Vector3f acc_sp(local_pos_sp.acceleration);
+			const Vector3f thr_body = accelerationToThrust(acc_sp, states.yaw);
+
+			// Override thrust in the setpoint message
+			local_pos_sp.thrust[0] = thr_body(0);
+			local_pos_sp.thrust[1] = thr_body(1);
+			local_pos_sp.thrust[2] = thr_body(2);
+			local_pos_sp.timestamp = hrt_absolute_time();
+			_local_pos_sp_pub.publish(local_pos_sp);
+
+			// --- Publish vehicle_thrust_setpoint ---
+			vehicle_thrust_setpoint_s thrust_msg{};
+			thrust_msg.timestamp        = hrt_absolute_time();
+			thrust_msg.timestamp_sample = local_pos.timestamp_sample;
+			thrust_msg.xyz[0] = thr_body(0);
+			thrust_msg.xyz[1] = thr_body(1);
+			thrust_msg.xyz[2] = thr_body(2);
+			_thrust_sp_pub.publish(thrust_msg);
+
+			// --- Publish attitude setpoint (yaw only, level body) ---
+			const float yaw_sp = PX4_ISFINITE(local_pos_sp.yaw) ? local_pos_sp.yaw : states.yaw;
+			const float yawspeed_sp = PX4_ISFINITE(local_pos_sp.yawspeed) ? local_pos_sp.yawspeed : 0.f;
+
+			vehicle_attitude_setpoint_s att_sp{};
+			att_sp.timestamp = hrt_absolute_time();
+			att_sp.yaw_sp_move_rate = yawspeed_sp;
+			// Quaternion for level body with desired yaw
+			const Quatf q_sp(Eulerf(0.0f, 0.0f, yaw_sp));
+			q_sp.copyTo(att_sp.q_d);
+			att_sp.thrust_body[0] = thr_body(0);
+			att_sp.thrust_body[1] = thr_body(1);
+			att_sp.thrust_body[2] = thr_body(2);
+			_attitude_setpoint_pub.publish(att_sp);
+
+		} else {
+			// Not in position control mode: update takeoff state machine but do nothing
+			_takeoff.updateTakeoffState(_vehicle_control_mode.flag_armed, _vehicle_land_detected.landed,
+						    false, 10.f, true, local_pos.timestamp_sample);
+			_control.resetIntegral();
+		}
+
+		// --- Publish takeoff status ---
+		const uint8_t takeoff_state = static_cast<uint8_t>(_takeoff.getTakeoffState());
+
+		if (takeoff_state != _takeoff_status_pub.get().takeoff_state) {
+			_takeoff_status_pub.get().takeoff_state = takeoff_state;
+			_takeoff_status_pub.get().tilt_limit = M_PI_2_F; // always level
+			_takeoff_status_pub.get().timestamp = hrt_absolute_time();
+			_takeoff_status_pub.update();
+		}
 	}
-
-	// ---------------------------------------------------------------
-	// Publish
-	// ---------------------------------------------------------------
-	vehicle_local_position_setpoint_s local_pos_sp{};
-	local_pos_sp.timestamp       = now;
-	local_pos_sp.x               = run_xy_control ? pos_sp(0)        : NAN;
-	local_pos_sp.y               = run_xy_control ? pos_sp(1)        : NAN;
-	local_pos_sp.z               = run_z_control  ? pos_sp(2)        : NAN;
-	local_pos_sp.vx              = run_xy_control ? vel_sp(0)        : NAN;
-	local_pos_sp.vy              = run_xy_control ? vel_sp(1)        : NAN;
-	local_pos_sp.vz              = run_z_control  ? vel_sp(2)        : NAN;
-	local_pos_sp.acceleration[0] = run_xy_control ? accel_sp(0)      : NAN;
-	local_pos_sp.acceleration[1] = run_xy_control ? accel_sp(1)      : NAN;
-	local_pos_sp.acceleration[2] = run_z_control  ? accel_sp(2)      : NAN;
-	local_pos_sp.thrust[0]       = run_xy_control ? thrust_sp_body(0) : NAN;
-	local_pos_sp.thrust[1]       = run_xy_control ? thrust_sp_body(1) : NAN;
-	local_pos_sp.thrust[2]       = run_z_control  ? thrust_sp_body(2) : NAN;
-	local_pos_sp.yaw             = yaw_sp;
-	local_pos_sp.yawspeed        = yawspeed_sp;
-	_local_pos_sp_pub.publish(local_pos_sp);
-
-	vehicle_thrust_setpoint_s thrust_msg{};
-	thrust_msg.timestamp        = now;
-	thrust_msg.timestamp_sample = local_pos.timestamp_sample;
-	thrust_msg.xyz[0]           = thrust_sp_body(0);
-	thrust_msg.xyz[1]           = thrust_sp_body(1);
-	thrust_msg.xyz[2]           = thrust_sp_body(2);
-	_thrust_sp_pub.publish(thrust_msg);
-
-	vehicle_attitude_setpoint_s att_sp{};
-	att_sp.timestamp        = now;
-	att_sp.yaw_sp_move_rate = yawspeed_sp;
-	const Quatf q_sp(Eulerf(0.0f, 0.0f, yaw_sp));
-	q_sp.copyTo(att_sp.q_d);
-	_attitude_setpoint_pub.publish(att_sp);
 
 	perf_end(_cycle_perf);
+}
+
+matrix::Vector3f IfodronePositionControl::accelerationToThrust(const Vector3f &acc_sp, float yaw) const
+{
+	Vector3f thr_body;
+	thr_body.setZero();
+
+	const float hover_thr = math::constrain(_param_ifo_thr_hover.get(), 0.05f, 0.9f);
+	const float thr_min   = math::constrain(_param_ifo_thr_min.get(), 0.0f, 0.9f);
+	const float thr_max   = math::constrain(_param_ifo_thr_max.get(), thr_min, 1.0f);
+	const float thr_xy_max = math::constrain(_param_ifo_thr_xy_max.get(), 0.0f, 1.0f);
+
+	// --- Z axis: hover baseline + correction from vertical acceleration ---
+	// NED: acc_sp(2) > 0 means "push down" → less upward thrust
+	// thrust_z is a positive value representing upward force
+	const float thrust_z = math::constrain(
+				       hover_thr - acc_sp(2) * (hover_thr / CONSTANTS_ONE_G),
+				       thr_min, thr_max);
+	// Body Z in PX4 convention is negative (upward)
+	thr_body(2) = -thrust_z;
+
+	// --- XY axes: rotate NED acceleration to body frame via yaw ---
+	// IFODRONE: body is level, so only yaw rotation maps NED XY → body XY
+	const float cos_yaw = cosf(yaw);
+	const float sin_yaw = sinf(yaw);
+
+	const float ax_body =  cos_yaw * acc_sp(0) + sin_yaw * acc_sp(1);
+	const float ay_body = -sin_yaw * acc_sp(0) + cos_yaw * acc_sp(1);
+
+	// Convert acceleration to normalized thrust (using hover_thrust/g relationship)
+	thr_body(0) = ax_body * (hover_thr / CONSTANTS_ONE_G);
+	thr_body(1) = ay_body * (hover_thr / CONSTANTS_ONE_G);
+
+	// Clamp XY thrust magnitude
+	Vector2f thr_xy(thr_body(0), thr_body(1));
+	const float thr_xy_norm = thr_xy.norm();
+
+	if (thr_xy_norm > thr_xy_max && thr_xy_norm > 1e-5f) {
+		thr_xy *= thr_xy_max / thr_xy_norm;
+		thr_body(0) = thr_xy(0);
+		thr_body(1) = thr_xy(1);
+	}
+
+	return thr_body;
+}
+
+void IfodronePositionControl::adjustSetpointForEKFResets(
+	const vehicle_local_position_s &local_pos, trajectory_setpoint_s &setpoint)
+{
+	if ((setpoint.timestamp != 0) && (setpoint.timestamp < local_pos.timestamp)) {
+		if (local_pos.vxy_reset_counter != _vxy_reset_counter) {
+			setpoint.velocity[0] += local_pos.delta_vxy[0];
+			setpoint.velocity[1] += local_pos.delta_vxy[1];
+		}
+
+		if (local_pos.vz_reset_counter != _vz_reset_counter) {
+			setpoint.velocity[2] += local_pos.delta_vz;
+		}
+
+		if (local_pos.xy_reset_counter != _xy_reset_counter) {
+			setpoint.position[0] += local_pos.delta_xy[0];
+			setpoint.position[1] += local_pos.delta_xy[1];
+		}
+
+		if (local_pos.z_reset_counter != _z_reset_counter) {
+			setpoint.position[2] += local_pos.delta_z;
+		}
+
+		if (local_pos.heading_reset_counter != _heading_reset_counter) {
+			setpoint.yaw = wrap_pi(setpoint.yaw + local_pos.delta_heading);
+		}
+	}
+
+	_vxy_reset_counter = local_pos.vxy_reset_counter;
+	_vz_reset_counter = local_pos.vz_reset_counter;
+	_xy_reset_counter = local_pos.xy_reset_counter;
+	_z_reset_counter = local_pos.z_reset_counter;
+	_heading_reset_counter = local_pos.heading_reset_counter;
+}
+
+trajectory_setpoint_s IfodronePositionControl::generateFailsafeSetpoint(
+	const hrt_abstime &now, const PositionControlStates &states)
+{
+	trajectory_setpoint_s failsafe = PositionControl::empty_trajectory_setpoint;
+	failsafe.timestamp = now;
+
+	if (Vector2f(states.velocity).isAllFinite()) {
+		// Stop XY
+		failsafe.velocity[0] = 0.f;
+		failsafe.velocity[1] = 0.f;
+	} else {
+		failsafe.acceleration[0] = 0.f;
+		failsafe.acceleration[1] = 0.f;
+		failsafe.velocity[2] = _param_ifo_land_speed.get();
+	}
+
+	if (PX4_ISFINITE(states.velocity(2))) {
+		if (!PX4_ISFINITE(failsafe.velocity[2])) {
+			failsafe.velocity[2] = 0.f;
+		}
+	} else {
+		failsafe.velocity[2] = NAN;
+		failsafe.acceleration[2] = .3f;
+	}
+
+	return failsafe;
 }
 
 int IfodronePositionControl::task_spawn(int argc, char *argv[])
@@ -402,10 +469,33 @@ int IfodronePositionControl::task_spawn(int argc, char *argv[])
 	return PX4_ERROR;
 }
 
+int IfodronePositionControl::print_usage(const char *reason)
+{
+	if (reason) {
+		PX4_WARN("%s\n", reason);
+	}
+
+	PRINT_MODULE_DESCRIPTION(
+		R"DESCR_STR(
+### Description
+IFODRONE position controller. Cascaded P-position + PID-velocity controller
+for an airframe with decoupled position/orientation (level body, no pitch/roll).
+
+Publishes body-frame thrust and yaw-only attitude setpoint.
+)DESCR_STR");
+
+	PRINT_MODULE_USAGE_NAME("ifo_pos_control", "controller");
+	PRINT_MODULE_USAGE_COMMAND("start");
+	PRINT_MODULE_USAGE_DEFAULT_COMMANDS();
+
+	return 0;
+}
+
 int IfodronePositionControl::print_status()
 {
-	PX4_INFO("IFODRONE Position Controller  z_sp=%.3f  takeoff=%d",
-		 (double)_z_sp, (int)_takeoff.getTakeoffState());
+	PX4_INFO("IFODRONE Position Controller  takeoff_state=%d",
+		 (int)_takeoff.getTakeoffState());
+	perf_print_counter(_cycle_perf);
 	return 0;
 }
 

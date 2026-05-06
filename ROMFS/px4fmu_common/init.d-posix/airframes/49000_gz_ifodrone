@@ -41,10 +41,10 @@ param set-default CA_ROTOR0_AX 0.0
 param set-default CA_ROTOR0_AY 0.0
 param set-default CA_ROTOR0_AZ -1.0
 param set-default CA_ROTOR0_KM 0.1
-param set-default CA_ROTOR0_CT 0.8
+param set-default CA_ROTOR0_CT 1
 param set-default SIM_GZ_EC_FUNC1 101
-param set-default SIM_GZ_EC_MIN1 0
-param set-default SIM_GZ_EC_MAX1 1500
+param set-default SIM_GZ_EC_MIN1 1000
+param set-default SIM_GZ_EC_MAX1 2000
 
 # Motor 1: Lower motor - CW rotation
 param set-default CA_ROTOR1_PX 0.0
@@ -54,10 +54,10 @@ param set-default CA_ROTOR1_AX 0.0
 param set-default CA_ROTOR1_AY 0.0
 param set-default CA_ROTOR1_AZ -1.0
 param set-default CA_ROTOR1_KM -0.1
-param set-default CA_ROTOR1_CT 0.8
+param set-default CA_ROTOR1_CT 1
 param set-default SIM_GZ_EC_FUNC2 102
-param set-default SIM_GZ_EC_MIN2 0
-param set-default SIM_GZ_EC_MAX2 1500
+param set-default SIM_GZ_EC_MIN2 1000
+param set-default SIM_GZ_EC_MAX2 2000
 
 # ============================================
 # SIDE MOTORS (2-5): Tiltable EDF for XY thrust
@@ -73,11 +73,11 @@ param set-default CA_ROTOR2_AX 1.0
 param set-default CA_ROTOR2_AY 0.0
 param set-default CA_ROTOR2_AZ 0.0
 param set-default CA_ROTOR2_KM 0.01
-param set-default CA_ROTOR2_CT -0.7
+param set-default CA_ROTOR2_CT 1
 param set-default CA_ROTOR2_TILT 1
 param set-default SIM_GZ_EC_FUNC3 103
-param set-default SIM_GZ_EC_MIN3 0
-param set-default SIM_GZ_EC_MAX3 1500
+param set-default SIM_GZ_EC_MIN3 1000
+param set-default SIM_GZ_EC_MAX3 2000
 
 # Motor 3: Right EDF - tiltable around X axis, linked to tilt servo 1
 param set-default CA_ROTOR3_PX 0.0
@@ -87,11 +87,11 @@ param set-default CA_ROTOR3_AX 0.0
 param set-default CA_ROTOR3_AY -1.0
 param set-default CA_ROTOR3_AZ 0.0
 param set-default CA_ROTOR3_KM 0.01
-param set-default CA_ROTOR3_CT -0.7
+param set-default CA_ROTOR3_CT 1
 param set-default CA_ROTOR3_TILT 2
 param set-default SIM_GZ_EC_FUNC4 104
-param set-default SIM_GZ_EC_MIN4 0
-param set-default SIM_GZ_EC_MAX4 1500
+param set-default SIM_GZ_EC_MIN4 1000
+param set-default SIM_GZ_EC_MAX4 2000
 
 # Motor 4: Back EDF - tiltable around Y axis, linked to tilt servo 2
 param set-default CA_ROTOR4_PX -0.535
@@ -101,11 +101,11 @@ param set-default CA_ROTOR4_AX -1.0
 param set-default CA_ROTOR4_AY 0.0
 param set-default CA_ROTOR4_AZ 0.0
 param set-default CA_ROTOR4_KM 0.01
-param set-default CA_ROTOR4_CT -0.7
+param set-default CA_ROTOR4_CT 1
 param set-default CA_ROTOR4_TILT 3
 param set-default SIM_GZ_EC_FUNC5 105
-param set-default SIM_GZ_EC_MIN5 0
-param set-default SIM_GZ_EC_MAX5 1500
+param set-default SIM_GZ_EC_MIN5 1000
+param set-default SIM_GZ_EC_MAX5 2000
 
 # Motor 5: Left EDF - tiltable around X axis, linked to tilt servo 3
 param set-default CA_ROTOR5_PX 0.0
@@ -115,11 +115,11 @@ param set-default CA_ROTOR5_AX 0.0
 param set-default CA_ROTOR5_AY 1.0
 param set-default CA_ROTOR5_AZ 0.0
 param set-default CA_ROTOR5_KM 0.01
-param set-default CA_ROTOR5_CT -0.7
+param set-default CA_ROTOR5_CT 1
 param set-default CA_ROTOR5_TILT 4
 param set-default SIM_GZ_EC_FUNC6 106
-param set-default SIM_GZ_EC_MIN6 0
-param set-default SIM_GZ_EC_MAX6 1500
+param set-default SIM_GZ_EC_MIN6 1000
+param set-default SIM_GZ_EC_MAX6 2000
 
 # ============================================
 # TILT SERVOS (4 servos for 4 side motors)
@@ -135,8 +135,9 @@ param set-default CA_SV_TL0_CT 1
 param set-default SIM_GZ_SV_FUNC1 201
 param set-default SIM_GZ_SV_MINA1 -45.0
 param set-default SIM_GZ_SV_MAXA1 45.0
-param set-default SIM_GZ_SV_MIN1 0
-param set-default SIM_GZ_SV_MAX1 1000
+param set-default SIM_GZ_SV_MIN1 1000
+param set-default SIM_GZ_SV_DIS1 1700
+param set-default SIM_GZ_SV_MAX1 2000
 
 # Tilt 1: Right motor (rotor 3) - tilts around X axis (0 deg)
 param set-default CA_SV_TL1_MINA -45.0
@@ -146,8 +147,9 @@ param set-default CA_SV_TL1_CT 1
 param set-default SIM_GZ_SV_FUNC2 202
 param set-default SIM_GZ_SV_MINA2 -45.0
 param set-default SIM_GZ_SV_MAXA2 45.0
-param set-default SIM_GZ_SV_MIN2 0
-param set-default SIM_GZ_SV_MAX2 1000
+param set-default SIM_GZ_SV_MIN2 1000
+param set-default SIM_GZ_SV_DIS2 1700
+param set-default SIM_GZ_SV_MAX2 2000
 
 # Tilt 2: Back motor (rotor 4) - tilts around Y axis (90 deg, opposite)
 param set-default CA_SV_TL2_MINA -45.0
@@ -157,8 +159,9 @@ param set-default CA_SV_TL2_CT 1
 param set-default SIM_GZ_SV_FUNC3 203
 param set-default SIM_GZ_SV_MINA3 -45.0
 param set-default SIM_GZ_SV_MAXA3 45.0
-param set-default SIM_GZ_SV_MIN3 0
-param set-default SIM_GZ_SV_MAX3 1000
+param set-default SIM_GZ_SV_MIN3 1000
+param set-default SIM_GZ_SV_DIS3 1700
+param set-default SIM_GZ_SV_MAX3 2000
 
 # Tilt 3: Left motor (rotor 5) - tilts around X axis (180 deg, opposite)
 param set-default CA_SV_TL3_MINA -45.0
@@ -168,8 +171,9 @@ param set-default CA_SV_TL3_CT 1
 param set-default SIM_GZ_SV_FUNC4 204
 param set-default SIM_GZ_SV_MINA4 -45.0
 param set-default SIM_GZ_SV_MAXA4 45.0
-param set-default SIM_GZ_SV_MIN4 0
-param set-default SIM_GZ_SV_MAX4 1000
+param set-default SIM_GZ_SV_MIN4 1000
+param set-default SIM_GZ_SV_DIS4 1700
+param set-default SIM_GZ_SV_MAX4 2000
 
 # ============================================
 # FLIGHT CONTROLLER PARAMETERS
@@ -187,12 +191,9 @@ param set-default CBRK_SUPPLY_CHK 894281
 param set-default NAV_RCL_ACT 0
 param set-default NAV_DLL_ACT 0
 
-# IFODRONE position filter: enable attitude setpoint override
-param set-default IFO_POS_MODE 1
+# IFODRONE position controller defaults
 param set-default IFO_THR_XY_MAX 0.35
-param set-default IFO_XY_THR_SCL 1.0
-param set-default IFO_XY_VEL_P 0.0
-param set-default IFO_XY_ACC_FF 0.0
+param set-default IFO_THR_HOVER 0.5
 
 # IFODRONE keeps the body level by design - the only torque source is the tilt
 # servos, which produce small roll/pitch corrections. The default failure

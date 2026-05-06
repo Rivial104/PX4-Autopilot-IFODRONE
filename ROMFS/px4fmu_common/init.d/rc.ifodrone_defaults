@@ -8,6 +8,8 @@
 # Use custom vehicle type to avoid rc.mc_apps being loaded
 set VEHICLE_TYPE ifodrone
 
+param set-default SYS_AUTOSTART 49000
+
 # MAV_TYPE_QUADROTOR 2 (closest match for QGC compatibility)
 param set-default MAV_TYPE 2
 
