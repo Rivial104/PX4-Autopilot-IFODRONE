@@ -226,8 +226,8 @@ void IfodroneAttitudeControl::Run()
 	// Negate pitch_tilt and roll_tilt to get the corrective (stabilising) direction.
 	theta_T.control[0] = pitch_tilt; // Front:  positive pitch_tilt → negative tilt → nose UP
 	theta_T.control[1] = roll_tilt;  // Right:  positive roll_tilt  → negative tilt → right side UP
-	theta_T.control[2] =  pitch_tilt; // Back:   positive pitch_tilt → positive tilt → nose UP (antisymmetric)
-	theta_T.control[3] =  roll_tilt;  // Left:   positive roll_tilt  → positive tilt → right side UP (antisymmetric)
+	theta_T.control[2] =  -pitch_tilt; // Back:   positive pitch_tilt → positive tilt → nose UP (antisymmetric)
+	theta_T.control[3] =  -roll_tilt;  // Left:   positive roll_tilt  → positive tilt → right side UP (antisymmetric)
 	_theta_pub.publish(theta_T);
 
 	// ================================================================

@@ -210,8 +210,6 @@ param set-default FD_ESCS_EN 0
 # IFODRONE position controller defaults
 param set-default IFO_THR_XY_MAX 0.35
 param set-default IFO_THR_HOVER 0.5
-param set-default MPC_THR_HOVER 0.65
-param set-default MPC_TILTMAX_AIR 89
 
 # Auto/takeoff yaw mode: hold heading (mode 4)
 param set-default MPC_YAW_MODE 4
