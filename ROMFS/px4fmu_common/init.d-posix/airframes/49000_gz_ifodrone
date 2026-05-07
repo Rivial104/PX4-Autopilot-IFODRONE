@@ -104,7 +104,7 @@ param set-default CA_ROTOR4_PZ 0.045
 param set-default CA_ROTOR4_AX -1.0
 param set-default CA_ROTOR4_AY 0.0
 param set-default CA_ROTOR4_AZ 0.0
-param set-default CA_ROTOR4_KM -0.01
+param set-default CA_ROTOR4_KM 0.01
 param set-default CA_ROTOR4_CT 1
 param set-default CA_ROTOR4_TILT 3
 param set-default SIM_GZ_EC_FUNC5 105

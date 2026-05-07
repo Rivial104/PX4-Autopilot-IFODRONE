@@ -235,15 +235,15 @@ void IfodroneAttitudeControl::Run()
 	// In altitude/position modes, ifo_pos_control publishes thrust.
 	// In Manual/Stabilize, this module publishes pilot's throttle.
 	// ================================================================
-	if (manual_thrust_mode) {
-		vehicle_thrust_setpoint_s thrust_sp{};
-		thrust_sp.timestamp = now;
-		thrust_sp.timestamp_sample = att.timestamp;
-		thrust_sp.xyz[0] = thrust(0);
-		thrust_sp.xyz[1] = thrust(1);
-		thrust_sp.xyz[2] = thrust(2);
-		_thrust_pub.publish(thrust_sp);
-	}
+	// if (manual_thrust_mode) {
+	// 	vehicle_thrust_setpoint_s thrust_sp{};
+	// 	thrust_sp.timestamp = now;
+	// 	thrust_sp.timestamp_sample = att.timestamp;
+	// 	thrust_sp.xyz[0] = thrust(0);
+	// 	thrust_sp.xyz[1] = thrust(1);
+	// 	thrust_sp.xyz[2] = thrust(2);
+	// 	_thrust_pub.publish(thrust_sp);
+	// }
 
 	// ================================================================
 	// PUBLISH TORQUE SETPOINT
