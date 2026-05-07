@@ -362,15 +362,15 @@ matrix::Vector3f IfodronePositionControl::accelerationToThrust(const Vector3f &a
 
 	// --- XY axes: rotate NED acceleration to body frame via yaw ---
 	// IFODRONE: body is level, so only yaw rotation maps NED XY → body XY
-	const float cos_yaw = cosf(yaw);
-	const float sin_yaw = sinf(yaw);
+	// const float cos_yaw = cosf(yaw);
+	// const float sin_yaw = sinf(yaw);
 
-	const float ax_body =  cos_yaw * acc_sp(0) + sin_yaw * acc_sp(1);
-	const float ay_body = -sin_yaw * acc_sp(0) + cos_yaw * acc_sp(1);
+	// const float ax_body =  cos_yaw * acc_sp(0) + sin_yaw * acc_sp(1);
+	// const float ay_body = -sin_yaw * acc_sp(0) + cos_yaw * acc_sp(1);
 
 	// Convert acceleration to normalized thrust (using hover_thrust/g relationship)
-	thr_body(0) = ax_body * (hover_thr / CONSTANTS_ONE_G);
-	thr_body(1) = ay_body * (hover_thr / CONSTANTS_ONE_G);
+	thr_body(0) = acc_sp(0) * (hover_thr / CONSTANTS_ONE_G);
+	thr_body(1) = acc_sp(1) * (hover_thr / CONSTANTS_ONE_G);
 
 	// Clamp XY thrust magnitude
 	Vector2f thr_xy(thr_body(0), thr_body(1));
