@@ -226,9 +226,9 @@ void IfodroneAttitudeControl::Run()
 	// So positive servo command = nose-DOWN moment — opposite of what Rodrigues assumes in FRD.
 	// Negate pitch_tilt and roll_tilt to get the corrective (stabilising) direction.
 	theta_T.control[0] = pitch_tilt;   // Front:  positive pitch_tilt → negative tilt → nose UP
-	theta_T.control[1] = -roll_tilt;   // Right:  inverted — SDF joint +X axis means positive angle tilts opposite to PX4 convention
+	theta_T.control[1] = roll_tilt;   // Right:  inverted — SDF joint +X axis means positive angle tilts opposite to PX4 convention
 	theta_T.control[2] = -pitch_tilt;  // Back:   positive pitch_tilt → positive tilt → nose UP (antisymmetric)
-	theta_T.control[3] = roll_tilt;    // Left:   inverted — SDF joint -X axis means positive angle tilts opposite to PX4 convention
+	theta_T.control[3] = -roll_tilt;    // Left:   inverted — SDF joint -X axis means positive angle tilts opposite to PX4 convention
 	_theta_pub.publish(theta_T);
 
 	// ================================================================
