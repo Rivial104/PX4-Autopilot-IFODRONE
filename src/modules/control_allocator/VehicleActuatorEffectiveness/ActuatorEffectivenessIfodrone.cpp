@@ -13,11 +13,11 @@
  *   - Update side motor axes via Rodrigues rotation
  *   - Rebuild the 6×10 effectiveness matrix (6 motors + 4 tilt servos)
  *
- * Tilt effectiveness (verified via Rodrigues rotation):
+ * Tilt effectiveness (verified via Rodrigues rotation, matching SDF joint axes):
  *   Tilt 0 (front, base +X, hinge +Y): +1 command → axis gains −Z → lifts front → +pitch
- *   Tilt 1 (right, base +Y, hinge −X): +1 command → axis gains −Z → lifts right → −roll
+ *   Tilt 1 (right, base +Y, hinge +X): +1 command → axis gains +Z → pushes right down → +roll
  *   Tilt 2 (back,  base −X, hinge −Y): +1 command → axis gains −Z → lifts back  → −pitch
- *   Tilt 3 (left,  base −Y, hinge +X): +1 command → axis gains −Z → lifts left  → +roll
+ *   Tilt 3 (left,  base −Y, hinge −X): +1 command → axis gains +Z → pushes left down → −roll
  */
 
 #include "ActuatorEffectivenessIfodrone.hpp"
@@ -87,12 +87,12 @@ ActuatorEffectivenessIfodrone::getEffectivenessMatrix(Configuration &configurati
 	auto &eff = configuration.effectiveness_matrices[configuration.selected_matrix];
 	// Tilt 0 (front): +pitch
 	eff(1, _first_tilt_col + 0) =  K;
-	// Tilt 1 (right): −roll
-	eff(0, _first_tilt_col + 1) = -K;
+	// Tilt 1 (right): +roll  (SDF hinge +X: positive tilt → +Z → pushes right down)
+	eff(0, _first_tilt_col + 1) =  -K;
 	// Tilt 2 (back):  −pitch
 	eff(1, _first_tilt_col + 2) = -K;
-	// Tilt 3 (left):  +roll
-	eff(0, _first_tilt_col + 3) =  K;
+	// Tilt 3 (left):  −roll  (SDF hinge −X: positive tilt → +Z → pushes left down)
+	eff(0, _first_tilt_col + 3) = K;
 
 	// Compute tilt trim offsets (for symmetric ±45° range, trim = 0)
 	_tilt_offsets.setAll(0.f);

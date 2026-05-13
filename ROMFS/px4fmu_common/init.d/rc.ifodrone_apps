@@ -1,10 +1,9 @@
 #!/bin/sh
 #
 # IfoDrone specific apps.
-# ifo_pos_control: trajectory_setpoint -> vehicle_thrust_setpoint (force, body frame).
-#   Force is position's responsibility only — attitude does not participate.
-# ifo_att_control: attitude stabilization -> vehicle_torque_setpoint (torque only).
-#   Torque is attitude's responsibility only — position does not participate.
+# ifo_pos_control: trajectory_setpoint -> vehicle_attitude_setpoint (thrust).
+# ifo_att_control: attitude P-controller -> vehicle_rates_setpoint.
+# mc_rate_control: rate PID controller -> vehicle_torque_setpoint + vehicle_thrust_setpoint.
 #
 # NOTE: Script variables are declared/initialized/unset in the rcS script.
 #
@@ -14,15 +13,22 @@
 #
 control_allocator start
 
-#
-# Start IfoDrone Position Controller (trajectory_setpoint -> vehicle_thrust_setpoint)
-#
+mc_rate_control start
+ifo_att_control start
 ifo_pos_control start
+# Start IfoDrone Position Controller (trajectory_setpoint -> vehicle_attitude_setpoint)
+#
+
 
 #
-# Start IfoDrone Attitude Controller (attitude stabilization -> vehicle_torque_setpoint)
+# Start IfoDrone Attitude Controller (attitude P -> vehicle_rates_setpoint)
 #
-ifo_att_control start
+
+
+#
+# Start Rate Controller (rate PID -> vehicle_torque_setpoint + vehicle_thrust_setpoint)
+#
+
 
 #
 # Start Hover Thrust Estimator (needed for thrust estimation)
