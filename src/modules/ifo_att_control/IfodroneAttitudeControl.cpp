@@ -187,11 +187,12 @@ void IfodroneAttitudeControl::Run()
 		// XY thrust = 0 (no position control stick in these modes for IFODRONE).
 		// ================================================================
 		if (manual_thrust_mode) {
-			// Throttle stick: [-1, 1] → [0, 1] linear
+			// Throttle stick [-1,1] → [0,1] → body Z (up = negative)
 			const float throttle = (manual_control.throttle + 1.0f) * 0.5f;
-			thrust(0) = 0.0f;
-			thrust(1) = 0.0f;
-			thrust(2) = -throttle; // NED body Z: negative = up
+			thrust(2) = -throttle;
+			// Roll/pitch sticks → body X/Y forces (IFODRONE body-frame force control)
+			thrust(0) = manual_control.roll;   // full stick = full normalized body X force
+			thrust(1) = manual_control.pitch;  // full stick = full normalized body Y force
 		}
 
 	} else {
@@ -224,10 +225,10 @@ void IfodroneAttitudeControl::Run()
 	// SDF joint [0,+1,0] on Front motor rotates axis toward -Z_FLU (down) for positive angle.
 	// So positive servo command = nose-DOWN moment — opposite of what Rodrigues assumes in FRD.
 	// Negate pitch_tilt and roll_tilt to get the corrective (stabilising) direction.
-	theta_T.control[0] = pitch_tilt; // Front:  positive pitch_tilt → negative tilt → nose UP
-	theta_T.control[1] = roll_tilt;  // Right:  positive roll_tilt  → negative tilt → right side UP
-	theta_T.control[2] =  -pitch_tilt; // Back:   positive pitch_tilt → positive tilt → nose UP (antisymmetric)
-	theta_T.control[3] =  -roll_tilt;  // Left:   positive roll_tilt  → positive tilt → right side UP (antisymmetric)
+	theta_T.control[0] = pitch_tilt;   // Front:  positive pitch_tilt → negative tilt → nose UP
+	theta_T.control[1] = -roll_tilt;   // Right:  inverted — SDF joint +X axis means positive angle tilts opposite to PX4 convention
+	theta_T.control[2] = -pitch_tilt;  // Back:   positive pitch_tilt → positive tilt → nose UP (antisymmetric)
+	theta_T.control[3] = roll_tilt;    // Left:   inverted — SDF joint -X axis means positive angle tilts opposite to PX4 convention
 	_theta_pub.publish(theta_T);
 
 	// ================================================================
@@ -235,27 +236,29 @@ void IfodroneAttitudeControl::Run()
 	// In altitude/position modes, ifo_pos_control publishes thrust.
 	// In Manual/Stabilize, this module publishes pilot's throttle.
 	// ================================================================
-	// if (manual_thrust_mode) {
-	// 	vehicle_thrust_setpoint_s thrust_sp{};
-	// 	thrust_sp.timestamp = now;
-	// 	thrust_sp.timestamp_sample = att.timestamp;
-	// 	thrust_sp.xyz[0] = thrust(0);
-	// 	thrust_sp.xyz[1] = thrust(1);
-	// 	thrust_sp.xyz[2] = thrust(2);
-	// 	_thrust_pub.publish(thrust_sp);
-	// }
+	if (manual_thrust_mode) {
+		vehicle_thrust_setpoint_s thrust_sp{};
+		thrust_sp.timestamp = now;
+		thrust_sp.timestamp_sample = att.timestamp;
+		thrust_sp.xyz[0] = thrust(0);
+		thrust_sp.xyz[1] = thrust(1);
+		thrust_sp.xyz[2] = thrust(2);
+		_thrust_pub.publish(thrust_sp);
+	}
 
 	// ================================================================
 	// PUBLISH TORQUE SETPOINT
-	// Roll/Pitch: from tilt motors (attitude stabilization)
-	// Yaw: from main motors differential
+	// Roll/Pitch: passed to CA so tilted side motors generate corrective moments.
+	//   The tilt servos set the motor axes; the CA then allocates differential
+	//   thrust on those tilted motors to produce the demanded body torque.
+	// Yaw: main motors differential thrust.
 	// ================================================================
 	vehicle_torque_setpoint_s torque_sp{};
 	torque_sp.timestamp = now;
 	torque_sp.timestamp_sample = att.timestamp;
-	torque_sp.xyz[0] = torque(0);  // Roll torque (tilt motors)
-	torque_sp.xyz[1] = torque(1);  // Pitch torque (tilt motors)
-	torque_sp.xyz[2] = torque(2);  // Yaw torque (main motors differential)
+	torque_sp.xyz[0] = torque(0); // Roll:  PD stabilisation → CA allocates via tilted side motors
+	torque_sp.xyz[1] = torque(1); // Pitch: PD stabilisation → CA allocates via tilted side motors
+	torque_sp.xyz[2] = torque(2); // Yaw:   main motors differential
 	_torque_pub.publish(torque_sp);
 
 	perf_count(_control_updated_perf);

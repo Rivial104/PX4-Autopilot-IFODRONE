@@ -40,8 +40,8 @@ param set-default CA_ROTOR0_PZ 0.1
 param set-default CA_ROTOR0_AX 0.0
 param set-default CA_ROTOR0_AY 0.0
 param set-default CA_ROTOR0_AZ -1.0
-param set-default CA_ROTOR0_KM 0.1
-param set-default CA_ROTOR0_CT 0.4
+param set-default CA_ROTOR0_KM 0.4
+param set-default CA_ROTOR0_CT 1.0
 param set-default SIM_GZ_EC_FUNC1 101
 param set-default SIM_GZ_EC_DIS1 0
 param set-default SIM_GZ_EC_MIN1 100
@@ -54,8 +54,8 @@ param set-default CA_ROTOR1_PZ -0.1
 param set-default CA_ROTOR1_AX 0.0
 param set-default CA_ROTOR1_AY 0.0
 param set-default CA_ROTOR1_AZ -1.0
-param set-default CA_ROTOR1_KM -0.1
-param set-default CA_ROTOR1_CT 0.4
+param set-default CA_ROTOR1_KM -0.4
+param set-default CA_ROTOR1_CT 1.0
 param set-default SIM_GZ_EC_FUNC2 102
 param set-default SIM_GZ_EC_DIS2 0
 param set-default SIM_GZ_EC_MIN2 100
@@ -74,8 +74,8 @@ param set-default CA_ROTOR2_PZ 0.045
 param set-default CA_ROTOR2_AX 1.0
 param set-default CA_ROTOR2_AY 0.0
 param set-default CA_ROTOR2_AZ 0.0
-param set-default CA_ROTOR2_KM 0.01
-param set-default CA_ROTOR2_CT 1
+param set-default CA_ROTOR2_KM 0
+param set-default CA_ROTOR2_CT 4.0
 param set-default CA_ROTOR2_TILT 1
 param set-default SIM_GZ_EC_FUNC3 103
 param set-default SIM_GZ_EC_DIS3 0
@@ -89,8 +89,8 @@ param set-default CA_ROTOR3_PZ 0.045
 param set-default CA_ROTOR3_AX 0.0
 param set-default CA_ROTOR3_AY 1.0
 param set-default CA_ROTOR3_AZ 0.0
-param set-default CA_ROTOR3_KM 0.01
-param set-default CA_ROTOR3_CT 1
+param set-default CA_ROTOR3_KM 0
+param set-default CA_ROTOR3_CT 4.0
 param set-default CA_ROTOR3_TILT 2
 param set-default SIM_GZ_EC_FUNC4 104
 param set-default SIM_GZ_EC_DIS4 0
@@ -104,8 +104,8 @@ param set-default CA_ROTOR4_PZ 0.045
 param set-default CA_ROTOR4_AX -1.0
 param set-default CA_ROTOR4_AY 0.0
 param set-default CA_ROTOR4_AZ 0.0
-param set-default CA_ROTOR4_KM 0.01
-param set-default CA_ROTOR4_CT 1
+param set-default CA_ROTOR4_KM 0
+param set-default CA_ROTOR4_CT 4.0
 param set-default CA_ROTOR4_TILT 3
 param set-default SIM_GZ_EC_FUNC5 105
 param set-default SIM_GZ_EC_DIS5 0
@@ -119,8 +119,8 @@ param set-default CA_ROTOR5_PZ 0.045
 param set-default CA_ROTOR5_AX 0.0
 param set-default CA_ROTOR5_AY -1.0
 param set-default CA_ROTOR5_AZ 0.0
-param set-default CA_ROTOR5_KM 0.01
-param set-default CA_ROTOR5_CT 1
+param set-default CA_ROTOR5_KM 0
+param set-default CA_ROTOR5_CT 4.0
 param set-default CA_ROTOR5_TILT 4
 param set-default SIM_GZ_EC_FUNC6 106
 param set-default SIM_GZ_EC_DIS6 0
@@ -138,6 +138,7 @@ param set-default CA_SV_TL0_MINA -45.0
 param set-default CA_SV_TL0_MAXA 45.0
 param set-default CA_SV_TL0_TD 0
 param set-default CA_SV_TL0_CT 0
+param set-default CA_SV0_SLEW 0.5
 param set-default SIM_GZ_SV_FUNC1 201
 param set-default SIM_GZ_SV_MINA1 -45.0
 param set-default SIM_GZ_SV_MAXA1 45.0
@@ -150,6 +151,7 @@ param set-default CA_SV_TL1_MINA -45.0
 param set-default CA_SV_TL1_MAXA 45.0
 param set-default CA_SV_TL1_TD 0
 param set-default CA_SV_TL1_CT 0
+param set-default CA_SV1_SLEW 0.5
 param set-default SIM_GZ_SV_FUNC2 202
 param set-default SIM_GZ_SV_MINA2 -45.0
 param set-default SIM_GZ_SV_MAXA2 45.0
@@ -162,6 +164,7 @@ param set-default CA_SV_TL2_MINA -45.0
 param set-default CA_SV_TL2_MAXA 45.0
 param set-default CA_SV_TL2_TD 0
 param set-default CA_SV_TL2_CT 0
+param set-default CA_SV2_SLEW 0.5
 param set-default SIM_GZ_SV_FUNC3 203
 param set-default SIM_GZ_SV_MINA3 -45.0
 param set-default SIM_GZ_SV_MAXA3 45.0
@@ -174,6 +177,7 @@ param set-default CA_SV_TL3_MINA -45.0
 param set-default CA_SV_TL3_MAXA 45.0
 param set-default CA_SV_TL3_TD 0
 param set-default CA_SV_TL3_CT 0
+param set-default CA_SV3_SLEW 0.5
 param set-default SIM_GZ_SV_FUNC4 204
 param set-default SIM_GZ_SV_MINA4 -45.0
 param set-default SIM_GZ_SV_MAXA4 45.0
@@ -199,7 +203,7 @@ param set-default NAV_DLL_ACT 0
 
 # IFODRONE position controller defaults
 param set-default IFO_THR_XY_MAX 0.5
-param set-default IFO_THR_HOVER 0.4
+param set-default IFO_THR_HOVER 0.7
 
 # IFODRONE keeps the body level by design - the only torque source is the tilt
 # servos, which produce small roll/pitch corrections. The default failure
@@ -216,5 +220,7 @@ param set-default FD_FAIL_P_TTRI 1.0
 # waypoint, which causes the IFODRONE to spin during HOLD because the smoothed
 # velocity vector wanders. Mode 4 = no auto-yaw, hold last commanded heading.
 param set-default MPC_YAW_MODE 4
+
+param set-default SIM_GZ_EC_REV 46
 
 

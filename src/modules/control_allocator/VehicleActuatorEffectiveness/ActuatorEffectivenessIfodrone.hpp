@@ -27,6 +27,9 @@ public:
 
 	bool getEffectivenessMatrix(Configuration &configuration, EffectivenessUpdateReason external_update) override;
 
+	void updateSetpoint(const matrix::Vector<float, NUM_AXES> &control_sp,
+		int matrix_index, ActuatorVector &actuator_sp, const ActuatorVector &actuator_min, const ActuatorVector &actuator_max) override;
+
 	void getDesiredAllocationMethod(AllocationMethod allocation_method_out[MAX_NUM_MATRICES]) const override
 	{
 		allocation_method_out[0] = AllocationMethod::SEQUENTIAL_DESATURATION;
@@ -41,7 +44,7 @@ public:
 
 private:
 	ActuatorEffectivenessRotors _mc_motors;
-	ActuatorEffectivenessTilts _tilts;  // Configuration only, not added to CA
+	ActuatorEffectivenessTilts _tilts;  // Used to read tilt geometry; NOT added as CA actuators
 
 	uORB::Subscription _actuator_servos_sub{ORB_ID(actuator_servos)};
 	ActuatorVector _current_tilt_values;

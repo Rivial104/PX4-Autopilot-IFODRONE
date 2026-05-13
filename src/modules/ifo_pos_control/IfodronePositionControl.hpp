@@ -32,6 +32,7 @@
 #include <uORB/Subscription.hpp>
 #include <uORB/SubscriptionCallback.hpp>
 #include <uORB/topics/goto_setpoint.h>
+#include <uORB/topics/manual_control_setpoint.h>
 #include <uORB/topics/parameter_update.h>
 #include <uORB/topics/takeoff_status.h>
 #include <uORB/topics/trajectory_setpoint.h>
@@ -95,6 +96,7 @@ private:
 	uORB::SubscriptionInterval         _parameter_update_sub{ORB_ID(parameter_update), 1_s};
 	uORB::SubscriptionCallbackWorkItem _local_pos_sub{this, ORB_ID(vehicle_local_position)};
 	uORB::Subscription                 _goto_setpoint_sub{ORB_ID(goto_setpoint)};
+	uORB::Subscription                 _manual_control_setpoint_sub{ORB_ID(manual_control_setpoint)};
 	uORB::Subscription                 _trajectory_setpoint_sub{ORB_ID(trajectory_setpoint)};
 	uORB::Subscription                 _vehicle_constraints_sub{ORB_ID(vehicle_constraints)};
 	uORB::Subscription                 _vehicle_control_mode_sub{ORB_ID(vehicle_control_mode)};
