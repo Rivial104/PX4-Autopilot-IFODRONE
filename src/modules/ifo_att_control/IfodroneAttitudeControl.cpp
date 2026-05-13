@@ -200,36 +200,6 @@ void IfodroneAttitudeControl::Run()
 		torque.setZero();
 		thrust.setZero();
 	}
-	// NOTE: When armed but no setpoint, keep previous values
-
-	// ================================================================
-	// COMPUTE TILT SERVO ANGLES
-	//
-	// Physics (verified via Rodrigues rotation for each motor axis):
-	//   Motor 2 Front  (axis +X): positive tilt → axis gains -Z (up) → pushes UP at front → +pitch torque
-	//   Motor 4 Back   (axis -X): positive tilt → axis gains -Z (up) → pushes UP at back  → -pitch torque
-	//   Motor 3 Right  (axis -Y): positive tilt → axis gains -Z (up) → pushes UP at left  → +roll torque
-	//   Motor 5 Left   (axis +Y): positive tilt → axis gains -Z (up) → pushes UP at right → -roll torque
-	//
-	// Therefore front/back are antiphase, right/left are antiphase.
-	// Signed values in [-1, 1] allow the allocator to see which side tilts which way.
-	// ================================================================
-	const float pitch_tilt = torque(1);
-	const float roll_tilt  = torque(0);
-
-	// Publish servo angles first so the allocator can rebuild the matrix from the current tilt state.
-	actuator_servos_s theta_T{};
-	theta_T.timestamp = now;
-	theta_T.timestamp_sample = att.timestamp;
-	// Sign verified from flight logs (log_3_2026-3-28):
-	// SDF joint [0,+1,0] on Front motor rotates axis toward -Z_FLU (down) for positive angle.
-	// So positive servo command = nose-DOWN moment — opposite of what Rodrigues assumes in FRD.
-	// Negate pitch_tilt and roll_tilt to get the corrective (stabilising) direction.
-	theta_T.control[0] = pitch_tilt;   // Front:  positive pitch_tilt → negative tilt → nose UP
-	theta_T.control[1] = roll_tilt;   // Right:  inverted — SDF joint +X axis means positive angle tilts opposite to PX4 convention
-	theta_T.control[2] = -pitch_tilt;  // Back:   positive pitch_tilt → positive tilt → nose UP (antisymmetric)
-	theta_T.control[3] = -roll_tilt;    // Left:   inverted — SDF joint -X axis means positive angle tilts opposite to PX4 convention
-	_theta_pub.publish(theta_T);
 
 	// ================================================================
 	// PUBLISH THRUST SETPOINT (Manual/Stabilize only)

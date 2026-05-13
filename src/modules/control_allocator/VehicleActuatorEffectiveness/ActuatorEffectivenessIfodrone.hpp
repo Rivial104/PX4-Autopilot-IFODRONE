@@ -2,12 +2,11 @@
  * @file ActuatorEffectivenessIfodrone.hpp
  *
  * Actuator effectiveness for IfoDrone configuration.
- * Motor forces are allocated by CA. Tilt servos are commanded externally
- * by the attitude controller (ifo_att_control), but CA subscribes to their
- * positions to update motor axes dynamically.
  *
- *   Motors 0-1 : coaxial pair, upward axis (Z-thrust + yaw via differential thrust)
- *   Motors 2-5 : side EDFs with dynamic axes based on tilt positions
+ * CA controls both motors and tilt servos:
+ *   Motors 0-1 : coaxial pair, fixed −Z axis (Z-thrust + yaw via KM)
+ *   Motors 2-5 : side EDFs, axes updated dynamically from tilt state
+ *   Servos 0-3 : tilt servos (primary roll/pitch torque actuators)
  */
 
 #pragma once
@@ -28,7 +27,8 @@ public:
 	bool getEffectivenessMatrix(Configuration &configuration, EffectivenessUpdateReason external_update) override;
 
 	void updateSetpoint(const matrix::Vector<float, NUM_AXES> &control_sp,
-		int matrix_index, ActuatorVector &actuator_sp, const ActuatorVector &actuator_min, const ActuatorVector &actuator_max) override;
+			    int matrix_index, ActuatorVector &actuator_sp,
+			    const ActuatorVector &actuator_min, const ActuatorVector &actuator_max) override;
 
 	void getDesiredAllocationMethod(AllocationMethod allocation_method_out[MAX_NUM_MATRICES]) const override
 	{
@@ -44,7 +44,10 @@ public:
 
 private:
 	ActuatorEffectivenessRotors _mc_motors;
-	ActuatorEffectivenessTilts _tilts;  // Used to read tilt geometry; NOT added as CA actuators
+	ActuatorEffectivenessTilts _tilts;
+
+	int _first_tilt_col{0};            ///< column index of first tilt servo in effectiveness matrix
+	ActuatorVector _tilt_offsets;       ///< trim offsets so servo=0 → tilt angle=0
 
 	uORB::Subscription _actuator_servos_sub{ORB_ID(actuator_servos)};
 	ActuatorVector _current_tilt_values;

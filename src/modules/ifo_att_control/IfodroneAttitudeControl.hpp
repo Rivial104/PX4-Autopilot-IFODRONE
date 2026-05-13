@@ -21,7 +21,6 @@
 #include <uORB/Subscription.hpp>
 #include <uORB/SubscriptionCallback.hpp>
 
-#include <uORB/topics/actuator_servos.h>
 #include <uORB/topics/manual_control_setpoint.h>
 #include <uORB/topics/parameter_update.h>
 #include <uORB/topics/vehicle_attitude.h>
@@ -70,7 +69,6 @@ private:
 
 	uORB::SubscriptionInterval _parameter_update_sub{ORB_ID(parameter_update), 1_s};
 
-	uORB::Subscription _actuator_servos_sub{ORB_ID(actuator_servos)};
 	uORB::Subscription _manual_control_setpoint_sub{ORB_ID(manual_control_setpoint)};
 	uORB::Subscription _vehicle_attitude_setpoint_sub{ORB_ID(vehicle_attitude_setpoint)};
 	uORB::Subscription _vehicle_control_mode_sub{ORB_ID(vehicle_control_mode)};
@@ -86,14 +84,13 @@ private:
 	uORB::Publication<vehicle_thrust_setpoint_s> _thrust_pub{ORB_ID(vehicle_thrust_setpoint)};
 	uORB::Publication<vehicle_torque_setpoint_s> _torque_pub{ORB_ID(vehicle_torque_setpoint)};
 	uORB::Publication<vehicle_control_mode_s> _vehicle_control_mode_pub{ORB_ID(vehicle_control_mode)};
-	uORB::Publication<actuator_servos_s> _theta_pub{ORB_ID(actuator_servos)};
 
-	static constexpr float _kp_att{0.2f};
-	static constexpr float _kd_att{0.01f};  // Low D-gain: servos handle damping; high D amplifies motor vibration noise
-	static constexpr float _kp_yaw{1.0f};
+	static constexpr float _kp_att{1.2f};
+	static constexpr float _kd_att{0.1f};  // Low D-gain: servos handle damping; high D amplifies motor vibration noise
+	static constexpr float _kp_yaw{2.0f};
 	static constexpr float _kd_yaw{0.02f};
 	static constexpr float _kff_yaw{0.04f};
-	static constexpr float _att_torque_limit{4.0f};
+	static constexpr float _att_torque_limit{7.0f};
 	static constexpr float _yaw_torque_limit{2.0f};
 
 	perf_counter_t _loop_interval_perf{perf_alloc(PC_INTERVAL, MODULE_NAME": interval")};

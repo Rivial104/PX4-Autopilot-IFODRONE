@@ -3,22 +3,21 @@
  *
  * IFODRONE control allocator effectiveness.
  *
- * The effectiveness matrix is recomputed every cycle because tilt angles
- * (commanded externally by ifo_att_control) change the motor thrust axes:
+ * Two-stage allocation:
+ *   1. Tilt servos (4) — primary roll/pitch torque actuators
+ *   2. Motors (6)      — thrust (XYZ) + yaw (differential KM on motors 0-1)
+ *                         + secondary roll/pitch torque via tilted axes
  *
- *   Side motor axis (tilted) = base_axis * cos(θ) + hinge × base_axis * sin(θ)
+ * Every cycle:
+ *   - Read current tilt positions from actuator_servos (CA output, prev cycle)
+ *   - Update side motor axes via Rodrigues rotation
+ *   - Rebuild the 6×10 effectiveness matrix (6 motors + 4 tilt servos)
  *
- * When a side motor tilts by angle θ:
- *   - Horizontal thrust component scales by cos(θ)  (X or Y)
- *   - Vertical   thrust component appears  as sin(θ) (−Z = upward)
- *   - Moment = position × axis  →  tilted motors generate roll/pitch torque
- *
- * Motors 0-1: coaxial pair, fixed upward axis (−Z), yaw via differential KM
- * Motors 2-5: side EDFs, axes updated from tilt servo positions each cycle
- *
- * Tilts are NOT added as CA actuators — ifo_att_control publishes them
- * directly via actuator_servos.  Adding them would make CA overwrite those
- * commands with zeros.
+ * Tilt effectiveness (verified via Rodrigues rotation):
+ *   Tilt 0 (front, base +X, hinge +Y): +1 command → axis gains −Z → lifts front → +pitch
+ *   Tilt 1 (right, base +Y, hinge −X): +1 command → axis gains −Z → lifts right → −roll
+ *   Tilt 2 (back,  base −X, hinge −Y): +1 command → axis gains −Z → lifts back  → −pitch
+ *   Tilt 3 (left,  base −Y, hinge +X): +1 command → axis gains −Z → lifts left  → +roll
  */
 
 #include "ActuatorEffectivenessIfodrone.hpp"
@@ -33,6 +32,7 @@ ActuatorEffectivenessIfodrone::ActuatorEffectivenessIfodrone(ModuleParams *paren
 	  _tilts(this)
 {
 	_current_tilt_values.setAll(0.f);
+	_tilt_offsets.setAll(0.f);
 }
 
 bool
@@ -40,21 +40,14 @@ ActuatorEffectivenessIfodrone::getEffectivenessMatrix(Configuration &configurati
 		EffectivenessUpdateReason external_update)
 {
 	// Always recompute — tilt angles change every cycle.
-	// ControlAllocator already bypasses the 100 ms rate-limit for IFODRONE.
 	configuration.selected_matrix = 0;
 
-	// ── Yaw control ──────────────────────────────────────────────────
-	// Yaw is produced ONLY by motors 0-1 via differential thrust (KM = ±0.1).
-	// Side motors 2-5 have KM = 0.01 but enablePropellerTorqueNonUpwards(false)
-	// zeroes KM for any motor whose axis is not pointing upward, so their yaw
-	// column is always zero.  enableYawByDifferentialThrust(true) keeps the
-	// yaw column from being blanked globally.
+	// Yaw: only from motors 0-1 differential thrust (KM = ±0.6).
+	// Side motors 2-5: KM zeroed by enablePropellerTorqueNonUpwards(false).
 	_mc_motors.enableYawByDifferentialThrust(true);
 	_mc_motors.enablePropellerTorqueNonUpwards(false);
 
-	// ── Read current tilt positions ──────────────────────────────────
-	// ifo_att_control publishes control[0..3] in [−1, +1].
-	// Convert to the internal tilt-control range expected by updateAxisFromTiltSetpoints.
+	// ── Read current tilt state (CA output from previous cycle) ──────
 	actuator_servos_s actuator_servos{};
 
 	if (_actuator_servos_sub.copy(&actuator_servos)) {
@@ -62,7 +55,6 @@ ActuatorEffectivenessIfodrone::getEffectivenessMatrix(Configuration &configurati
 			const float delta_angle = _tilts.config(i).max_angle - _tilts.config(i).min_angle;
 
 			if (delta_angle > FLT_EPSILON) {
-				// For symmetric range (−45°..+45°) trim = 0, so _current = control directly.
 				const float trim = -1.f - 2.f * _tilts.config(i).min_angle / delta_angle;
 				_current_tilt_values(i) = actuator_servos.control[i] + trim;
 
@@ -72,18 +64,48 @@ ActuatorEffectivenessIfodrone::getEffectivenessMatrix(Configuration &configurati
 		}
 	}
 
-	// ── Update motor axes BEFORE computing the effectiveness matrix ──
-	// Rodrigues rotation applied per-motor:
-	//   Motors 0-1: tilt_index = −1  → skipped, axis stays (0,0,−1)
-	//   Motors 2-5: axis = base*cos(θ) + (hinge × base)*sin(θ)
+	// ── Update motor axes from current tilts ─────────────────────────
 	_mc_motors.updateAxisFromTiltSetpoints(_tilts, _current_tilt_values, 0);
 
-	// ── Build the effectiveness matrix (6 motors, NO servos) ─────────
-	// computeEffectivenessMatrix (called inside addActuators) fills:
-	//   rows 0-2: moment  = ct * position × axis  −  ct * km * axis
-	//   rows 3-5: thrust  = ct * axis
-	// Only called ONCE, after axes are already updated.
-	return _mc_motors.addActuators(configuration);
+	// ── Add motors (columns 0-5) ─────────────────────────────────────
+	const bool motors_ok = _mc_motors.addActuators(configuration);
+
+	// ── Add tilts (columns 6-9) with roll/pitch effectiveness ────────
+	_first_tilt_col = configuration.num_actuators_matrix[configuration.selected_matrix];
+	const bool tilts_ok = _tilts.addActuators(configuration);
+
+	// Override the tilt effectiveness — _tilts.addActuators sets _torque
+	// from CA_SV_TL*_CT params (=0 → zero columns). We override manually
+	// because IFODRONE tilts produce roll AND pitch, which the standard
+	// tilt system doesn't support.
+	//
+	// Sensitivity at tilt angle θ (linearised at current θ):
+	//   d(moment)/d(servo) ≈ ct × arm × cos(θ_current) × (max_angle − min_angle)/2
+	// For simplicity use a constant K that works well across the range.
+	const float K = 0.5f;
+
+	auto &eff = configuration.effectiveness_matrices[configuration.selected_matrix];
+	// Tilt 0 (front): +pitch
+	eff(1, _first_tilt_col + 0) =  K;
+	// Tilt 1 (right): −roll
+	eff(0, _first_tilt_col + 1) = -K;
+	// Tilt 2 (back):  −pitch
+	eff(1, _first_tilt_col + 2) = -K;
+	// Tilt 3 (left):  +roll
+	eff(0, _first_tilt_col + 3) =  K;
+
+	// Compute tilt trim offsets (for symmetric ±45° range, trim = 0)
+	_tilt_offsets.setAll(0.f);
+
+	for (int i = 0; i < _tilts.count(); ++i) {
+		const float delta_angle = _tilts.config(i).max_angle - _tilts.config(i).min_angle;
+
+		if (delta_angle > FLT_EPSILON) {
+			_tilt_offsets(_first_tilt_col + i) = -1.f - 2.f * _tilts.config(i).min_angle / delta_angle;
+		}
+	}
+
+	return motors_ok && tilts_ok;
 }
 
 void ActuatorEffectivenessIfodrone::updateSetpoint(
@@ -91,6 +113,7 @@ void ActuatorEffectivenessIfodrone::updateSetpoint(
 	int matrix_index, ActuatorVector &actuator_sp,
 	const ActuatorVector &actuator_min, const ActuatorVector &actuator_max)
 {
-	// Nothing to do — tilts are commanded externally by ifo_att_control,
-	// and motor setpoints are fully handled by the sequential-desaturation allocator.
+	// Add tilt trim offsets so that servo=0 corresponds to zero tilt angle.
+	// For symmetric range (−45°..+45°) this is a no-op (trim=0).
+	actuator_sp += _tilt_offsets;
 }
