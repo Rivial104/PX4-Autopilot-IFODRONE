@@ -333,39 +333,31 @@ void IfodronePositionControl::Run()
 				// --- Get library outputs ---
 				vehicle_local_position_setpoint_s local_pos_sp{};
 				_control.getLocalPositionSetpoint(local_pos_sp);
-
-				// --- IFODRONE-specific: convert acceleration to body-frame thrust ---
-				const Vector3f acc_sp(local_pos_sp.acceleration);
-				const Vector3f thr_body = accelerationToThrust(acc_sp, states.yaw);
-
-				local_pos_sp.thrust[0] = thr_body(0);
-				local_pos_sp.thrust[1] = thr_body(1);
-				local_pos_sp.thrust[2] = thr_body(2);
 				local_pos_sp.timestamp = hrt_absolute_time();
 				_local_pos_sp_pub.publish(local_pos_sp);
 
-				// --- Publish vehicle_thrust_setpoint ---
-				vehicle_thrust_setpoint_s thrust_msg{};
-				thrust_msg.timestamp        = hrt_absolute_time();
-				thrust_msg.timestamp_sample = local_pos.timestamp_sample;
-				thrust_msg.xyz[0] = thr_body(0);
-				thrust_msg.xyz[1] = thr_body(1);
-				thrust_msg.xyz[2] = thr_body(2);
-				_thrust_sp_pub.publish(thrust_msg);
+				// // --- Publish vehicle_thrust_setpoint ---
+				// vehicle_thrust_setpoint_s thrust_msg{};
+				// thrust_msg.timestamp        = hrt_absolute_time();
+				// thrust_msg.timestamp_sample = local_pos.timestamp_sample;
+				// thrust_msg.xyz[0] = thr_body(0);
+				// thrust_msg.xyz[1] = thr_body(1);
+				// thrust_msg.xyz[2] = thr_body(2);
+				// _thrust_sp_pub.publish(thrust_msg);
 
 				// --- Publish attitude setpoint (yaw only, level body) ---
-				const float yaw_sp = PX4_ISFINITE(local_pos_sp.yaw) ? local_pos_sp.yaw : states.yaw;
-				const float yawspeed_sp = PX4_ISFINITE(local_pos_sp.yawspeed) ? local_pos_sp.yawspeed : 0.f;
+				// const float yaw_sp = PX4_ISFINITE(local_pos_sp.yaw) ? local_pos_sp.yaw : states.yaw;
+				// const float yawspeed_sp = PX4_ISFINITE(local_pos_sp.yawspeed) ? local_pos_sp.yawspeed : 0.f;
 
-				vehicle_attitude_setpoint_s att_sp{};
-				att_sp.timestamp = hrt_absolute_time();
-				att_sp.yaw_sp_move_rate = yawspeed_sp;
-				const Quatf q_sp(Eulerf(0.0f, 0.0f, yaw_sp));
-				q_sp.copyTo(att_sp.q_d);
-				att_sp.thrust_body[0] = thr_body(0);
-				att_sp.thrust_body[1] = thr_body(1);
-				att_sp.thrust_body[2] = thr_body(2);
-				_attitude_setpoint_pub.publish(att_sp);
+				// vehicle_attitude_setpoint_s att_sp{};
+				// att_sp.timestamp = hrt_absolute_time();
+				// att_sp.yaw_sp_move_rate = yawspeed_sp;
+				// const Quatf q_sp(Eulerf(0.0f, 0.0f, yaw_sp));
+				// q_sp.copyTo(att_sp.q_d);
+				// att_sp.thrust_body[0] = thr_body(0);
+				// att_sp.thrust_body[1] = thr_body(1);
+				// att_sp.thrust_body[2] = thr_body(2);
+				// _attitude_setpoint_pub.publish(att_sp);
 			}
 
 		} else {
