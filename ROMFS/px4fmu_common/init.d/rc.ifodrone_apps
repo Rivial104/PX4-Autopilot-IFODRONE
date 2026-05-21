@@ -1,19 +1,14 @@
 #!/bin/sh
 #
 # IfoDrone specific apps.
-# ifo_pos_control: trajectory_setpoint -> vehicle_attitude_setpoint (thrust).
-# ifo_att_control: attitude P-controller -> vehicle_rates_setpoint.
-# mc_rate_control: rate PID controller -> vehicle_torque_setpoint + vehicle_thrust_setpoint.
+# ifo_att_control: direct PD → actuator_servos (tilts) + vehicle_torque_setpoint (yaw)
+# ifo_pos_control: trajectory_setpoint → vehicle_thrust_setpoint
+# control_allocator: torque/thrust → actuator_motors (no servos — ifo_att_control owns those)
 #
-# NOTE: Script variables are declared/initialized/unset in the rcS script.
+# NOTE: mc_rate_control is NOT used; ifo_att_control publishes torque/thrust directly.
 #
 
-#
-# Start Control Allocator (required for ActuatorEffectivenessIfodrone)
-#
 control_allocator start
-
-mc_rate_control start
 ifo_att_control start
 ifo_pos_control start
 # Start IfoDrone Position Controller (trajectory_setpoint -> vehicle_attitude_setpoint)
