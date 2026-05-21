@@ -231,7 +231,7 @@ param set-default MPC_MANTHR_MIN 0.08
 # param set-default MC_AIRMODE 1
 
 # SITL: Allow arming without RC and disable ESC failure detection
-param set-default COM_RC_IN_MODE 4
+param set-default COM_RC_IN_MODE 0
 param set-default COM_ARM_WO_GPS 1
 param set-default COM_RCL_EXCEPT 4
 param set-default FD_ACT_EN 0
