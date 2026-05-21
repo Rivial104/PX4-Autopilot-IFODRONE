@@ -86,7 +86,7 @@ private:
 	static constexpr float YAW_TORQUE_LIMIT{1.0f};
 
 	// Minimum idle thrust when armed (ensures both coaxial motors always have a base command)
-	static constexpr float THROTTLE_IDLE{0.1f};
+	static constexpr float THROTTLE_IDLE{0.05f};
 
 	perf_counter_t _loop_perf;
 };
