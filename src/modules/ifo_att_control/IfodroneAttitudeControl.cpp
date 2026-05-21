@@ -66,9 +66,13 @@ void IfodroneAttitudeControl::generate_attitude_setpoint(const Quatf &q, float d
 	q_sp.copyTo(attitude_setpoint.q_d);
 
 	// Thrust from sticks:
-	//  Throttle stick [-1,1] -> [0,1] -> body Z (negative = up)
+	//  Throttle stick [-1,1] -> [IDLE,1] -> body Z (negative = up)
+	//  IDLE ensures both coaxial motors always have a thrust budget at arming
+	//  so the yaw channel never clips one motor to 0.
 	//  Roll/pitch sticks -> body X/Y (IFODRONE body-frame force)
-	const float throttle = (_manual_control_setpoint.throttle + 1.f) * 0.5f;
+	static constexpr float THROTTLE_IDLE = 0.1f;
+	const float throttle_raw = (_manual_control_setpoint.throttle + 1.f) * 0.5f;
+	const float throttle = THROTTLE_IDLE + throttle_raw * (1.f - THROTTLE_IDLE);
 	attitude_setpoint.thrust_body[0] = _manual_control_setpoint.roll;
 	attitude_setpoint.thrust_body[1] = _manual_control_setpoint.pitch;
 	attitude_setpoint.thrust_body[2] = -throttle;
