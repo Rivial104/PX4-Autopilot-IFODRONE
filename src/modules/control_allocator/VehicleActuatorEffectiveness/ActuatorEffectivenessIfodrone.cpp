@@ -82,7 +82,7 @@ ActuatorEffectivenessIfodrone::getEffectivenessMatrix(Configuration &configurati
 	// Sensitivity at tilt angle θ (linearised at current θ):
 	//   d(moment)/d(servo) ≈ ct × arm × cos(θ_current) × (max_angle − min_angle)/2
 	// For simplicity use a constant K that works well across the range.
-	const float K = 0.5f;
+	const float K = 0.1f;
 
 	auto &eff = configuration.effectiveness_matrices[configuration.selected_matrix];
 	// Tilt 0 (front): +pitch
