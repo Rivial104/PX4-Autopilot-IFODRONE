@@ -188,43 +188,97 @@ void IfodronePositionControl::Run()
 
 			if (_vehicle_control_mode.flag_control_manual_enabled) {
 				// -------------------------------------------------------
-				// IFODRONE MANUAL STICK MODE
-				// Direct body-frame force mapping (no position PID loop):
-				//   throttle stick → body Z force (up)
-				//   roll    stick → body X force
-				//   pitch   stick → body Y force
-				//   yaw     stick → yaw rate
+				// IFODRONE HOLD MODE
+				//   XY:       position hold via PID
+				//   altitude: throttle stick → vertical velocity setpoint
+				//   yaw:      yaw stick → yaw rate
 				// -------------------------------------------------------
 				manual_control_setpoint_s manual_sp{};
 				_manual_control_setpoint_sub.copy(&manual_sp);
 
-				// throttle [-1,1] → [0, thr_max], body Z negative = up
-				const float throttle_norm = (manual_sp.throttle + 1.0f) * 0.5f;
-				const float thrust_z = math::constrain(throttle_norm * _param_ifo_thr_max.get(),
-								       0.0f, _param_ifo_thr_max.get());
+				// Latch XY and yaw on first entry into hold mode
+				if (!_hold_initialized && local_pos.xy_valid) {
+					_hold_xy(0) = local_pos.x;
+					_hold_xy(1) = local_pos.y;
+					_hold_yaw_angle = PX4_ISFINITE(local_pos.heading) ? local_pos.heading : 0.0f;
+					_control.resetIntegral();
+					_hold_initialized = true;
+				}
 
-				Vector3f thr_body;
-				thr_body(0) = manual_sp.roll  * _param_ifo_thr_xy_max.get();
-				thr_body(1) = manual_sp.pitch * _param_ifo_thr_xy_max.get();
-				thr_body(2) = -thrust_z;
+				// Throttle stick [-1,+1] → vertical velocity (NED: negative = up)
+				// Centre stick (0) → hold altitude (vel = 0)
+				static constexpr float THROTTLE_DEADBAND = 0.1f;
+				float vel_z_sp = 0.0f;
+				const float throttle = manual_sp.throttle;
 
-				_control.resetIntegral();
+				if (fabsf(throttle) > THROTTLE_DEADBAND) {
+					const float t = (fabsf(throttle) - THROTTLE_DEADBAND) / (1.f - THROTTLE_DEADBAND);
+					vel_z_sp = (throttle > 0.f) ? -t * _param_ifo_vel_max_up.get()
+								    :  t * _param_ifo_vel_max_dn.get();
+				}
 
-				// Publish thrust setpoint
-				vehicle_thrust_setpoint_s thrust_msg{};
-				thrust_msg.timestamp        = hrt_absolute_time();
-				thrust_msg.timestamp_sample = local_pos.timestamp_sample;
-				thrust_msg.xyz[0] = thr_body(0);
-				thrust_msg.xyz[1] = thr_body(1);
-				thrust_msg.xyz[2] = thr_body(2);
-				_thrust_sp_pub.publish(thrust_msg);
+				// Yaw stick → integrate hold yaw
+				static constexpr float YAW_RATE_MAX = 1.5f;
+				_hold_yaw_angle = wrap_pi(_hold_yaw_angle + manual_sp.yaw * YAW_RATE_MAX * dt);
 
-				// Publish attitude setpoint: level body, yaw hold + yaw rate from stick
-				static constexpr float YAW_RATE_MAX = 1.5f; // rad/s
+				// Build trajectory setpoint: XY position hold + Z velocity from stick
+				trajectory_setpoint_s hold_sp = PositionControl::empty_trajectory_setpoint;
+				hold_sp.timestamp  = local_pos.timestamp_sample;
+
+				if (_hold_initialized) {
+					hold_sp.position[0] = _hold_xy(0);
+					hold_sp.position[1] = _hold_xy(1);
+				}
+
+				hold_sp.position[2] = NAN;       // Z controlled by velocity
+				hold_sp.velocity[2] = vel_z_sp;  // NED
+				hold_sp.yaw         = _hold_yaw_angle;
+
+				// Run PID
+				_control.setVelocityLimits(
+					_param_ifo_vel_max_xy.get(),
+					_param_ifo_vel_max_up.get(),
+					_param_ifo_vel_max_dn.get());
+				_control.setThrustLimits(_param_ifo_thr_min.get(), _param_ifo_thr_max.get());
+
+				if (!_hold_initialized || _vehicle_land_detected.ground_contact) {
+					// On ground or not yet latched: push down, no integral
+					_control.resetIntegral();
+					trajectory_setpoint_s ground_sp = PositionControl::empty_trajectory_setpoint;
+					ground_sp.timestamp = local_pos.timestamp_sample;
+					Vector3f(0.f, 0.f, 100.f).copyTo(ground_sp.acceleration);
+					_control.setInputSetpoint(ground_sp);
+
+				} else {
+					_control.setInputSetpoint(hold_sp);
+				}
+
+				_control.setState(states);
+				_control.update(dt);
+
+				// Publish local position setpoint
+				vehicle_local_position_setpoint_s local_pos_sp{};
+				_control.getLocalPositionSetpoint(local_pos_sp);
+				local_pos_sp.timestamp = hrt_absolute_time();
+				_local_pos_sp_pub.publish(local_pos_sp);
+
+				// Convert acceleration setpoint → body-frame thrust
+				Vector3f acc_sp(
+					local_pos_sp.acceleration[0],
+					local_pos_sp.acceleration[1],
+					local_pos_sp.acceleration[2]);
+
+				for (int i = 0; i < 3; i++) {
+					if (!PX4_ISFINITE(acc_sp(i))) { acc_sp(i) = 0.f; }
+				}
+
+				const Vector3f thr_body = accelerationToThrust(acc_sp, states.yaw);
+
+				// Publish attitude setpoint: level body, yaw from hold state
 				vehicle_attitude_setpoint_s att_sp{};
 				att_sp.timestamp        = hrt_absolute_time();
-				att_sp.yaw_sp_move_rate = manual_sp.yaw * YAW_RATE_MAX;
-				const Quatf q_sp(Eulerf(0.0f, 0.0f, states.yaw));
+				att_sp.yaw_sp_move_rate = 0.0f;
+				const Quatf q_sp(Eulerf(0.0f, 0.0f, _hold_yaw_angle));
 				q_sp.copyTo(att_sp.q_d);
 				att_sp.thrust_body[0] = thr_body(0);
 				att_sp.thrust_body[1] = thr_body(1);
@@ -235,6 +289,7 @@ void IfodronePositionControl::Run()
 				// -------------------------------------------------------
 				// POSITION / OFFBOARD CONTROL (PID loop)
 				// -------------------------------------------------------
+				_hold_initialized = false; // reset for next hold entry
 
 				// Update constraints
 				_vehicle_constraints_sub.update(&_vehicle_constraints);
@@ -322,12 +377,27 @@ void IfodronePositionControl::Run()
 				_control.setState(states);
 
 				// Run PID control (position → velocity → acceleration → thrust internally)
-				if (!_control.update(dt)) {
-					// Failed: try failsafe
-					_control.setInputSetpoint(generateFailsafeSetpoint(local_pos.timestamp_sample, states));
-					_control.setVelocityLimits(_param_ifo_vel_max_xy.get(), _param_ifo_vel_max_up.get(),
-								   _param_ifo_vel_max_dn.get());
-					_control.update(dt);
+				const hrt_abstime now = hrt_absolute_time();
+
+				if (_control.update(dt)) {
+					// Valid control update — store for fallback
+					_last_valid_setpoint = _setpoint;
+
+				} else {
+					// Update failed — try last valid setpoint first (200 ms window)
+					if (now < _last_valid_setpoint.timestamp + 200_ms) {
+						adjustSetpointForEKFResets(local_pos, _last_valid_setpoint);
+						_control.setInputSetpoint(_last_valid_setpoint);
+					}
+
+					// Still failing — go to failsafe
+					if (!_control.update(dt)) {
+						_vehicle_constraints = {0, NAN, NAN, false, {}};
+						_control.setInputSetpoint(generateFailsafeSetpoint(local_pos.timestamp_sample, states));
+						_control.setVelocityLimits(_param_ifo_vel_max_xy.get(), _param_ifo_vel_max_up.get(),
+									   _param_ifo_vel_max_dn.get());
+						_control.update(dt);
+					}
 				}
 
 				// --- Get library outputs ---
@@ -336,28 +406,45 @@ void IfodronePositionControl::Run()
 				local_pos_sp.timestamp = hrt_absolute_time();
 				_local_pos_sp_pub.publish(local_pos_sp);
 
-				// // --- Publish vehicle_thrust_setpoint ---
-				// vehicle_thrust_setpoint_s thrust_msg{};
-				// thrust_msg.timestamp        = hrt_absolute_time();
-				// thrust_msg.timestamp_sample = local_pos.timestamp_sample;
-				// thrust_msg.xyz[0] = thr_body(0);
-				// thrust_msg.xyz[1] = thr_body(1);
-				// thrust_msg.xyz[2] = thr_body(2);
-				// _thrust_sp_pub.publish(thrust_msg);
+				Vector3f acc_sp(
+					local_pos_sp.acceleration[0],
+					local_pos_sp.acceleration[1],
+					local_pos_sp.acceleration[2]
+				);
 
-				// --- Publish attitude setpoint (yaw only, level body) ---
-				// const float yaw_sp = PX4_ISFINITE(local_pos_sp.yaw) ? local_pos_sp.yaw : states.yaw;
-				// const float yawspeed_sp = PX4_ISFINITE(local_pos_sp.yawspeed) ? local_pos_sp.yawspeed : 0.f;
+				for (int i = 0; i < 3; i++) {
+					if (!PX4_ISFINITE(acc_sp(i))) {
+						acc_sp(i) = 0.f;
+					}
+				}
 
-				// vehicle_attitude_setpoint_s att_sp{};
-				// att_sp.timestamp = hrt_absolute_time();
-				// att_sp.yaw_sp_move_rate = yawspeed_sp;
-				// const Quatf q_sp(Eulerf(0.0f, 0.0f, yaw_sp));
-				// q_sp.copyTo(att_sp.q_d);
-				// att_sp.thrust_body[0] = thr_body(0);
-				// att_sp.thrust_body[1] = thr_body(1);
-				// att_sp.thrust_body[2] = thr_body(2);
-				// _attitude_setpoint_pub.publish(att_sp);
+				const float yaw_sp = PX4_ISFINITE(local_pos_sp.yaw) ? local_pos_sp.yaw : states.yaw;
+				const float yawspeed_sp = PX4_ISFINITE(local_pos_sp.yawspeed) ? local_pos_sp.yawspeed : 0.f;
+
+				// Ważne: do transformacji siły na aktualne osie body zwykle użyłbym aktualnego yaw,
+				// niekoniecznie yaw_sp.
+				const Vector3f thr_body = accelerationToThrust(acc_sp, states.yaw);
+
+				vehicle_thrust_setpoint_s thrust_msg{};
+				thrust_msg.timestamp        = hrt_absolute_time();
+				thrust_msg.timestamp_sample = local_pos.timestamp_sample;
+				thrust_msg.xyz[0] = thr_body(0);
+				thrust_msg.xyz[1] = thr_body(1);
+				thrust_msg.xyz[2] = thr_body(2);
+				_thrust_sp_pub.publish(thrust_msg);
+
+				// --- Publish attitude setpoint (yaw + thrust, level body) ---
+				vehicle_attitude_setpoint_s att_sp{};
+				att_sp.timestamp = hrt_absolute_time();
+				att_sp.yaw_sp_move_rate = yawspeed_sp;
+				const Quatf q_sp(Eulerf(0.0f, 0.0f, yaw_sp));
+				q_sp.copyTo(att_sp.q_d);
+				att_sp.thrust_body[0] = thr_body(0);
+				att_sp.thrust_body[1] = thr_body(1);
+				att_sp.thrust_body[2] = thr_body(2);
+				_attitude_setpoint_pub.publish(att_sp);
+
+
 			}
 
 		} else {
@@ -365,6 +452,7 @@ void IfodronePositionControl::Run()
 			_takeoff.updateTakeoffState(_vehicle_control_mode.flag_armed, _vehicle_land_detected.landed,
 						    false, 10.f, true, local_pos.timestamp_sample);
 			_control.resetIntegral();
+			_hold_initialized = false;
 		}
 
 		// --- Publish takeoff status ---
@@ -400,17 +488,17 @@ matrix::Vector3f IfodronePositionControl::accelerationToThrust(const Vector3f &a
 	// Body Z in PX4 convention is negative (upward)
 	thr_body(2) = -thrust_z;
 
-	// --- XY axes: rotate NED acceleration to body frame via yaw ---
-	// IFODRONE: body is level, so only yaw rotation maps NED XY → body XY
-	// const float cos_yaw = cosf(yaw);
-	// const float sin_yaw = sinf(yaw);
+			// --- XY axes: rotate NED acceleration to body frame via yaw ---
+			// IFODRONE: body is level, so only yaw rotation maps NED XY → body XY
+	const float cos_yaw = cosf(yaw);
+	const float sin_yaw = sinf(yaw);
 
-	// const float ax_body =  cos_yaw * acc_sp(0) + sin_yaw * acc_sp(1);
-	// const float ay_body = -sin_yaw * acc_sp(0) + cos_yaw * acc_sp(1);
+	const float ax_body =  cos_yaw * acc_sp(0) + sin_yaw * acc_sp(1);
+	const float ay_body = -sin_yaw * acc_sp(0) + cos_yaw * acc_sp(1);
 
 	// Convert acceleration to normalized thrust (using hover_thrust/g relationship)
-	thr_body(0) = acc_sp(0) * (hover_thr / CONSTANTS_ONE_G);
-	thr_body(1) = acc_sp(1) * (hover_thr / CONSTANTS_ONE_G);
+	thr_body(0) = ax_body * (hover_thr / CONSTANTS_ONE_G);
+	thr_body(1) = ay_body * (hover_thr / CONSTANTS_ONE_G);
 
 	// Clamp XY thrust magnitude
 	Vector2f thr_xy(thr_body(0), thr_body(1));

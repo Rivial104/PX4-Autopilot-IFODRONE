@@ -22,6 +22,8 @@
 #include "PositionControl/PositionControl.hpp"
 #include "Takeoff/Takeoff.hpp"
 
+#include <lib/matrix/matrix/math.hpp>
+
 #include <drivers/drv_hrt.h>
 #include <lib/geo/geo.h>
 #include <lib/perf/perf_counter.h>
@@ -42,6 +44,7 @@
 #include <uORB/topics/vehicle_land_detected.h>
 #include <uORB/topics/vehicle_local_position.h>
 #include <uORB/topics/vehicle_local_position_setpoint.h>
+#include <uORB/topics/vehicle_local_position.h>
 #include <uORB/topics/vehicle_thrust_setpoint.h>
 
 using namespace time_literals;
@@ -104,8 +107,8 @@ private:
 
 	// --- Publications ---
 	uORB::Publication<vehicle_local_position_setpoint_s> _local_pos_sp_pub{ORB_ID(vehicle_local_position_setpoint)};
-	uORB::Publication<vehicle_thrust_setpoint_s>         _thrust_sp_pub{ORB_ID(vehicle_thrust_setpoint)};
 	uORB::Publication<vehicle_attitude_setpoint_s>       _attitude_setpoint_pub{ORB_ID(vehicle_attitude_setpoint)};
+	uORB::Publication<vehicle_thrust_setpoint_s>         _thrust_sp_pub{ORB_ID(vehicle_thrust_setpoint)};
 	uORB::PublicationData<takeoff_status_s>              _takeoff_status_pub{ORB_ID(takeoff_status)};
 
 	// --- Timing ---
@@ -114,6 +117,7 @@ private:
 
 	// --- Cached state ---
 	trajectory_setpoint_s  _setpoint{PositionControl::empty_trajectory_setpoint};
+	trajectory_setpoint_s  _last_valid_setpoint{PositionControl::empty_trajectory_setpoint};
 	vehicle_control_mode_s _vehicle_control_mode{};
 
 	vehicle_constraints_s _vehicle_constraints {
@@ -130,6 +134,11 @@ private:
 		.maybe_landed = true,
 		.landed = true,
 	};
+
+	// --- Hold mode state ---
+	matrix::Vector2f _hold_xy{0.f, 0.f};
+	float            _hold_yaw_angle{0.f};
+	bool             _hold_initialized{false};
 
 	// --- EKF reset counters ---
 	uint8_t _vxy_reset_counter{0};

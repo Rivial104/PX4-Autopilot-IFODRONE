@@ -70,7 +70,7 @@ void IfodroneAttitudeControl::generate_attitude_setpoint(const Quatf &q, float d
 	//  Roll/pitch sticks -> body X/Y (IFODRONE body-frame force)
 	const float throttle = (_manual_control_setpoint.throttle + 1.f) * 0.5f;
 	attitude_setpoint.thrust_body[0] = _manual_control_setpoint.roll;
-	attitude_setpoint.thrust_body[1] = -_manual_control_setpoint.pitch;
+	attitude_setpoint.thrust_body[1] = _manual_control_setpoint.pitch;
 	attitude_setpoint.thrust_body[2] = -throttle;
 
 	attitude_setpoint.timestamp = hrt_absolute_time();
