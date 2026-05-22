@@ -40,21 +40,21 @@ param set-default CA_ROTOR0_PZ 0.1
 param set-default CA_ROTOR0_AX 0.0
 param set-default CA_ROTOR0_AY 0.0
 param set-default CA_ROTOR0_AZ -1.0
-param set-default CA_ROTOR0_KM -0.4
+param set-default CA_ROTOR0_KM 0.4
 param set-default CA_ROTOR0_CT 0.6
 param set-default SIM_GZ_EC_FUNC1 101
 param set-default SIM_GZ_EC_DIS1 0
 param set-default SIM_GZ_EC_MIN1 100
 param set-default SIM_GZ_EC_MAX1 1000
 
-# Motor 1: Lower motor - CW rotation
+# Motor 1: Lower motor - CW rotation (KM negative = CW; GZ physical reversal via SIM_GZ_EC_REV=2)
 param set-default CA_ROTOR1_PX 0.0
 param set-default CA_ROTOR1_PY 0.0
 param set-default CA_ROTOR1_PZ -0.1
 param set-default CA_ROTOR1_AX 0.0
 param set-default CA_ROTOR1_AY 0.0
 param set-default CA_ROTOR1_AZ -1.0
-param set-default CA_ROTOR1_KM 0.4
+param set-default CA_ROTOR1_KM -0.4
 param set-default CA_ROTOR1_CT 0.6
 param set-default SIM_GZ_EC_FUNC2 102
 param set-default SIM_GZ_EC_DIS2 0
@@ -228,7 +228,7 @@ param set-default MPC_THR_HOVER 0.8
 param set-default MPC_THR_MAX 30.0
 param set-default MPC_MANTHR_MIN 0.08
 
-# param set-default MC_AIRMODE 1
+param set-default MC_AIRMODE 1
 
 # SITL: Allow arming without RC and disable ESC failure detection
 param set-default COM_RC_IN_MODE 0

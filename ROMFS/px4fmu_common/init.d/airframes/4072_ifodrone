@@ -46,14 +46,14 @@ param set-default CA_ROTOR0_AZ -1.0
 param set-default CA_ROTOR0_KM 0.1
 param set-default CA_ROTOR0_CT 0.6
 
-# Motor 1: Bottom main (same rotation direction as top)
+# Motor 1: Bottom main (counter-rotating CW, KM negative = CW in PX4 convention)
 param set-default CA_ROTOR1_PX 0.0
 param set-default CA_ROTOR1_PY 0.0
 param set-default CA_ROTOR1_PZ -0.1
 param set-default CA_ROTOR1_AX 0.0
 param set-default CA_ROTOR1_AY 0.0
 param set-default CA_ROTOR1_AZ -1.0
-param set-default CA_ROTOR1_KM 0.1
+param set-default CA_ROTOR1_KM -0.1
 param set-default CA_ROTOR1_CT 0.6
 
 # Side EDFs (tiltable) - tilt servo IDs 1..4
