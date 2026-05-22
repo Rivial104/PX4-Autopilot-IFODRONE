@@ -256,6 +256,6 @@ param set-default FD_FAIL_P 0
 # velocity vector wanders. Mode 4 = no auto-yaw, hold last commanded heading.
 param set-default MPC_YAW_MODE 4
 
-param set-default SIM_GZ_EC_REV 1
+param set-default SIM_GZ_EC_REV 0
 
 
