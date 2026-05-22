@@ -127,18 +127,18 @@ void IfodroneAttitudeControl::Run()
 	const float pitch_tilt = math::constrain(KP_ATT * pitch_error - KD_ATT * pitch_rate, -TILT_LIMIT, TILT_LIMIT);
 	const float roll_tilt  = math::constrain(KP_ATT * roll_error  - KD_ATT * roll_rate,  -TILT_LIMIT, TILT_LIMIT);
 
-	// Tilt sign convention (verified against SDF joints & flight logs):
-	//   Front servo (tilt 0): same sign as pitch_tilt
-	//   Right servo (tilt 1): same sign as roll_tilt
-	//   Back  servo (tilt 2): same sign as pitch_tilt  (antisymmetric arm → same torque direction)
-	//   Left  servo (tilt 3): same sign as roll_tilt   (antisymmetric arm → same torque direction)
+	// Tilt sign convention derived from SDF joint axes:
+	//   Front (motor_2_joint axis [0,+Y,0]) and Back (motor_4_joint axis [0,-Y,0]) have opposite axes.
+	//   Right (motor_3_joint axis [+X,0,0]) and Left (motor_5_joint axis [-X,0,0]) have opposite axes.
+	//   Opposite axis → same command = physically opposite rotation = opposing torques.
+	//   Negate back and left to make all four servos cooperate in the same torque direction.
 	actuator_servos_s servos{};
 	servos.timestamp        = hrt_absolute_time();
 	servos.timestamp_sample = att.timestamp;
-	servos.control[0] =  pitch_tilt;
-	servos.control[1] =  roll_tilt;
-	servos.control[2] =  pitch_tilt;
-	servos.control[3] =  roll_tilt;
+	servos.control[0] =  pitch_tilt;   // Front: axis +Y
+	servos.control[1] =  roll_tilt;    // Right: axis +X
+	servos.control[2] = -pitch_tilt;   // Back:  axis -Y → negate for same pitch torque direction
+	servos.control[3] = -roll_tilt;    // Left:  axis -X → negate for same roll torque direction
 	_actuator_servos_pub.publish(servos);
 
 	// ── Yaw torque → main motor differential (via CA) ─────────────────
@@ -156,6 +156,9 @@ void IfodroneAttitudeControl::Run()
 
 	// ── Thrust (manual mode only) ──────────────────────────────────────
 	// In position/auto modes, ifo_pos_control publishes vehicle_thrust_setpoint.
+	// XY = 0: CA commands all 4 side EDFs symmetrically at PWM_MIN idle.
+	// A non-zero XY stick would activate only the EDFs pointing in that direction,
+	// leaving the opposing pair at zero — asymmetric and bad for stabilization.
 	if (manual_mode) {
 		const float throttle_raw = (_manual_control_setpoint.throttle + 1.f) * 0.5f;
 		const float throttle     = THROTTLE_IDLE + throttle_raw * (1.f - THROTTLE_IDLE);
@@ -163,8 +166,8 @@ void IfodroneAttitudeControl::Run()
 		vehicle_thrust_setpoint_s thrust_sp{};
 		thrust_sp.timestamp        = hrt_absolute_time();
 		thrust_sp.timestamp_sample = att.timestamp;
-		thrust_sp.xyz[0] = _manual_control_setpoint.roll;
-		thrust_sp.xyz[1] = _manual_control_setpoint.pitch;
+		thrust_sp.xyz[0] = 0.f;
+		thrust_sp.xyz[1] = 0.f;
 		thrust_sp.xyz[2] = -throttle;
 		_vehicle_thrust_setpoint_pub.publish(thrust_sp);
 	}
