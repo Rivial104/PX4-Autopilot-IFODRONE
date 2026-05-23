@@ -75,14 +75,14 @@ private:
 	float       _yaw_setpoint{NAN};
 
 	// Roll/pitch tilt servo PD gains (error [rad] → normalized servo command [-1,1])
-	static constexpr float KP_ATT{1.8f};
-	static constexpr float KD_ATT{0.1f};
+	static constexpr float KP_ATT{0.8f};
+	static constexpr float KD_ATT{0.05f};
 	static constexpr float TILT_LIMIT{1.0f};
 
 	// Yaw torque PD gains (error [rad] → normalized torque [-1,1])
-	static constexpr float KP_YAW{0.08f};
-	static constexpr float KD_YAW{0.25f};
-	static constexpr float KFF_YAW{0.04f};
+	static constexpr float KP_YAW{0.04f};
+	static constexpr float KD_YAW{0.12f};
+	static constexpr float KFF_YAW{0.02f};
 	static constexpr float YAW_TORQUE_LIMIT{1.0f};
 
 	// Minimum idle thrust when armed (ensures both coaxial motors always have a base command)
