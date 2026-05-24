@@ -79,7 +79,7 @@ param set-default CA_ROTOR2_CT 0.5
 param set-default CA_ROTOR2_TILT 1
 param set-default SIM_GZ_EC_FUNC3 103
 param set-default SIM_GZ_EC_DIS3 0
-param set-default SIM_GZ_EC_MIN3 100
+param set-default SIM_GZ_EC_MIN3 350
 param set-default SIM_GZ_EC_MAX3 1000
 
 # Motor 3: Right EDF - tiltable around X axis, linked to tilt servo 1
@@ -94,7 +94,7 @@ param set-default CA_ROTOR3_CT 0.5
 param set-default CA_ROTOR3_TILT 2
 param set-default SIM_GZ_EC_FUNC4 104
 param set-default SIM_GZ_EC_DIS4 0
-param set-default SIM_GZ_EC_MIN4 100
+param set-default SIM_GZ_EC_MIN4 350
 param set-default SIM_GZ_EC_MAX4 1000
 
 # Motor 4: Back EDF - tiltable around Y axis, linked to tilt servo 2
@@ -109,7 +109,7 @@ param set-default CA_ROTOR4_CT 0.5
 param set-default CA_ROTOR4_TILT 3
 param set-default SIM_GZ_EC_FUNC5 105
 param set-default SIM_GZ_EC_DIS5 0
-param set-default SIM_GZ_EC_MIN5 100
+param set-default SIM_GZ_EC_MIN5 350
 param set-default SIM_GZ_EC_MAX5 1000
 
 # Motor 5: Left EDF - tiltable around X axis, linked to tilt servo 3
@@ -124,7 +124,7 @@ param set-default CA_ROTOR5_CT 0.5
 param set-default CA_ROTOR5_TILT 4
 param set-default SIM_GZ_EC_FUNC6 106
 param set-default SIM_GZ_EC_DIS6 0
-param set-default SIM_GZ_EC_MIN6 100
+param set-default SIM_GZ_EC_MIN6 350
 param set-default SIM_GZ_EC_MAX6 1000
 
 # ============================================
@@ -258,11 +258,11 @@ param set-default MPC_YAW_MODE 4
 
 param set-default SIM_GZ_EC_REV 0
 
+param set-default CA_METHOD 0
+
 # EDFs (motors 2-5, bits 2-5 = 0b111100 = 60) are marked bidirectional so the CA
 # uses minimum=-1 for them.  Physical output stays unidirectional: [-1,+1] maps
 # linearly to [MIN=350, MAX=1000] via mixer_module output_limit_calc_single.
 # At CA=0 (no X/Y demand): EDF runs at (350+1000)/2 = 675 (67.5%) — enough idle
 # speed for tilt-based roll/pitch correction to have meaningful force authority.
 # param set-default CA_R_REV 60
-
-

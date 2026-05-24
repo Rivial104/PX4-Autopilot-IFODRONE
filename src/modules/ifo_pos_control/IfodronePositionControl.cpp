@@ -6,7 +6,7 @@
  *
  * Uses the PositionControl library for cascaded P-position + PID-velocity
  * to produce an acceleration setpoint, then converts acceleration to
- * body-frame thrust assuming a level body (no pitch/roll).
+ * body-frame thrust using the current attitude.
  *
  * Supports:
  *   - Offboard mode (external trajectory_setpoint)
@@ -95,6 +95,9 @@ void IfodronePositionControl::Run()
 		const float dt = math::constrain(
 					 ((local_pos.timestamp_sample - _time_stamp_last_loop) * 1e-6f), 0.002f, 0.04f);
 		_time_stamp_last_loop = local_pos.timestamp_sample;
+
+		vehicle_attitude_s vehicle_attitude{};
+		const bool vehicle_attitude_valid = _vehicle_attitude_sub.copy(&vehicle_attitude);
 
 		// --- Update control mode ---
 		if (_vehicle_control_mode_sub.updated()) {
@@ -272,7 +275,8 @@ void IfodronePositionControl::Run()
 					if (!PX4_ISFINITE(acc_sp(i))) { acc_sp(i) = 0.f; }
 				}
 
-				const Vector3f thr_body = accelerationToThrust(acc_sp, states.yaw);
+				const Vector3f thr_body = accelerationToThrust(acc_sp, states.yaw,
+							vehicle_attitude_valid ? &vehicle_attitude : nullptr);
 
 				// Publish attitude setpoint: level body, yaw from hold state
 				vehicle_attitude_setpoint_s att_sp{};
@@ -421,9 +425,8 @@ void IfodronePositionControl::Run()
 				const float yaw_sp = PX4_ISFINITE(local_pos_sp.yaw) ? local_pos_sp.yaw : states.yaw;
 				const float yawspeed_sp = PX4_ISFINITE(local_pos_sp.yawspeed) ? local_pos_sp.yawspeed : 0.f;
 
-				// Ważne: do transformacji siły na aktualne osie body zwykle użyłbym aktualnego yaw,
-				// niekoniecznie yaw_sp.
-				const Vector3f thr_body = accelerationToThrust(acc_sp, states.yaw);
+				const Vector3f thr_body = accelerationToThrust(acc_sp, states.yaw,
+							vehicle_attitude_valid ? &vehicle_attitude : nullptr);
 
 				vehicle_thrust_setpoint_s thrust_msg{};
 				thrust_msg.timestamp        = hrt_absolute_time();
@@ -469,11 +472,9 @@ void IfodronePositionControl::Run()
 	perf_end(_cycle_perf);
 }
 
-matrix::Vector3f IfodronePositionControl::accelerationToThrust(const Vector3f &acc_sp, float yaw) const
+matrix::Vector3f IfodronePositionControl::accelerationToThrust(const Vector3f &acc_sp, float yaw,
+		const vehicle_attitude_s *attitude) const
 {
-	Vector3f thr_body;
-	thr_body.setZero();
-
 	const float hover_thr = math::constrain(_param_ifo_thr_hover.get(), 0.05f, 0.9f);
 	const float thr_min   = math::constrain(_param_ifo_thr_min.get(), 0.0f, 0.9f);
 	const float thr_max   = math::constrain(_param_ifo_thr_max.get(), thr_min, 1.0f);
@@ -485,20 +486,32 @@ matrix::Vector3f IfodronePositionControl::accelerationToThrust(const Vector3f &a
 	const float thrust_z = math::constrain(
 				       hover_thr - acc_sp(2) * (hover_thr / CONSTANTS_ONE_G),
 				       thr_min, thr_max);
-	// Body Z in PX4 convention is negative (upward)
-	thr_body(2) = -thrust_z;
 
-			// --- XY axes: rotate NED acceleration to body frame via yaw ---
-			// IFODRONE: body is level, so only yaw rotation maps NED XY → body XY
-	const float cos_yaw = cosf(yaw);
-	const float sin_yaw = sinf(yaw);
+	Vector3f thrust_ned(
+		acc_sp(0) * (hover_thr / CONSTANTS_ONE_G),
+		acc_sp(1) * (hover_thr / CONSTANTS_ONE_G),
+		-thrust_z);
 
-	const float ax_body =  cos_yaw * acc_sp(0) + sin_yaw * acc_sp(1);
-	const float ay_body = -sin_yaw * acc_sp(0) + cos_yaw * acc_sp(1);
+	Vector3f thr_body;
 
-	// Convert acceleration to normalized thrust (using hover_thrust/g relationship)
-	thr_body(0) = ax_body * (hover_thr / CONSTANTS_ONE_G);
-	thr_body(1) = ay_body * (hover_thr / CONSTANTS_ONE_G);
+	if (attitude != nullptr
+	    && PX4_ISFINITE(attitude->q[0]) && PX4_ISFINITE(attitude->q[1])
+	    && PX4_ISFINITE(attitude->q[2]) && PX4_ISFINITE(attitude->q[3])) {
+		Quatf q_att(attitude->q);
+		q_att.normalize();
+		thr_body = Dcmf(q_att).transpose() * thrust_ned;
+
+	} else {
+		// Fallback for startup: assume level body and rotate NED XY by yaw only.
+		const float cos_yaw = cosf(yaw);
+		const float sin_yaw = sinf(yaw);
+
+		thr_body(0) =  cos_yaw * thrust_ned(0) + sin_yaw * thrust_ned(1);
+		thr_body(1) = -sin_yaw * thrust_ned(0) + cos_yaw * thrust_ned(1);
+		thr_body(2) = thrust_ned(2);
+	}
+
+	thr_body(2) = math::constrain(thr_body(2), -thr_max, -thr_min);
 
 	// Clamp XY thrust magnitude
 	Vector2f thr_xy(thr_body(0), thr_body(1));

@@ -2,8 +2,8 @@
  * IFODRONE Position Controller
  *
  * Uses the PositionControl library (P-position + PID-velocity) to compute an
- * acceleration setpoint, then converts it to body-frame thrust assuming a
- * nominally level body (no pitch/roll).
+ * acceleration setpoint, then converts it to body-frame thrust using the
+ * current vehicle attitude.
  *
  * Setpoint source (via trajectory_setpoint topic):
  *   - Offboard: external trajectory_setpoint
@@ -11,9 +11,9 @@
  *   - goto_setpoint: direct position target (converted to trajectory_setpoint internally)
  *
  * IFODRONE specifics:
- *   - Body is always level: no pitch/roll attitude generation.
+ *   - Body setpoint is always level: no pitch/roll attitude generation.
  *   - Z thrust is independent (hover_thrust ± correction).
- *   - XY thrust via yaw rotation of NED acceleration to body frame.
+ *   - XY thrust accounts for the current body attitude, including tilted Z thrust.
  *   - Only yaw is published in vehicle_attitude_setpoint.
  */
 
@@ -38,6 +38,7 @@
 #include <uORB/topics/parameter_update.h>
 #include <uORB/topics/takeoff_status.h>
 #include <uORB/topics/trajectory_setpoint.h>
+#include <uORB/topics/vehicle_attitude.h>
 #include <uORB/topics/vehicle_attitude_setpoint.h>
 #include <uORB/topics/vehicle_constraints.h>
 #include <uORB/topics/vehicle_control_mode.h>
@@ -77,9 +78,10 @@ private:
 
 	/**
 	 * Convert PositionControl library acceleration setpoint into body-frame
-	 * thrust for the IFODRONE (level body, yaw rotation only).
+	 * thrust for the IFODRONE.
 	 */
-	matrix::Vector3f accelerationToThrust(const matrix::Vector3f &acc_sp, float yaw) const;
+	matrix::Vector3f accelerationToThrust(const matrix::Vector3f &acc_sp, float yaw,
+					      const vehicle_attitude_s *attitude) const;
 
 	/**
 	 * Adjust setpoint for EKF resets (position/velocity jumps).
@@ -98,6 +100,7 @@ private:
 	// --- Subscriptions ---
 	uORB::SubscriptionInterval         _parameter_update_sub{ORB_ID(parameter_update), 1_s};
 	uORB::SubscriptionCallbackWorkItem _local_pos_sub{this, ORB_ID(vehicle_local_position)};
+	uORB::Subscription                 _vehicle_attitude_sub{ORB_ID(vehicle_attitude)};
 	uORB::Subscription                 _goto_setpoint_sub{ORB_ID(goto_setpoint)};
 	uORB::Subscription                 _manual_control_setpoint_sub{ORB_ID(manual_control_setpoint)};
 	uORB::Subscription                 _trajectory_setpoint_sub{ORB_ID(trajectory_setpoint)};

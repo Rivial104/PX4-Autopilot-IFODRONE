@@ -1,13 +1,14 @@
 /**
  * IFODRONE Attitude Controller
  *
- * Direct PD attitude controller:
- *   - Roll/pitch error → tilt servo angles → published directly to actuator_servos
- *   - Yaw error → yaw torque → published to vehicle_torque_setpoint (CA → main motors)
+ * PD attitude controller — publishes full vehicle_torque_setpoint (roll+pitch+yaw).
+ * The control allocator translates that to tilt servo angles (roll/pitch) and
+ * main motor differential (yaw). mc_rate_control is NOT used.
+ *
+ *   - Roll/pitch error → torque_sp.xyz[0/1] → CA → tilt servos
+ *   - Yaw error        → torque_sp.xyz[2]   → CA → coaxial motor differential
  *   - Manual mode: throttle stick → vehicle_thrust_setpoint
  *   - Position mode: ifo_pos_control publishes vehicle_thrust_setpoint
- *
- * mc_rate_control is NOT used; this module publishes torque/thrust directly.
  */
 
 #pragma once
@@ -21,7 +22,6 @@
 #include <uORB/Publication.hpp>
 #include <uORB/Subscription.hpp>
 #include <uORB/SubscriptionCallback.hpp>
-#include <uORB/topics/actuator_servos.h>
 #include <uORB/topics/manual_control_setpoint.h>
 #include <uORB/topics/parameter_update.h>
 #include <uORB/topics/vehicle_angular_velocity.h>
@@ -64,7 +64,6 @@ private:
 	uORB::Subscription                 _vehicle_status_sub{ORB_ID(vehicle_status)};
 	uORB::Subscription                 _manual_control_setpoint_sub{ORB_ID(manual_control_setpoint)};
 
-	uORB::Publication<actuator_servos_s>         _actuator_servos_pub{ORB_ID(actuator_servos)};
 	uORB::Publication<vehicle_torque_setpoint_s> _vehicle_torque_setpoint_pub{ORB_ID(vehicle_torque_setpoint)};
 	uORB::Publication<vehicle_thrust_setpoint_s> _vehicle_thrust_setpoint_pub{ORB_ID(vehicle_thrust_setpoint)};
 
@@ -75,7 +74,7 @@ private:
 	float       _yaw_setpoint{NAN};
 
 	// Roll/pitch tilt servo PD gains (error [rad] → normalized servo command [-1,1])
-	static constexpr float KP_ATT{0.8f};
+	static constexpr float KP_ATT{1.0f};
 	static constexpr float KD_ATT{0.05f};
 	static constexpr float TILT_LIMIT{1.0f};
 

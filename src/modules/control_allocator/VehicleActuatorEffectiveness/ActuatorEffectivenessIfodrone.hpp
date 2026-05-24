@@ -3,12 +3,13 @@
  *
  * Actuator effectiveness for IfoDrone.
  *
- * Only motors are allocated here.
- * Tilt servo angles are commanded directly by ifo_att_control
- * and read back here to keep motor axes up-to-date.
+ * Both motors and tilt servos are allocated by the CA.
+ * ifo_att_control publishes vehicle_torque_setpoint (roll + pitch + yaw);
+ * the CA translates that to motor speeds and tilt angles.
  *
  *   Motors 0-1 : coaxial pair, fixed −Z axis (Z-thrust + yaw via KM)
- *   Motors 2-5 : side EDFs, axes updated dynamically from tilt state
+ *   Motors 2-5 : side EDFs, fixed horizontal axes
+ *   Servos 0-3 : tilt servos for roll/pitch (front, right, back, left)
  */
 
 #pragma once
@@ -16,9 +17,6 @@
 #include "control_allocation/actuator_effectiveness/ActuatorEffectiveness.hpp"
 #include "ActuatorEffectivenessRotors.hpp"
 #include "ActuatorEffectivenessTilts.hpp"
-
-#include <uORB/Subscription.hpp>
-#include <uORB/topics/actuator_servos.h>
 
 class ActuatorEffectivenessIfodrone : public ModuleParams, public ActuatorEffectiveness
 {
@@ -38,12 +36,15 @@ public:
 		normalize[0] = true;
 	}
 
+	void updateSetpoint(const matrix::Vector<float, NUM_AXES> &control_sp, int matrix_index, ActuatorVector &actuator_sp,
+			    const ActuatorVector &actuator_min, const ActuatorVector &actuator_max) override;
+
 	const char *name() const override { return "IfoDrone"; }
 
-private:
+protected:
 	ActuatorEffectivenessRotors _mc_motors;
 	ActuatorEffectivenessTilts  _tilts;
 
-	uORB::Subscription _actuator_servos_sub{ORB_ID(actuator_servos)};
-	ActuatorVector     _current_tilt_values;
+	int            _first_tilt_idx{0};
+	ActuatorVector _tilt_offsets{};
 };

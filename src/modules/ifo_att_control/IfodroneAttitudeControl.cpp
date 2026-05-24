@@ -122,26 +122,9 @@ void IfodroneAttitudeControl::Run()
 	const float pitch_error = -pitch;
 	const float yaw_error   = wrap_pi(_yaw_setpoint - yaw);
 
-	// ── Roll/pitch → tilt servo angles ───────────────────────────────
-	// PD controller: error [rad] → normalized servo command [-1,1]
-	const float pitch_tilt = math::constrain(KP_ATT * pitch_error - KD_ATT * pitch_rate, -TILT_LIMIT, TILT_LIMIT);
-	const float roll_tilt  = math::constrain(KP_ATT * roll_error  - KD_ATT * roll_rate,  -TILT_LIMIT, TILT_LIMIT);
-
-	// Tilt sign convention derived from SDF joint axes:
-	//   Front (motor_2_joint axis [0,+Y,0]) and Back (motor_4_joint axis [0,-Y,0]) have opposite axes.
-	//   Right (motor_3_joint axis [+X,0,0]) and Left (motor_5_joint axis [-X,0,0]) have opposite axes.
-	//   Opposite axis → same command = physically opposite rotation = opposing torques.
-	//   Negate back and left to make all four servos cooperate in the same torque direction.
-	actuator_servos_s servos{};
-	servos.timestamp        = hrt_absolute_time();
-	servos.timestamp_sample = att.timestamp;
-	servos.control[0] =  pitch_tilt;   // Front: axis +Y
-	servos.control[1] =  roll_tilt;    // Right: axis +X
-	servos.control[2] = -pitch_tilt;   // Back:  axis -Y → negate for same pitch torque direction
-	servos.control[3] = -roll_tilt;    // Left:  axis -X → negate for same roll torque direction
-	_actuator_servos_pub.publish(servos);
-
-	// ── Yaw torque → main motor differential (via CA) ─────────────────
+	// ── Full torque setpoint → CA → motors + tilt servos ────────────
+	// Roll/pitch: CA allocates to tilt servos (ActuatorEffectivenessIfodrone).
+	// Yaw:        CA allocates to coaxial motor differential (via KM).
 	const float yaw_torque = math::constrain(
 					 KP_YAW * yaw_error - KD_YAW * yaw_rate - KFF_YAW * yaw_rate_sp,
 					 -YAW_TORQUE_LIMIT, YAW_TORQUE_LIMIT);
@@ -149,8 +132,8 @@ void IfodroneAttitudeControl::Run()
 	vehicle_torque_setpoint_s torque_sp{};
 	torque_sp.timestamp        = hrt_absolute_time();
 	torque_sp.timestamp_sample = att.timestamp;
-	torque_sp.xyz[0] = 0.f;          // roll torque: handled by tilt servos
-	torque_sp.xyz[1] = 0.f;          // pitch torque: handled by tilt servos
+	torque_sp.xyz[0] = math::constrain(KP_ATT * roll_error  - KD_ATT * roll_rate,  -TILT_LIMIT, TILT_LIMIT);
+	torque_sp.xyz[1] = math::constrain(KP_ATT * pitch_error - KD_ATT * pitch_rate, -TILT_LIMIT, TILT_LIMIT);
 	torque_sp.xyz[2] = yaw_torque;
 	_vehicle_torque_setpoint_pub.publish(torque_sp);
 
