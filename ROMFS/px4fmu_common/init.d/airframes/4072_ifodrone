@@ -166,15 +166,17 @@ param set-default PWM_MAIN_MAX6 2000
 param set-default PWM_MAIN_MAX7 2000
 param set-default PWM_MAIN_MAX8 2000
 
-# Armed idle for main motors: spin at ~1100 us to keep thrust budget for yaw.
-# EDFs set to 1020 us (near minimum) — they only spin up when lateral thrust is needed.
-# Adjust per ESC — must be above the ESC's start threshold (typically 1020-1080 us).
+# Armed idle PWM minimums.
+# Main motors: 1100 us to maintain yaw control authority at idle.
+# Side EDFs: 1100 us so all ESCs reliably spin at armed idle.
+#   With pseudo-inverse trim=0.5 the CA outputs ~0.5 → ~1510 us,
+#   so 1100 mainly guards the first cycle before the CA has a torque setpoint.
 param set-default PWM_MAIN_MIN1 1100
 param set-default PWM_MAIN_MIN2 1100
-param set-default PWM_MAIN_MIN5 1020
-param set-default PWM_MAIN_MIN6 1020
-param set-default PWM_MAIN_MIN7 1020
-param set-default PWM_MAIN_MIN8 1020
+param set-default PWM_MAIN_MIN5 1100
+param set-default PWM_MAIN_MIN6 1100
+param set-default PWM_MAIN_MIN7 1100
+param set-default PWM_MAIN_MIN8 1100
 
 # Disarmed state: 1000 us = zero thrust / ESC standby.
 # Do NOT use values below 1000 — some ESCs enter programming mode at <1000 us.
@@ -227,6 +229,10 @@ param set-default MC_AIRMODE 1
 # IFODRONE position controller defaults
 param set-default IFO_THR_XY_MAX 0.35
 param set-default IFO_THR_HOVER 0.5
+
+# Use pseudo-inverse allocator (CA_METHOD=0), same as SITL.
+# Sequential desaturation (AUTO default) zeroes the side EDF trim=0.5 in practice.
+param set-default CA_METHOD 0
 
 # Auto/takeoff yaw mode: hold heading (mode 4)
 param set-default MPC_YAW_MODE 4
