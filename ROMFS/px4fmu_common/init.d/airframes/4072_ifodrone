@@ -10,19 +10,16 @@
 # Hardware airframe for Matek H743-Slim V3.
 #
 # Output mapping (FMU MAIN, no IO co-processor on H743 Slim):
-#   MAIN1 (S1)  -> Motor 0  (top main, function 101)
+#   MAIN1 (S1)  -> Motor 0  (top main,    function 101)
 #   MAIN2 (S2)  -> Motor 1  (bottom main, function 102)
-#   MAIN3 (S3)  -> Motor 2  (front EDF, function 103)
-#   MAIN4 (S4)  -> Motor 3  (right EDF, function 104)
-#   MAIN5 (S5)  -> Motor 4  (back EDF,  function 105)
-#   MAIN6 (S6)  -> Motor 5  (left EDF,  function 106)
-#   MAIN7 (S7)  -> Tilt servo 0 (front, function 201)
-#   MAIN8 (S8)  -> Tilt servo 1 (right, function 202)
-#   MAIN9 (S9)  -> Tilt servo 2 (back,  function 203)
-#   MAIN10(S10) -> Tilt servo 3 (left,  function 204)
-#
-# To use S1..S4 for the SERVOS instead (your original wiring):
-#   set FUNC1..FUNC4 to 201..204 and FUNC5..FUNC10 to 101..106 - everything else stays.
+#   MAIN5 (S5)  -> Motor 4  (back EDF,    function 105) [side 2]
+#   MAIN6 (S6)  -> Motor 3  (right EDF,   function 104) [side 1]
+#   MAIN7 (S7)  -> Motor 5  (left EDF,    function 106) [side 3]
+#   MAIN8 (S8)  -> Motor 2  (front EDF,   function 103) [side 0]
+#   MAIN9 (S9)  -> Tilt servo 3 (back,    function 203)
+#   MAIN10(S10) -> Tilt servo 4 (left,    function 204)
+#   MAIN11(S11) -> Tilt servo 2 (right,   function 202)
+#   MAIN12(S12) -> Tilt servo 1 (front,   function 201)
 #
 # @maintainer IFODRONE
 #
@@ -123,19 +120,37 @@ param set-default CA_SV_TL3_TD 270
 param set-default CA_SV_TL3_CT 0
 
 # ============================================
-# PWM OUTPUT MAPPING - FMU MAIN (S1..S10)
+# PWM OUTPUT MAPPING - FMU MAIN
 # Function codes:
 #   101..106 = Motor 1..6
 #   201..204 = Servo 1..4
+#
+# Physical wiring:
+#   MAIN1 (S1)  -> Motor 0  (top main,    func 101)
+#   MAIN2 (S2)  -> Motor 1  (bottom main, func 102)
+#   MAIN5 (S5)  -> Motor 4  (back EDF,    func 105) [side 2]
+#   MAIN6 (S6)  -> Motor 3  (right EDF,   func 104) [side 1]
+#   MAIN7 (S7)  -> Motor 5  (left EDF,    func 106) [side 3]
+#   MAIN8 (S8)  -> Motor 2  (front EDF,   func 103) [side 0]
+#   MAIN9 (S9)  -> Tilt servo 3 (back,    func 203)
+#   MAIN10(S10) -> Tilt servo 4 (left,    func 204)
+#   MAIN11(S11) -> Tilt servo 2 (right,   func 202)
+#   MAIN12(S12) -> Tilt servo 1 (front,   func 201)
 # ============================================
 
-# ----- Motors on S1..S6 (DShot or PWM) -----
+# ----- Main coaxial motors on S1..S2 -----
 param set-default PWM_MAIN_FUNC1 101
 param set-default PWM_MAIN_FUNC2 102
-param set-default PWM_MAIN_FUNC3 103
-param set-default PWM_MAIN_FUNC4 104
+
+# ----- Side EDFs on S5..S8 -----
+# MAIN5 = side 2 = back  EDF (Motor 4, func 105)
+# MAIN6 = side 1 = right EDF (Motor 3, func 104)
+# MAIN7 = side 3 = left  EDF (Motor 5, func 106)
+# MAIN8 = side 0 = front EDF (Motor 2, func 103)
 param set-default PWM_MAIN_FUNC5 105
-param set-default PWM_MAIN_FUNC6 106
+param set-default PWM_MAIN_FUNC6 104
+param set-default PWM_MAIN_FUNC7 106
+param set-default PWM_MAIN_FUNC8 103
 
 # Motor PWM range (standard 1000..2000 us; ESCs must be calibrated to this)
 # param set-default PWM_MAIN_MIN1 1000
@@ -146,29 +161,29 @@ param set-default PWM_MAIN_FUNC6 106
 # param set-default PWM_MAIN_MIN6 1000
 param set-default PWM_MAIN_MAX1 2000
 param set-default PWM_MAIN_MAX2 2000
-param set-default PWM_MAIN_MAX3 2000
-param set-default PWM_MAIN_MAX4 2000
 param set-default PWM_MAIN_MAX5 2000
 param set-default PWM_MAIN_MAX6 2000
+param set-default PWM_MAIN_MAX7 2000
+param set-default PWM_MAIN_MAX8 2000
 
 # Armed idle for main motors: spin at ~1100 us to keep thrust budget for yaw.
 # EDFs set to 1020 us (near minimum) — they only spin up when lateral thrust is needed.
 # Adjust per ESC — must be above the ESC's start threshold (typically 1020-1080 us).
 param set-default PWM_MAIN_MIN1 1100
 param set-default PWM_MAIN_MIN2 1100
-param set-default PWM_MAIN_MIN3 1020
-param set-default PWM_MAIN_MIN4 1020
 param set-default PWM_MAIN_MIN5 1020
 param set-default PWM_MAIN_MIN6 1020
+param set-default PWM_MAIN_MIN7 1020
+param set-default PWM_MAIN_MIN8 1020
 
 # Disarmed state: 1000 us = zero thrust / ESC standby.
 # Do NOT use values below 1000 — some ESCs enter programming mode at <1000 us.
 param set-default PWM_MAIN_DIS1 1000
 param set-default PWM_MAIN_DIS2 1000
-param set-default PWM_MAIN_DIS3 1000
-param set-default PWM_MAIN_DIS4 1000
 param set-default PWM_MAIN_DIS5 1000
 param set-default PWM_MAIN_DIS6 1000
+param set-default PWM_MAIN_DIS7 1000
+param set-default PWM_MAIN_DIS8 1000
 
 # Motor update rate. 400 Hz works for analog ESCs.
 # For DShot: set DSHOT_CONFIG instead and leave PWM_MAIN_RATE at default.
@@ -179,8 +194,6 @@ param set-default PWM_MAIN_RATE 400
 # tilt2 (right, func 202) -> MAIN11
 # tilt3 (back,  func 203) -> MAIN9
 # tilt4 (left,  func 204) -> MAIN10
-param set-default PWM_MAIN_FUNC7  0
-param set-default PWM_MAIN_FUNC8  0
 param set-default PWM_MAIN_FUNC9  203
 param set-default PWM_MAIN_FUNC10 204
 param set-default PWM_MAIN_FUNC11 202
