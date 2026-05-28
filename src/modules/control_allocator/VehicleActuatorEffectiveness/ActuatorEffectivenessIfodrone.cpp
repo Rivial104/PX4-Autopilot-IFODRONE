@@ -10,9 +10,9 @@
  *   Motors 0-1 : coaxial pair (−Z axis) — Z-thrust + yaw via differential KM
  *   Motors 2-5 : side EDFs — lateral XY thrust (static horizontal axes)
  *   Servos 0-3 : tilt servos — roll/pitch torque
- *     Servo 0 (front, TD=0):  +1 cmd → +pitch torque (nose up)
+ *     Servo 0 (front, TD=0):  +1 cmd → −pitch torque (nose down)
  *     Servo 1 (right, TD=90): +1 cmd → +roll torque  (right wing down)
- *     Servo 2 (back, TD=180): +1 cmd → −pitch torque (nose down)
+ *     Servo 2 (back, TD=180): +1 cmd → +pitch torque (nose up)
  *     Servo 3 (left, TD=270): +1 cmd → −roll torque  (right wing up)
  */
 
@@ -41,6 +41,13 @@ ActuatorEffectivenessIfodrone::getEffectivenessMatrix(Configuration &configurati
 
 	const bool motors_ok = _mc_motors.addActuators(configuration);
 
+	// Side EDFs are unidirectional. Keep each opposing pair on the same positive
+	// baseline and let CA realize X/Y by increasing one motor and decreasing the
+	// opposite one around that shared midpoint.
+	for (int i = 2; i <= 5; ++i) {
+		configuration.trim[configuration.selected_matrix](i) = 0.5f;
+	}
+
 	_first_tilt_idx = configuration.num_actuators_matrix[0];
 
 	// Manually add 4 tilt servos with physically correct roll/pitch effectiveness.
@@ -49,9 +56,9 @@ ActuatorEffectivenessIfodrone::getEffectivenessMatrix(Configuration &configurati
 	// Sign derivation: a +1 servo command on the front EDF tilts its thrust vector to
 	// create nose-up (positive pitch) torque; back EDF is opposite; right/left create ±roll.
 	static const Vector3f tilt_torques[4] = {
-		{0.f,  1.f, 0.f},   // Servo 0: front (TD=0)   → +pitch (nose up)
+		{0.f, -1.f, 0.f},   // Servo 0: front (TD=0)   → −pitch (nose down)
 		{ 1.f, 0.f, 0.f},   // Servo 1: right (TD=90)  → +roll  (right wing down)
-		{0.f, -1.f, 0.f},   // Servo 2: back  (TD=180) → −pitch (nose down)
+		{0.f,  1.f, 0.f},   // Servo 2: back  (TD=180) → +pitch (nose up)
 		{-1.f, 0.f, 0.f},   // Servo 3: left  (TD=270) → −roll  (right wing up)
 	};
 

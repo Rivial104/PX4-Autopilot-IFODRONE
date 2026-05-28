@@ -139,7 +139,6 @@ private:
 	};
 
 	// --- Hold mode state ---
-	matrix::Vector2f _hold_xy{0.f, 0.f};
 	float            _hold_yaw_angle{0.f};
 	bool             _hold_initialized{false};
 

@@ -302,18 +302,19 @@ uint32_t ActuatorEffectivenessRotors::updateAxisFromTiltSetpoints(const Actuator
 			base_axis = Vector3f(0.f, 0.f, -1.f);
 		}
 
-		// IFODRONE side rotors are configured with horizontal neutral axes (+/-X or +/-Y).
-		// Build a hinge axis that matches the SDF joint axis convention:
-		//   base +X → hinge +Y   (SDF motor_2_joint axis [0,1,0])
-		//   base +Y → hinge +X   (SDF motor_3_joint axis [1,0,0])
-		//   base -X → hinge -Y   (SDF motor_4_joint axis [0,-1,0])
-		//   base -Y → hinge -X   (SDF motor_5_joint axis [-1,0,0])
+		// IFODRONE side rotors use SDF hinge axes fixed by their position.
+		// Do not derive the hinge sign from the thrust axis: front/back thrust
+		// directions can be reversed while the physical tilt joints stay the same.
+		//   x > 0 → hinge +Y   (SDF motor_2_joint axis [0,1,0])
+		//   y > 0 → hinge +X   (SDF motor_3_joint axis [1,0,0])
+		//   x < 0 → hinge -Y   (SDF motor_4_joint axis [0,-1,0])
+		//   y < 0 → hinge -X   (SDF motor_5_joint axis [-1,0,0])
 		Vector3f hinge_axis;
 
-		if (fabsf(base_axis(0)) >= fabsf(base_axis(1))) {
-			hinge_axis = Vector3f(0.f, (base_axis(0) >= 0.f) ? 1.f : -1.f, 0.f);
+		if (fabsf(_geometry.rotors[i].position(0)) >= fabsf(_geometry.rotors[i].position(1))) {
+			hinge_axis = Vector3f(0.f, (_geometry.rotors[i].position(0) >= 0.f) ? 1.f : -1.f, 0.f);
 		} else {
-			hinge_axis = Vector3f((base_axis(1) >= 0.f) ? 1.f : -1.f, 0.f, 0.f);
+			hinge_axis = Vector3f((_geometry.rotors[i].position(1) >= 0.f) ? 1.f : -1.f, 0.f, 0.f);
 		}
 
 		hinge_axis.normalize();

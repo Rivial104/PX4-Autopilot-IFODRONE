@@ -196,6 +196,9 @@ param set-default MC_ROLL_P 1.0
 param set-default MC_PITCH_P 1.0
 param set-default MC_YAW_P 4.8
 param set-default MC_YAW_WEIGHT 0.4
+
+
+
 # param set-default MC_ROLLRATE_MAX 220.0
 # param set-default MC_PITCHRATE_MAX 220.0
 # param set-default MC_YAWRATE_MAX 200.0
@@ -205,21 +208,21 @@ param set-default MC_YAW_WEIGHT 0.4
 # Inner loop: angular rate PID producing body torque.
 # IFODRONE has small roll/pitch authority (tilt servos), so keep gains moderate.
 # ============================================
-param set-default MC_ROLLRATE_P 2.15
-param set-default MC_ROLLRATE_I 0.2
-param set-default MC_ROLLRATE_D 0.003
-param set-default MC_ROLLRATE_K 1.0
-param set-default MC_PITCHRATE_P 2.15
-param set-default MC_PITCHRATE_I 0.2
-param set-default MC_PITCHRATE_D 0.003
-param set-default MC_PITCHRATE_K 1.0
-param set-default MC_YAWRATE_P 2.2
-param set-default MC_YAWRATE_I 0.1
-param set-default MC_YAWRATE_D 0.0
-param set-default MC_YAWRATE_K 1.0
-param set-default MC_RR_INT_LIM 0.30
-param set-default MC_PR_INT_LIM 0.30
-param set-default MC_YR_INT_LIM 0.30
+# param set-default MC_ROLLRATE_P 2.15
+# param set-default MC_ROLLRATE_I 0.2
+# param set-default MC_ROLLRATE_D 0.003
+# param set-default MC_ROLLRATE_K 1.0
+# param set-default MC_PITCHRATE_P 2.15
+# param set-default MC_PITCHRATE_I 0.2
+# param set-default MC_PITCHRATE_D 0.003
+# param set-default MC_PITCHRATE_K 1.0
+# param set-default MC_YAWRATE_P 2.2
+# param set-default MC_YAWRATE_I 0.1
+# param set-default MC_YAWRATE_D 0.0
+# param set-default MC_YAWRATE_K 1.0
+# param set-default MC_RR_INT_LIM 0.30
+# param set-default MC_PR_INT_LIM 0.30
+# param set-default MC_YR_INT_LIM 0.30
 
 # ============================================
 # THRUST / THROTTLE PARAMETERS (used by ifo_att_control manual mode)
@@ -260,9 +263,10 @@ param set-default SIM_GZ_EC_REV 0
 
 param set-default CA_METHOD 0
 
-# EDFs (motors 2-5, bits 2-5 = 0b111100 = 60) are marked bidirectional so the CA
-# uses minimum=-1 for them.  Physical output stays unidirectional: [-1,+1] maps
-# linearly to [MIN=350, MAX=1000] via mixer_module output_limit_calc_single.
-# At CA=0 (no X/Y demand): EDF runs at (350+1000)/2 = 675 (67.5%) — enough idle
-# speed for tilt-based roll/pitch correction to have meaningful force authority.
-# param set-default CA_R_REV 60
+# Side EDFs are physically unidirectional, so keep CA motor outputs positive.
+# ActuatorEffectivenessIfodrone biases motors 2-5 to 0.5, which becomes the
+# shared base throttle for opposing pairs:
+#   X axis: motors 2/4
+#   Y axis: motors 3/5
+# Translation is then created differentially around that common value.
+param set-default CA_R_REV 0
