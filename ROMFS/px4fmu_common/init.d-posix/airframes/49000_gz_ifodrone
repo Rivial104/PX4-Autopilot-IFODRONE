@@ -134,53 +134,53 @@ param set-default SIM_GZ_EC_MAX6 1000
 param set-default CA_SV_TL_COUNT 4
 
 # Tilt 0: Front motor (rotor 2) - tilts around Y axis (90 deg)
-param set-default CA_SV_TL0_MINA -80.0
-param set-default CA_SV_TL0_MAXA 80.0
+param set-default CA_SV_TL0_MINA -60.0
+param set-default CA_SV_TL0_MAXA 90.0
 param set-default CA_SV_TL0_TD 0
 param set-default CA_SV_TL0_CT 0
 param set-default CA_SV0_SLEW 0.0
 param set-default SIM_GZ_SV_FUNC1 201
 param set-default SIM_GZ_SV_MINA1 -60.0
-param set-default SIM_GZ_SV_MAXA1 60.0
+param set-default SIM_GZ_SV_MAXA1 90.0
 param set-default SIM_GZ_SV_MIN1 1000
 param set-default SIM_GZ_SV_DIS1 1500
 param set-default SIM_GZ_SV_MAX1 2000
 
 # Tilt 1: Right motor (rotor 3) - tilts around X axis (90 deg from front)
-param set-default CA_SV_TL1_MINA -80.0
-param set-default CA_SV_TL1_MAXA 80.0
+param set-default CA_SV_TL1_MINA -60.0
+param set-default CA_SV_TL1_MAXA 90.0
 param set-default CA_SV_TL1_TD 90
 param set-default CA_SV_TL1_CT 0
 param set-default CA_SV1_SLEW 0.0
 param set-default SIM_GZ_SV_FUNC2 202
 param set-default SIM_GZ_SV_MINA2 -60.0
-param set-default SIM_GZ_SV_MAXA2 60.0
+param set-default SIM_GZ_SV_MAXA2 90.0
 param set-default SIM_GZ_SV_MIN2 1000
 param set-default SIM_GZ_SV_DIS2 1500
 param set-default SIM_GZ_SV_MAX2 2000
 
 # Tilt 2: Back motor (rotor 4) - tilts around Y axis (180 deg, opposite from front)
-param set-default CA_SV_TL2_MINA -80.0
-param set-default CA_SV_TL2_MAXA 80.0
+param set-default CA_SV_TL2_MINA -60.0
+param set-default CA_SV_TL2_MAXA 90.0
 param set-default CA_SV_TL2_TD 180
 param set-default CA_SV_TL2_CT 0
 param set-default CA_SV2_SLEW 0.0
 param set-default SIM_GZ_SV_FUNC3 203
 param set-default SIM_GZ_SV_MINA3 -60.0
-param set-default SIM_GZ_SV_MAXA3 60.0
+param set-default SIM_GZ_SV_MAXA3 90.0
 param set-default SIM_GZ_SV_MIN3 1000
 param set-default SIM_GZ_SV_DIS3 1500
 param set-default SIM_GZ_SV_MAX3 2000
 
 # Tilt 3: Left motor (rotor 5) - tilts around X axis (270 deg, opposite from right)
-param set-default CA_SV_TL3_MINA -80.0
-param set-default CA_SV_TL3_MAXA 80.0
+param set-default CA_SV_TL3_MINA -60.0
+param set-default CA_SV_TL3_MAXA 90.0
 param set-default CA_SV_TL3_TD 270
 param set-default CA_SV_TL3_CT 0
 param set-default CA_SV3_SLEW 0.0
 param set-default SIM_GZ_SV_FUNC4 204
 param set-default SIM_GZ_SV_MINA4 -60.0
-param set-default SIM_GZ_SV_MAXA4 60.0
+param set-default SIM_GZ_SV_MAXA4 90.0
 param set-default SIM_GZ_SV_MIN4 1000
 param set-default SIM_GZ_SV_DIS4 1500
 param set-default SIM_GZ_SV_MAX4 2000

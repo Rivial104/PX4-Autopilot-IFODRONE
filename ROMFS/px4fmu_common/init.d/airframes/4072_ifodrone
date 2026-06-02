@@ -99,23 +99,23 @@ param set-default CA_ROTOR5_TILT 4
 # ============================================
 param set-default CA_SV_TL_COUNT 4
 
-param set-default CA_SV_TL0_MINA -45.0
-param set-default CA_SV_TL0_MAXA  45.0
+param set-default CA_SV_TL0_MINA -60.0
+param set-default CA_SV_TL0_MAXA  90.0
 param set-default CA_SV_TL0_TD 0
 param set-default CA_SV_TL0_CT 0
 
-param set-default CA_SV_TL1_MINA -45.0
-param set-default CA_SV_TL1_MAXA  45.0
+param set-default CA_SV_TL1_MINA -60.0
+param set-default CA_SV_TL1_MAXA  90.0
 param set-default CA_SV_TL1_TD 90
 param set-default CA_SV_TL1_CT 0
 
-param set-default CA_SV_TL2_MINA -45.0
-param set-default CA_SV_TL2_MAXA  45.0
+param set-default CA_SV_TL2_MINA -60.0
+param set-default CA_SV_TL2_MAXA  90.0
 param set-default CA_SV_TL2_TD 180
 param set-default CA_SV_TL2_CT 0
 
-param set-default CA_SV_TL3_MINA -45.0
-param set-default CA_SV_TL3_MAXA  45.0
+param set-default CA_SV_TL3_MINA -60.0
+param set-default CA_SV_TL3_MAXA  90.0
 param set-default CA_SV_TL3_TD 270
 param set-default CA_SV_TL3_CT 0
 
