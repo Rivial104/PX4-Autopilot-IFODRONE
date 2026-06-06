@@ -96,9 +96,6 @@ void IfodronePositionControl::Run()
 					 ((local_pos.timestamp_sample - _time_stamp_last_loop) * 1e-6f), 0.002f, 0.04f);
 		_time_stamp_last_loop = local_pos.timestamp_sample;
 
-		vehicle_attitude_s vehicle_attitude{};
-		const bool vehicle_attitude_valid = _vehicle_attitude_sub.copy(&vehicle_attitude);
-
 		// --- Update control mode ---
 		if (_vehicle_control_mode_sub.updated()) {
 			const bool prev_pos_ctrl = _vehicle_control_mode.flag_multicopter_position_control_enabled;
@@ -199,9 +196,10 @@ void IfodronePositionControl::Run()
 				manual_control_setpoint_s manual_sp{};
 				_manual_control_setpoint_sub.copy(&manual_sp);
 
-				// Latch yaw only on first entry into hold mode.
+				// Initialise on first entry into hold/POSCTL.
 				if (!_hold_initialized) {
 					_hold_yaw_angle = PX4_ISFINITE(local_pos.heading) ? local_pos.heading : 0.0f;
+					_hold_z = NAN;
 					_control.resetIntegral();
 					_hold_initialized = true;
 				}
@@ -222,22 +220,46 @@ void IfodronePositionControl::Run()
 				static constexpr float YAW_RATE_MAX = 1.5f;
 				_hold_yaw_angle = wrap_pi(_hold_yaw_angle + manual_sp.yaw * YAW_RATE_MAX * dt);
 
-				// Build trajectory setpoint: XY/Z velocity control, no XY position latch.
+				// Build trajectory setpoint.
+				// XY: pass flight_mode_manager setpoint through directly.
+				//     FlightTaskManualPositionSmooth publishes position_sp when stick
+				//     released (position latch) and velocity_sp when stick is pushed.
+				// Z:  latch altitude when throttle is in deadband; velocity otherwise.
 				trajectory_setpoint_s hold_sp = PositionControl::empty_trajectory_setpoint;
-				hold_sp.timestamp  = local_pos.timestamp_sample;
+				hold_sp.timestamp = local_pos.timestamp_sample;
 
-				if (PX4_ISFINITE(_setpoint.velocity[0]) && PX4_ISFINITE(_setpoint.velocity[1])) {
-					hold_sp.velocity[0] = _setpoint.velocity[0];
-					hold_sp.velocity[1] = _setpoint.velocity[1];
+				hold_sp.position[0]     = _setpoint.position[0];
+				hold_sp.position[1]     = _setpoint.position[1];
+				hold_sp.velocity[0]     = _setpoint.velocity[0];
+				hold_sp.velocity[1]     = _setpoint.velocity[1];
+				hold_sp.acceleration[0] = _setpoint.acceleration[0];
+				hold_sp.acceleration[1] = _setpoint.acceleration[1];
 
-				} else {
-					hold_sp.velocity[0] = 0.f;
-					hold_sp.velocity[1] = 0.f;
+				// Fallback: if flight_mode_manager hasn't sent an XY setpoint yet, hold current position.
+				if (!PX4_ISFINITE(hold_sp.position[0]) && !PX4_ISFINITE(hold_sp.velocity[0])) {
+					if (PX4_ISFINITE(states.position(0)) && PX4_ISFINITE(states.position(1))) {
+						hold_sp.position[0] = states.position(0);
+						hold_sp.position[1] = states.position(1);
+					} else {
+						hold_sp.velocity[0] = 0.f;
+						hold_sp.velocity[1] = 0.f;
+					}
 				}
 
-				hold_sp.position[2] = NAN;       // Z controlled by velocity
-				hold_sp.velocity[2] = vel_z_sp;  // NED
-				hold_sp.yaw         = _hold_yaw_angle;
+				// Z: altitude latch when throttle at centre, velocity when pushed.
+				if (fabsf(vel_z_sp) < 1e-5f) {
+					if (!PX4_ISFINITE(_hold_z)) {
+						_hold_z = PX4_ISFINITE(states.position(2)) ? states.position(2) : NAN;
+					}
+					hold_sp.position[2] = _hold_z;
+					hold_sp.velocity[2] = NAN;
+				} else {
+					_hold_z = NAN;
+					hold_sp.position[2] = NAN;
+					hold_sp.velocity[2] = vel_z_sp;
+				}
+
+				hold_sp.yaw = _hold_yaw_angle;
 
 				// Run PID
 				_control.setVelocityLimits(
@@ -277,8 +299,7 @@ void IfodronePositionControl::Run()
 					if (!PX4_ISFINITE(acc_sp(i))) { acc_sp(i) = 0.f; }
 				}
 
-				const Vector3f thr_body = accelerationToThrust(acc_sp, states.yaw,
-							vehicle_attitude_valid ? &vehicle_attitude : nullptr);
+				const Vector3f thr_body = accelerationToThrust(acc_sp);
 
 				vehicle_thrust_setpoint_s thrust_msg{};
 				thrust_msg.timestamp        = hrt_absolute_time();
@@ -301,7 +322,8 @@ void IfodronePositionControl::Run()
 				// -------------------------------------------------------
 				// POSITION / OFFBOARD CONTROL (PID loop)
 				// -------------------------------------------------------
-				_hold_initialized = false; // reset for next hold entry
+				_hold_initialized = false;
+				_hold_z = NAN;
 
 				// Update constraints
 				_vehicle_constraints_sub.update(&_vehicle_constraints);
@@ -433,8 +455,7 @@ void IfodronePositionControl::Run()
 				const float yaw_sp = PX4_ISFINITE(local_pos_sp.yaw) ? local_pos_sp.yaw : states.yaw;
 				const float yawspeed_sp = PX4_ISFINITE(local_pos_sp.yawspeed) ? local_pos_sp.yawspeed : 0.f;
 
-				const Vector3f thr_body = accelerationToThrust(acc_sp, states.yaw,
-							vehicle_attitude_valid ? &vehicle_attitude : nullptr);
+				const Vector3f thr_body = accelerationToThrust(acc_sp);
 
 				vehicle_thrust_setpoint_s thrust_msg{};
 				thrust_msg.timestamp        = hrt_absolute_time();
@@ -462,6 +483,7 @@ void IfodronePositionControl::Run()
 						    false, 10.f, true, local_pos.timestamp_sample);
 			_control.resetIntegral();
 			_hold_initialized = false;
+			_hold_z = NAN;
 		}
 
 		// --- Publish takeoff status ---
@@ -478,57 +500,32 @@ void IfodronePositionControl::Run()
 	perf_end(_cycle_perf);
 }
 
-matrix::Vector3f IfodronePositionControl::accelerationToThrust(const Vector3f &acc_sp, float yaw,
-		const vehicle_attitude_s *attitude) const
+matrix::Vector3f IfodronePositionControl::accelerationToThrust(const Vector3f &acc_sp) const
 {
-	const float hover_thr = math::constrain(_param_ifo_thr_hover.get(), 0.05f, 0.9f);
-	const float thr_min   = math::constrain(_param_ifo_thr_min.get(), 0.0f, 0.9f);
-	const float thr_max   = math::constrain(_param_ifo_thr_max.get(), thr_min, 1.0f);
+	const float hover_thr  = math::constrain(_param_ifo_thr_hover.get(), 0.05f, 0.9f);
+	const float thr_min    = math::constrain(_param_ifo_thr_min.get(), 0.0f, 0.9f);
+	const float thr_max    = math::constrain(_param_ifo_thr_max.get(), thr_min, 1.0f);
 	const float thr_xy_max = math::constrain(_param_ifo_thr_xy_max.get(), 0.0f, 1.0f);
+	const float scale      = hover_thr / CONSTANTS_ONE_G;
 
-	// --- Z axis: hover baseline + correction from vertical acceleration ---
-	// NED: acc_sp(2) > 0 means "push down" → less upward thrust
-	// thrust_z is a positive value representing upward force
-	const float thrust_z = math::constrain(
-				       hover_thr - acc_sp(2) * (hover_thr / CONSTANTS_ONE_G),
-				       thr_min, thr_max);
+	// IFODRONE body is always level — no attitude rotation.
+	// Using the actual attitude rotation here projects Z-thrust onto body XY whenever
+	// the platform tilts even slightly, creating a feedback loop: tilt → spurious XY
+	// command → side EDF activation → more tilt.
+	// Treating body XY = NED XY breaks that loop.
 
-	Vector3f thrust_ned(
-		acc_sp(0) * (hover_thr / CONSTANTS_ONE_G),
-		acc_sp(1) * (hover_thr / CONSTANTS_ONE_G),
-		-thrust_z);
+	// Z: hover baseline ± vertical correction
+	const float thrust_z = math::constrain(hover_thr - acc_sp(2) * scale, thr_min, thr_max);
 
-	Vector3f thr_body;
-
-	if (attitude != nullptr
-	    && PX4_ISFINITE(attitude->q[0]) && PX4_ISFINITE(attitude->q[1])
-	    && PX4_ISFINITE(attitude->q[2]) && PX4_ISFINITE(attitude->q[3])) {
-		Quatf q_att(attitude->q);
-		q_att.normalize();
-
-		// R_nb rotates body vectors to NED. Transpose converts NED thrust to body axes.
-		const Dcmf R_nb(q_att);
-		thr_body = R_nb.transpose() * thrust_ned;
-
-	} else {
-		// Startup fallback: same DCM path, but only yaw is available.
-		const Dcmf R_nb(Eulerf(0.f, 0.f, yaw));
-		thr_body = R_nb.transpose() * thrust_ned;
-	}
-
-	thr_body(2) = math::constrain(thr_body(2), -thr_max, -thr_min);
-
-	// Clamp XY thrust magnitude
-	Vector2f thr_xy(thr_body(0), thr_body(1));
+	// XY: direct proportional scaling, NED ≈ body for a level platform
+	Vector2f thr_xy(acc_sp(0) * scale, acc_sp(1) * scale);
 	const float thr_xy_norm = thr_xy.norm();
 
 	if (thr_xy_norm > thr_xy_max && thr_xy_norm > 1e-5f) {
 		thr_xy *= thr_xy_max / thr_xy_norm;
-		thr_body(0) = thr_xy(0);
-		thr_body(1) = thr_xy(1);
 	}
 
-	return thr_body;
+	return Vector3f(thr_xy(0), thr_xy(1), -thrust_z);
 }
 
 void IfodronePositionControl::adjustSetpointForEKFResets(

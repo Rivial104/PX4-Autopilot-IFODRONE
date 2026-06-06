@@ -211,10 +211,10 @@ param set-default PWM_MAIN_MAX9  2000
 param set-default PWM_MAIN_MAX10 2000
 param set-default PWM_MAIN_MAX11 2000
 param set-default PWM_MAIN_MAX12 2000
-param set-default PWM_MAIN_DIS9  1500
-param set-default PWM_MAIN_DIS10 1500
-param set-default PWM_MAIN_DIS11 1500
-param set-default PWM_MAIN_DIS12 1500
+param set-default PWM_MAIN_DIS9  1700
+param set-default PWM_MAIN_DIS10 1700
+param set-default PWM_MAIN_DIS11 1700
+param set-default PWM_MAIN_DIS12 1700
 
 # ============================================
 # SAFETY / SYSTEM
@@ -233,6 +233,8 @@ param set-default IFO_THR_HOVER 0.5
 # Use pseudo-inverse allocator (CA_METHOD=0), same as SITL.
 # Sequential desaturation (AUTO default) zeroes the side EDF trim=0.5 in practice.
 param set-default CA_METHOD 0
+
+param set-default IFO_TILT_HOVER 45.0
 
 # Auto/takeoff yaw mode: hold heading (mode 4)
 param set-default MPC_YAW_MODE 4

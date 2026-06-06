@@ -125,8 +125,7 @@ void PositionControl::_positionControl()
 {
 	// P-position controller
 	Vector3f vel_sp_position = (_pos_sp - _pos).emult(_gain_pos_p);
-	// Position and feed-forward velocity setpoints or position states being NAN results in them not having an influence
-	ControlMath::addIfNotNanVector3f(_vel_sp, vel_sp_position);
+
 	// make sure there are no NAN elements for further reference while constraining
 	ControlMath::setZeroIfNanVector3f(vel_sp_position);
 
@@ -146,8 +145,12 @@ void PositionControl::_velocityControl(const float dt)
 	Vector3f vel_error = _vel_sp - _vel;
 	Vector3f acc_sp_velocity = vel_error.emult(_gain_vel_p) + _vel_int - _vel_dot.emult(_gain_vel_d);
 
-	// No control input from setpoints or corresponding states which are NAN
-	ControlMath::addIfNotNanVector3f(_acc_sp, acc_sp_velocity);
+	// Replace acc_sp with PID output for velocity-controlled axes (do NOT add to feedforward).
+	for (int i = 0; i < 3; ++i) {
+		if (PX4_ISFINITE(acc_sp_velocity(i))) {
+			_acc_sp(i) = acc_sp_velocity(i);
+		}
+	}
 
 	_accelerationControl();
 
@@ -197,8 +200,9 @@ void PositionControl::_velocityControl(const float dt)
 
 	// Make sure integral doesn't get NAN
 	ControlMath::setZeroIfNanVector3f(vel_error);
-	// Update integral part of velocity control
-	_vel_int += vel_error.emult(_gain_vel_i) * dt;
+	// Z integral only — XY integral disabled to prevent windup at startup.
+	// IFODRONE XY is controlled P-only; integral is not needed for position hold.
+	_vel_int(2) += vel_error(2) * _gain_vel_i(2) * dt;
 }
 
 void PositionControl::_accelerationControl()

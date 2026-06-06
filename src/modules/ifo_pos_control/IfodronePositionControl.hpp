@@ -38,7 +38,6 @@
 #include <uORB/topics/parameter_update.h>
 #include <uORB/topics/takeoff_status.h>
 #include <uORB/topics/trajectory_setpoint.h>
-#include <uORB/topics/vehicle_attitude.h>
 #include <uORB/topics/vehicle_attitude_setpoint.h>
 #include <uORB/topics/vehicle_constraints.h>
 #include <uORB/topics/vehicle_control_mode.h>
@@ -80,8 +79,7 @@ private:
 	 * Convert PositionControl library acceleration setpoint into body-frame
 	 * thrust for the IFODRONE.
 	 */
-	matrix::Vector3f accelerationToThrust(const matrix::Vector3f &acc_sp, float yaw,
-					      const vehicle_attitude_s *attitude) const;
+	matrix::Vector3f accelerationToThrust(const matrix::Vector3f &acc_sp) const;
 
 	/**
 	 * Adjust setpoint for EKF resets (position/velocity jumps).
@@ -100,7 +98,6 @@ private:
 	// --- Subscriptions ---
 	uORB::SubscriptionInterval         _parameter_update_sub{ORB_ID(parameter_update), 1_s};
 	uORB::SubscriptionCallbackWorkItem _local_pos_sub{this, ORB_ID(vehicle_local_position)};
-	uORB::Subscription                 _vehicle_attitude_sub{ORB_ID(vehicle_attitude)};
 	uORB::Subscription                 _goto_setpoint_sub{ORB_ID(goto_setpoint)};
 	uORB::Subscription                 _manual_control_setpoint_sub{ORB_ID(manual_control_setpoint)};
 	uORB::Subscription                 _trajectory_setpoint_sub{ORB_ID(trajectory_setpoint)};
@@ -140,6 +137,7 @@ private:
 
 	// --- Hold mode state ---
 	float            _hold_yaw_angle{0.f};
+	float            _hold_z{NAN};
 	bool             _hold_initialized{false};
 
 	// --- EKF reset counters ---

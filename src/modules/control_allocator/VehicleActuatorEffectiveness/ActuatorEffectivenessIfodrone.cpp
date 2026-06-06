@@ -19,6 +19,8 @@
 #include "ActuatorEffectivenessIfodrone.hpp"
 
 #include <px4_platform_common/log.h>
+#include <lib/mathlib/mathlib.h>
+#include <parameters/param.h>
 
 using namespace matrix;
 
@@ -56,25 +58,33 @@ ActuatorEffectivenessIfodrone::getEffectivenessMatrix(Configuration &configurati
 	// Sign derivation: a +1 servo command on the front EDF tilts its thrust vector to
 	// create nose-up (positive pitch) torque; back EDF is opposite; right/left create ±roll.
 	static const Vector3f tilt_torques[4] = {
-		{0.f, -1.f, 0.f},   // Servo 0: front (TD=0)   → −pitch (nose down)
+		{0.f, 1.f, 0.f},   // Servo 0: front (TD=0)   → −pitch (nose down)
 		{ 1.f, 0.f, 0.f},   // Servo 1: right (TD=90)  → +roll  (right wing down)
 		{0.f,  1.f, 0.f},   // Servo 2: back  (TD=180) → +pitch (nose up)
-		{-1.f, 0.f, 0.f},   // Servo 3: left  (TD=270) → −roll  (right wing up)
+		{1.f, 0.f, 0.f},   // Servo 3: left  (TD=270) → −roll  (right wing up)
 	};
 
 	for (int i = 0; i < 4; ++i) {
 		configuration.addActuator(ActuatorType::SERVOS, tilt_torques[i], Vector3f{});
 	}
 
-	// Tilt offsets: correction so that CA=0 corresponds to level (0° tilt).
-	// For symmetric min/max (e.g. −80° to +80°) this evaluates to 0.
+	// Read hover tilt angle: CA=0 maps to this angle instead of 0° (horizontal).
+	float hover_angle_deg = 0.f;
+	param_t hover_param = param_find("IFO_TILT_HOVER");
+
+	if (hover_param != PARAM_INVALID) {
+		param_get(hover_param, &hover_angle_deg);
+	}
+
+	const float hover_angle_rad = math::radians(hover_angle_deg);
+
 	_tilt_offsets.setZero();
 
 	for (int i = 0; i < _tilts.count(); ++i) {
 		const float delta_angle = _tilts.config(i).max_angle - _tilts.config(i).min_angle;
 
 		if (delta_angle > FLT_EPSILON) {
-			_tilt_offsets(_first_tilt_idx + i) = -1.f - 2.f * _tilts.config(i).min_angle / delta_angle;
+			_tilt_offsets(_first_tilt_idx + i) = 2.f * (hover_angle_rad - _tilts.config(i).min_angle) / delta_angle - 1.f;
 		}
 	}
 
