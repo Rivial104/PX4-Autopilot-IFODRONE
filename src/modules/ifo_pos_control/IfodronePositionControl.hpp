@@ -19,6 +19,7 @@
 
 #pragma once
 
+#include "GotoControl/GotoControl.hpp"
 #include "PositionControl/PositionControl.hpp"
 #include "Takeoff/Takeoff.hpp"
 
@@ -33,7 +34,6 @@
 #include <uORB/Publication.hpp>
 #include <uORB/Subscription.hpp>
 #include <uORB/SubscriptionCallback.hpp>
-#include <uORB/topics/goto_setpoint.h>
 #include <uORB/topics/manual_control_setpoint.h>
 #include <uORB/topics/parameter_update.h>
 #include <uORB/topics/takeoff_status.h>
@@ -94,13 +94,13 @@ private:
 	trajectory_setpoint_s generateFailsafeSetpoint(const hrt_abstime &now, const PositionControlStates &states);
 
 	// --- Core position control ---
+	GotoControl     _goto_control;
 	PositionControl _control;
 	TakeoffHandling _takeoff;
 
 	// --- Subscriptions ---
 	uORB::SubscriptionInterval         _parameter_update_sub{ORB_ID(parameter_update), 1_s};
 	uORB::SubscriptionCallbackWorkItem _local_pos_sub{this, ORB_ID(vehicle_local_position)};
-	uORB::Subscription                 _goto_setpoint_sub{ORB_ID(goto_setpoint)};
 	uORB::Subscription                 _manual_control_setpoint_sub{ORB_ID(manual_control_setpoint)};
 	uORB::Subscription                 _trajectory_setpoint_sub{ORB_ID(trajectory_setpoint)};
 	uORB::Subscription		   _vehicle_attitude_sub{ORB_ID(vehicle_attitude)};
@@ -149,9 +149,6 @@ private:
 	uint8_t _xy_reset_counter{0};
 	uint8_t _z_reset_counter{0};
 	uint8_t _heading_reset_counter{0};
-
-	// --- Constants ---
-	static constexpr uint64_t TRAJECTORY_STREAM_TIMEOUT_US = 500_ms;
 
 	DEFINE_PARAMETERS(
 		(ParamFloat<px4::params::IFO_POS_Z_P>)   _param_ifo_pos_z_p,

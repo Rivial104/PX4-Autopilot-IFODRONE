@@ -145,20 +145,35 @@ void IfodroneAttitudeControl::Run()
 	torque_sp.xyz[2] = yaw_torque;
 	_vehicle_torque_setpoint_pub.publish(torque_sp);
 
-	// ── Thrust (manual mode only) ──────────────────────────────────────
-	// In position/auto modes, ifo_pos_control publishes vehicle_thrust_setpoint.
-	if (manual_mode) {
-		const float throttle_raw = (_manual_control_setpoint.throttle + 1.f) * 0.5f;
-		const float throttle     = THROTTLE_IDLE + throttle_raw * (1.f - THROTTLE_IDLE);
+	// ── Thrust ────────────────────────────────────────────────────────
+	// ifo_pos_control handles Z thrust when position control is active.
+	// This module handles it in all other cases to prevent altitude loss
+	// when no other module is publishing thrust.
+	const bool pos_ctrl_active = _vehicle_control_mode.flag_multicopter_position_control_enabled;
+
+	if (!pos_ctrl_active) {
+		float thrust_z;
+
+		if (manual_mode) {
+			// Pure stabilize: throttle stick [-1,+1] → [IDLE, 1.0]
+			const float throttle_raw = (_manual_control_setpoint.throttle + 1.f) * 0.5f;
+			thrust_z = -(THROTTLE_IDLE + throttle_raw * (1.f - THROTTLE_IDLE));
+		} else {
+			// ALTCTL or any other mode without position control active.
+			// Publish hover thrust so altitude doesn't immediately drop
+			// during mode transitions or before ifo_pos_control starts.
+			thrust_z = -math::constrain(_param_ifo_thr_hover.get(), 0.05f, 0.9f);
+		}
 
 		vehicle_thrust_setpoint_s thrust_sp{};
 		thrust_sp.timestamp        = hrt_absolute_time();
 		thrust_sp.timestamp_sample = att.timestamp;
 		thrust_sp.xyz[0] = 0.f;
 		thrust_sp.xyz[1] = 0.f;
-		thrust_sp.xyz[2] = -throttle;
+		thrust_sp.xyz[2] = thrust_z;
 		_vehicle_thrust_setpoint_pub.publish(thrust_sp);
 	}
+	// else: ifo_pos_control is active and publishes vehicle_thrust_setpoint
 
 	perf_end(_loop_perf);
 }

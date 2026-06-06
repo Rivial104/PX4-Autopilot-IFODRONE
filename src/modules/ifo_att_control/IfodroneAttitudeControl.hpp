@@ -74,16 +74,17 @@ private:
 	hrt_abstime _last_run{0};
 	float       _yaw_setpoint{NAN};
 
-	static constexpr float TILT_LIMIT{50.0f};
-	static constexpr float YAW_TORQUE_LIMIT{50.0f};
+	static constexpr float TILT_LIMIT{100.0f};
+	static constexpr float YAW_TORQUE_LIMIT{100.0f};
 	static constexpr float THROTTLE_IDLE{0.05f};
 	static constexpr float KFF_YAW{0.0f};
 
 	DEFINE_PARAMETERS(
-		(ParamFloat<px4::params::IFO_ATT_P>) _param_ifo_att_p,
-		(ParamFloat<px4::params::IFO_ATT_D>) _param_ifo_att_d,
-		(ParamFloat<px4::params::IFO_YAW_P>) _param_ifo_yaw_p,
-		(ParamFloat<px4::params::IFO_YAW_D>) _param_ifo_yaw_d
+		(ParamFloat<px4::params::IFO_ATT_P>)   _param_ifo_att_p,
+		(ParamFloat<px4::params::IFO_ATT_D>)   _param_ifo_att_d,
+		(ParamFloat<px4::params::IFO_YAW_P>)   _param_ifo_yaw_p,
+		(ParamFloat<px4::params::IFO_YAW_D>)   _param_ifo_yaw_d,
+		(ParamFloat<px4::params::IFO_THR_HOVER>) _param_ifo_thr_hover
 	)
 
 	perf_counter_t _loop_perf;

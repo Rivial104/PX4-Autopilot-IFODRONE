@@ -71,6 +71,19 @@ void IfodronePositionControl::parameters_update(bool force)
 		_takeoff.setSpoolupTime(_param_com_spoolup_time.get());
 		_takeoff.setTakeoffRampTime(_param_ifo_tko_ramp_t.get());
 		_takeoff.generateInitialRampValue(_param_ifo_vel_z_p.get());
+
+		// GotoControl smoothing parameters mapped from IFO_* params
+		_goto_control.setParamMpcAccHor(3.0f);
+		_goto_control.setParamMpcAccDownMax(3.0f);
+		_goto_control.setParamMpcAccUpMax(3.0f);
+		_goto_control.setParamMpcJerkAuto(8.0f);
+		_goto_control.setParamMpcXyCruise(_param_ifo_vel_max_xy.get());
+		_goto_control.setParamMpcXyErrMax(1.0f);
+		_goto_control.setParamMpcXyVelMax(_param_ifo_vel_max_xy.get());
+		_goto_control.setParamMpcYawrautoMax(1.0f);
+		_goto_control.setParamMpcYawrautoAcc(3.14f);
+		_goto_control.setParamMpcZVAutoDn(_param_ifo_vel_max_dn.get());
+		_goto_control.setParamMpcZVAutoUp(_param_ifo_vel_max_up.get());
 	}
 }
 
@@ -147,30 +160,14 @@ void IfodronePositionControl::Run()
 		states.acceleration = Vector3f(local_pos.ax, local_pos.ay, local_pos.az);
 		states.yaw = local_pos.heading;
 
-		// --- Handle goto_setpoint → trajectory_setpoint conversion ---
-		// If a goto_setpoint is available and no trajectory_setpoint was freshly published,
-		// convert goto to a trajectory_setpoint (simple: position target, no smoothing).
-		if (_vehicle_control_mode.flag_multicopter_position_control_enabled
-		    && !_trajectory_setpoint_sub.updated()) {
+		// --- Handle goto_setpoint with PositionSmoothing via GotoControl ---
+		// GotoControl reads goto_setpoint and publishes a smoothed trajectory_setpoint.
+		// Only activate when position control is enabled and no external trajectory was just published.
+		const bool goto_setpoint_enable = _vehicle_control_mode.flag_multicopter_position_control_enabled
+						  && !_trajectory_setpoint_sub.updated();
 
-			goto_setpoint_s goto_sp;
-
-			if (_goto_setpoint_sub.update(&goto_sp) && goto_sp.timestamp != 0
-			    && (hrt_absolute_time() - goto_sp.timestamp < TRAJECTORY_STREAM_TIMEOUT_US)) {
-
-				// Convert goto to trajectory setpoint
-				trajectory_setpoint_s traj = PositionControl::empty_trajectory_setpoint;
-				traj.timestamp = goto_sp.timestamp;
-				traj.position[0] = goto_sp.position[0];
-				traj.position[1] = goto_sp.position[1];
-				traj.position[2] = goto_sp.position[2];
-
-				if (goto_sp.flag_control_heading && PX4_ISFINITE(goto_sp.heading)) {
-					traj.yaw = goto_sp.heading;
-				}
-
-				_setpoint = traj;
-			}
+		if (_goto_control.checkForSetpoint(local_pos.timestamp_sample, goto_setpoint_enable)) {
+			_goto_control.update(dt, states.position, states.yaw);
 		}
 
 		// --- Read trajectory setpoint ---
