@@ -96,6 +96,10 @@ void IfodronePositionControl::Run()
 					 ((local_pos.timestamp_sample - _time_stamp_last_loop) * 1e-6f), 0.002f, 0.04f);
 		_time_stamp_last_loop = local_pos.timestamp_sample;
 
+		vehicle_attitude_s vehicle_attitude{};
+		// const bool vehicle_attitude_valid = _vehicle_attitude_sub.copy(&vehicle_attitude);
+		_vehicle_attitude_sub.copy(&vehicle_attitude);
+
 		// --- Update control mode ---
 		if (_vehicle_control_mode_sub.updated()) {
 			const bool prev_pos_ctrl = _vehicle_control_mode.flag_multicopter_position_control_enabled;
@@ -299,7 +303,7 @@ void IfodronePositionControl::Run()
 					if (!PX4_ISFINITE(acc_sp(i))) { acc_sp(i) = 0.f; }
 				}
 
-				const Vector3f thr_body = accelerationToThrust(acc_sp);
+				const Vector3f thr_body = accelerationToThrust(acc_sp, states.yaw, &vehicle_attitude);
 
 				vehicle_thrust_setpoint_s thrust_msg{};
 				thrust_msg.timestamp        = hrt_absolute_time();
@@ -455,7 +459,7 @@ void IfodronePositionControl::Run()
 				const float yaw_sp = PX4_ISFINITE(local_pos_sp.yaw) ? local_pos_sp.yaw : states.yaw;
 				const float yawspeed_sp = PX4_ISFINITE(local_pos_sp.yawspeed) ? local_pos_sp.yawspeed : 0.f;
 
-				const Vector3f thr_body = accelerationToThrust(acc_sp);
+				const Vector3f thr_body = accelerationToThrust(acc_sp, states.yaw, &vehicle_attitude);
 
 				vehicle_thrust_setpoint_s thrust_msg{};
 				thrust_msg.timestamp        = hrt_absolute_time();
@@ -500,32 +504,57 @@ void IfodronePositionControl::Run()
 	perf_end(_cycle_perf);
 }
 
-matrix::Vector3f IfodronePositionControl::accelerationToThrust(const Vector3f &acc_sp) const
+matrix::Vector3f IfodronePositionControl::accelerationToThrust(const Vector3f &acc_sp, float yaw,
+		const vehicle_attitude_s *attitude) const
 {
-	const float hover_thr  = math::constrain(_param_ifo_thr_hover.get(), 0.05f, 0.9f);
-	const float thr_min    = math::constrain(_param_ifo_thr_min.get(), 0.0f, 0.9f);
-	const float thr_max    = math::constrain(_param_ifo_thr_max.get(), thr_min, 1.0f);
+	const float hover_thr = math::constrain(_param_ifo_thr_hover.get(), 0.05f, 0.9f);
+	const float thr_min   = math::constrain(_param_ifo_thr_min.get(), 0.0f, 0.9f);
+	const float thr_max   = math::constrain(_param_ifo_thr_max.get(), thr_min, 1.0f);
 	const float thr_xy_max = math::constrain(_param_ifo_thr_xy_max.get(), 0.0f, 1.0f);
-	const float scale      = hover_thr / CONSTANTS_ONE_G;
 
-	// IFODRONE body is always level — no attitude rotation.
-	// Using the actual attitude rotation here projects Z-thrust onto body XY whenever
-	// the platform tilts even slightly, creating a feedback loop: tilt → spurious XY
-	// command → side EDF activation → more tilt.
-	// Treating body XY = NED XY breaks that loop.
+	// --- Z axis: hover baseline + correction from vertical acceleration ---
+	// NED: acc_sp(2) > 0 means "push down" → less upward thrust
+	// thrust_z is a positive value representing upward force
+	const float thrust_z = math::constrain(
+				       hover_thr - acc_sp(2) * (hover_thr / CONSTANTS_ONE_G),
+				       thr_min, thr_max);
 
-	// Z: hover baseline ± vertical correction
-	const float thrust_z = math::constrain(hover_thr - acc_sp(2) * scale, thr_min, thr_max);
+	Vector3f thrust_ned(
+		acc_sp(0) * (hover_thr / CONSTANTS_ONE_G),
+		acc_sp(1) * (hover_thr / CONSTANTS_ONE_G),
+		-thrust_z);
 
-	// XY: direct proportional scaling, NED ≈ body for a level platform
-	Vector2f thr_xy(acc_sp(0) * scale, acc_sp(1) * scale);
+	Vector3f thr_body;
+
+	if (attitude != nullptr
+	    && PX4_ISFINITE(attitude->q[0]) && PX4_ISFINITE(attitude->q[1])
+	    && PX4_ISFINITE(attitude->q[2]) && PX4_ISFINITE(attitude->q[3])) {
+		Quatf q_att(attitude->q);
+		q_att.normalize();
+
+		// R_nb rotates body vectors to NED. Transpose converts NED thrust to body axes.
+		const Dcmf R_nb(q_att);
+		thr_body = R_nb.transpose() * thrust_ned;
+
+	} else {
+		// Startup fallback: same DCM path, but only yaw is available.
+		const Dcmf R_nb(Eulerf(0.f, 0.f, yaw));
+		thr_body = R_nb.transpose() * thrust_ned;
+	}
+
+	thr_body(2) = math::constrain(thr_body(2), -thr_max, -thr_min);
+
+	// Clamp XY thrust magnitude
+	Vector2f thr_xy(thr_body(0), thr_body(1));
 	const float thr_xy_norm = thr_xy.norm();
 
 	if (thr_xy_norm > thr_xy_max && thr_xy_norm > 1e-5f) {
 		thr_xy *= thr_xy_max / thr_xy_norm;
+		thr_body(0) = thr_xy(0);
+		thr_body(1) = thr_xy(1);
 	}
 
-	return Vector3f(thr_xy(0), thr_xy(1), -thrust_z);
+	return thr_body;
 }
 
 void IfodronePositionControl::adjustSetpointForEKFResets(

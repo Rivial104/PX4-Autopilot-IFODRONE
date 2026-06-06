@@ -38,6 +38,7 @@
 #include <uORB/topics/parameter_update.h>
 #include <uORB/topics/takeoff_status.h>
 #include <uORB/topics/trajectory_setpoint.h>
+#include <uORB/topics/vehicle_attitude.h>
 #include <uORB/topics/vehicle_attitude_setpoint.h>
 #include <uORB/topics/vehicle_constraints.h>
 #include <uORB/topics/vehicle_control_mode.h>
@@ -79,7 +80,8 @@ private:
 	 * Convert PositionControl library acceleration setpoint into body-frame
 	 * thrust for the IFODRONE.
 	 */
-	matrix::Vector3f accelerationToThrust(const matrix::Vector3f &acc_sp) const;
+	matrix::Vector3f accelerationToThrust(const matrix::Vector3f &acc_sp_ned, float yaw,
+					       const vehicle_attitude_s *attitude) const;
 
 	/**
 	 * Adjust setpoint for EKF resets (position/velocity jumps).
@@ -101,6 +103,7 @@ private:
 	uORB::Subscription                 _goto_setpoint_sub{ORB_ID(goto_setpoint)};
 	uORB::Subscription                 _manual_control_setpoint_sub{ORB_ID(manual_control_setpoint)};
 	uORB::Subscription                 _trajectory_setpoint_sub{ORB_ID(trajectory_setpoint)};
+	uORB::Subscription		   _vehicle_attitude_sub{ORB_ID(vehicle_attitude)};
 	uORB::Subscription                 _vehicle_constraints_sub{ORB_ID(vehicle_constraints)};
 	uORB::Subscription                 _vehicle_control_mode_sub{ORB_ID(vehicle_control_mode)};
 	uORB::Subscription                 _vehicle_land_detected_sub{ORB_ID(vehicle_land_detected)};

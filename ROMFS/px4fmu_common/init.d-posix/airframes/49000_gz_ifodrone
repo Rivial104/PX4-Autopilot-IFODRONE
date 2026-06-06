@@ -257,7 +257,7 @@ param set-default FD_FAIL_P 0
 # Mode 0 (default) makes FlightTaskAuto rotate the heading toward the next
 # waypoint, which causes the IFODRONE to spin during HOLD because the smoothed
 # velocity vector wanders. Mode 4 = no auto-yaw, hold last commanded heading.
-param set-default MPC_YAW_MODE 4
+param set-default MPC_YAW_MODE 0
 
 param set-default SIM_GZ_EC_REV 0
 

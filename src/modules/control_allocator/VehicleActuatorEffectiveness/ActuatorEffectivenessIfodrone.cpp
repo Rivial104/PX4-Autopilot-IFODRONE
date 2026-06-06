@@ -43,11 +43,10 @@ ActuatorEffectivenessIfodrone::getEffectivenessMatrix(Configuration &configurati
 
 	const bool motors_ok = _mc_motors.addActuators(configuration);
 
-	// Side EDFs are unidirectional. Keep each opposing pair on the same positive
-	// baseline and let CA realize X/Y by increasing one motor and decreasing the
-	// opposite one around that shared midpoint.
+	// Side EDFs are unidirectional. Trim sets the shared idle baseline for each
+	// opposing pair; CA allocates differentially (one up, one down by equal delta).
 	for (int i = 2; i <= 5; ++i) {
-		configuration.trim[configuration.selected_matrix](i) = 0.5f;
+		configuration.trim[configuration.selected_matrix](i) = 0.2f;
 	}
 
 	_first_tilt_idx = configuration.num_actuators_matrix[0];
@@ -58,8 +57,8 @@ ActuatorEffectivenessIfodrone::getEffectivenessMatrix(Configuration &configurati
 	// Sign derivation: a +1 servo command on the front EDF tilts its thrust vector to
 	// create nose-up (positive pitch) torque; back EDF is opposite; right/left create ±roll.
 	static const Vector3f tilt_torques[4] = {
-		{0.f, 1.f, 0.f},   // Servo 0: front (TD=0)   → −pitch (nose down)
-		{ 1.f, 0.f, 0.f},   // Servo 1: right (TD=90)  → +roll  (right wing down)
+		{0.f, -1.f, 0.f},   // Servo 0: front (TD=0)   → −pitch (nose down)
+		{ -1.f, 0.f, 0.f},   // Servo 1: right (TD=90)  → +roll  (right wing down)
 		{0.f,  1.f, 0.f},   // Servo 2: back  (TD=180) → +pitch (nose up)
 		{1.f, 0.f, 0.f},   // Servo 3: left  (TD=270) → −roll  (right wing up)
 	};

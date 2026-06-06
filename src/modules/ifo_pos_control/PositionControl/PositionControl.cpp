@@ -132,8 +132,11 @@ void PositionControl::_positionControl()
 	// Constrain horizontal velocity by prioritizing the velocity component along the
 	// the desired position setpoint over the feed-forward term.
 	_vel_sp.xy() = ControlMath::constrainXY(vel_sp_position.xy(), (_vel_sp - vel_sp_position).xy(), _lim_vel_horizontal);
-	// Constrain velocity in z-direction.
-	_vel_sp(2) = math::constrain(_vel_sp(2), -_lim_vel_up, _lim_vel_down);
+	// Add Z position P-controller output to any Z velocity feedforward, then clamp.
+	// Without vel_sp_position(2), a pure position setpoint has no altitude feedback.
+	// Treat NaN feedforward as 0 so position P still works when FMM omits velocity[2].
+	const float vel_z_ff = PX4_ISFINITE(_vel_sp(2)) ? _vel_sp(2) : 0.f;
+	_vel_sp(2) = math::constrain(vel_sp_position(2) + vel_z_ff, -_lim_vel_up, _lim_vel_down);
 }
 
 void PositionControl::_velocityControl(const float dt)
