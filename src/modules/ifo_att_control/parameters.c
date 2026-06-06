@@ -14,33 +14,52 @@
 PARAM_DEFINE_FLOAT(IFO_TILT_HOVER, 45.0f);
 
 /**
-* Maximum value for servo calibration.
+* Attitude controller proportional gain (roll/pitch).
 *
-* @reboot_required true
-* @group Actuators
+* P gain applied to roll and pitch angle error.
+* Increase to stiffen attitude hold; decrease if oscillating.
+*
+* @unit norm
+* @min 0.0
+* @max 10.0
+* @decimal 2
+* @group IFODRONE Attitude Control
 */
-PARAM_DEFINE_FLOAT(IFO_XY_P, 1.0f);
+PARAM_DEFINE_FLOAT(IFO_ATT_P, 2.0f);
 
 /**
-* Minimum value for servo calibration.
+* Attitude controller derivative gain (roll/pitch).
 *
-* @reboot_required true
-* @group Actuators
+* D gain applied to roll and pitch rate (angular velocity).
+* Provides damping — critical for preventing diverging oscillations.
+* Start at 0.05 and increase until oscillations are damped.
+*
+* @unit norm
+* @min 0.0
+* @max 2.0
+* @decimal 3
+* @group IFODRONE Attitude Control
 */
-PARAM_DEFINE_FLOAT(IFO_Z_P, -1.0f);
+PARAM_DEFINE_FLOAT(IFO_ATT_D, 0.2f);
 
 /**
-* Step value for servo calibration.
+* Yaw controller proportional gain.
 *
-* @reboot_required true
-* @group Actuators
+* @unit norm
+* @min 0.0
+* @max 5.0
+* @decimal 2
+* @group IFODRONE Attitude Control
 */
-PARAM_DEFINE_FLOAT(IFO_ACC_HOR, 0.1f);
+PARAM_DEFINE_FLOAT(IFO_YAW_P, 0.3f);
 
 /**
-* Step value for servo calibration.
+* Yaw controller derivative gain.
 *
-* @reboot_required true
-* @group Actuators
+* @unit norm
+* @min 0.0
+* @max 1.0
+* @decimal 3
+* @group IFODRONE Attitude Control
 */
-PARAM_DEFINE_FLOAT(IFO_ACC_UP, 0.1f);
+PARAM_DEFINE_FLOAT(IFO_YAW_D, 0.1f);

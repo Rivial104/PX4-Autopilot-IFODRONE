@@ -118,30 +118,35 @@ void IfodroneAttitudeControl::Run()
 	}
 
 	// ── Attitude errors ───────────────────────────────────────────────
-	const float roll_error  = -roll;   // setpoint always 0 (level)
-	const float pitch_error = -pitch;
+	// Setpoint is always level (0 roll, 0 pitch).
+	// Negative sign: positive roll → need negative torque to correct.
+	// Sign chain: roll > 0 → error < 0 → torque_sp < 0 → CA → servo corrects.
+	const float roll_error  = roll;
+	const float pitch_error = pitch;
 	const float yaw_error   = wrap_pi(_yaw_setpoint - yaw);
+
+	const float kp  = _param_ifo_att_p.get();
+	const float kd  = _param_ifo_att_d.get();
+	const float kyp = _param_ifo_yaw_p.get();
+	const float kyd = _param_ifo_yaw_d.get();
 
 	// ── Full torque setpoint → CA → motors + tilt servos ────────────
 	// Roll/pitch: CA allocates to tilt servos (ActuatorEffectivenessIfodrone).
 	// Yaw:        CA allocates to coaxial motor differential (via KM).
 	const float yaw_torque = math::constrain(
-					 KP_YAW * yaw_error - KD_YAW * yaw_rate - KFF_YAW * yaw_rate_sp,
+					 kyp * yaw_error - kyd * yaw_rate - KFF_YAW * yaw_rate_sp,
 					 -YAW_TORQUE_LIMIT, YAW_TORQUE_LIMIT);
 
 	vehicle_torque_setpoint_s torque_sp{};
 	torque_sp.timestamp        = hrt_absolute_time();
 	torque_sp.timestamp_sample = att.timestamp;
-	torque_sp.xyz[0] = math::constrain(KP_ATT * roll_error  - KD_ATT * roll_rate,  -TILT_LIMIT, TILT_LIMIT);
-	torque_sp.xyz[1] = math::constrain(KP_ATT * pitch_error - KD_ATT * pitch_rate, -TILT_LIMIT, TILT_LIMIT);
+	torque_sp.xyz[0] = math::constrain(kp * roll_error  - kd * roll_rate,  -TILT_LIMIT, TILT_LIMIT);
+	torque_sp.xyz[1] = math::constrain(kp * pitch_error - kd * pitch_rate, -TILT_LIMIT, TILT_LIMIT);
 	torque_sp.xyz[2] = yaw_torque;
 	_vehicle_torque_setpoint_pub.publish(torque_sp);
 
 	// ── Thrust (manual mode only) ──────────────────────────────────────
 	// In position/auto modes, ifo_pos_control publishes vehicle_thrust_setpoint.
-	// XY = 0: CA commands all 4 side EDFs symmetrically at PWM_MIN idle.
-	// A non-zero XY stick would activate only the EDFs pointing in that direction,
-	// leaving the opposing pair at zero — asymmetric and bad for stabilization.
 	if (manual_mode) {
 		const float throttle_raw = (_manual_control_setpoint.throttle + 1.f) * 0.5f;
 		const float throttle     = THROTTLE_IDLE + throttle_raw * (1.f - THROTTLE_IDLE);
