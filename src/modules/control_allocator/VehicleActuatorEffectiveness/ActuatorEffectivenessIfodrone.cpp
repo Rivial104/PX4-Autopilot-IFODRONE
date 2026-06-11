@@ -55,12 +55,12 @@ ActuatorEffectivenessIfodrone::getEffectivenessMatrix(Configuration &configurati
 	// The standard ActuatorEffectivenessTilts::updateTorqueSign only handles pitch and
 	// yaw; it cannot represent right/left tilts that create roll torque.
 	// Sign derivation: a +1 servo command on the front EDF tilts its thrust vector to
-	// create nose-up (positive pitch) torque; back EDF is opposite; right/left create ±roll.
+	// create nose-down (negative pitch) torque; back EDF is opposite; right/left create ±roll.
 	static const Vector3f tilt_torques[4] = {
-		{0.f, -1.f, 0.f},   // Servo 0: front (TD=0)   → −pitch (nose down)
-		{1.f,  0.f, 0.f},   // Servo 1: right (TD=90)  → +roll  (right wing down)
-		{0.f,  1.f, 0.f},   // Servo 2: back  (TD=180) → +pitch (nose up)
-		{-1.f, 0.f, 0.f},   // Servo 3: left  (TD=270) → −roll  (right wing up)
+		{0.f,  1.f, 0.f},   // Servo 0: front (TD=0)   → +pitch (nose up)
+		{-1.f, 0.f, 0.f},   // Servo 1: right (TD=90)  → −roll  (right wing up)
+		{0.f, -1.f, 0.f},   // Servo 2: back  (TD=180) → −pitch (nose down)
+		{1.f,  0.f, 0.f},   // Servo 3: left  (TD=270) → +roll  (right wing down)
 	};
 
 	for (int i = 0; i < 4; ++i) {

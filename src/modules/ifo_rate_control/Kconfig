@@ -1,0 +1,12 @@
+menuconfig MODULES_IFO_RATE_CONTROL
+	bool "ifo_rate_control"
+	default n
+	---help---
+		Enable support for ifo_rate_control
+
+menuconfig USER_IFO_RATE_CONTROL
+	bool "ifo_rate_control running as userspace module"
+	default y
+	depends on BOARD_PROTECTED && MODULES_IFO_RATE_CONTROL
+	---help---
+		Put ifo_rate_control in userspace memory

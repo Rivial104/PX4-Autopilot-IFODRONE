@@ -1,29 +1,17 @@
 #!/bin/sh
 #
-# IfoDrone specific apps.
-# ifo_att_control: direct PD → actuator_servos (tilts) + vehicle_torque_setpoint (yaw)
-# ifo_pos_control: trajectory_setpoint → vehicle_thrust_setpoint
-# control_allocator: torque/thrust → actuator_motors (no servos — ifo_att_control owns those)
+# IfoDrone specific apps — cascaded attitude/rate control.
 #
-# NOTE: mc_rate_control is NOT used; ifo_att_control publishes torque/thrust directly.
+# ifo_att_control : attitude P   → vehicle_rates_setpoint
+# ifo_rate_control: rate PD      → vehicle_torque_setpoint
+# ifo_pos_control : trajectory   → vehicle_thrust_setpoint
+# control_allocator: torque/thrust → actuator outputs
 #
 
 control_allocator start
 ifo_att_control start
+ifo_rate_control start
 ifo_pos_control start
-# Start IfoDrone Position Controller (trajectory_setpoint -> vehicle_attitude_setpoint)
-#
-
-
-#
-# Start IfoDrone Attitude Controller (attitude P -> vehicle_rates_setpoint)
-#
-
-
-#
-# Start Rate Controller (rate PID -> vehicle_torque_setpoint + vehicle_thrust_setpoint)
-#
-
 
 #
 # Start Hover Thrust Estimator (needed for thrust estimation)
