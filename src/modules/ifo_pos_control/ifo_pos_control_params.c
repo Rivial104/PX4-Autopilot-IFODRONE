@@ -18,7 +18,7 @@ PARAM_DEFINE_FLOAT(IFO_POS_Z_P, 1.0f);
  * @decimal 2
  * @group IFODRONE Position Control
  */
-PARAM_DEFINE_FLOAT(IFO_VEL_Z_P, 4.0f);
+PARAM_DEFINE_FLOAT(IFO_VEL_Z_P, 1.0f);
 
 /**
  * Velocity Z integral gain
@@ -81,7 +81,7 @@ PARAM_DEFINE_FLOAT(IFO_VEL_XY_D, 0.2f);
  * @decimal 2
  * @group IFODRONE Position Control
  */
-PARAM_DEFINE_FLOAT(IFO_THR_MAX, 0.9f);
+PARAM_DEFINE_FLOAT(IFO_THR_MAX, 0.8f);
 
 /**
  * Minimum thrust (main motors)

@@ -111,7 +111,6 @@ private:
 	// --- Publications ---
 	uORB::Publication<vehicle_local_position_setpoint_s> _local_pos_sp_pub{ORB_ID(vehicle_local_position_setpoint)};
 	uORB::Publication<vehicle_attitude_setpoint_s>       _attitude_setpoint_pub{ORB_ID(vehicle_attitude_setpoint)};
-	uORB::Publication<vehicle_thrust_setpoint_s>         _thrust_sp_pub{ORB_ID(vehicle_thrust_setpoint)};
 	uORB::PublicationData<takeoff_status_s>              _takeoff_status_pub{ORB_ID(takeoff_status)};
 
 	// --- Timing ---

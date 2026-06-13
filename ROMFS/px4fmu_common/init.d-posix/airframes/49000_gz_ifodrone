@@ -50,7 +50,7 @@ param set-default SIM_GZ_EC_MAX1 1000
 # Motor 1: Lower motor - CW rotation (KM negative = CW; GZ physical reversal via SIM_GZ_EC_REV=2)
 param set-default CA_ROTOR1_PX 0.0
 param set-default CA_ROTOR1_PY 0.0
-param set-default CA_ROTOR1_PZ -0.1
+param set-default CA_ROTOR1_PZ 0.1
 param set-default CA_ROTOR1_AX 0.0
 param set-default CA_ROTOR1_AY 0.0
 param set-default CA_ROTOR1_AZ -1.0
@@ -62,18 +62,20 @@ param set-default SIM_GZ_EC_MIN2 100
 param set-default SIM_GZ_EC_MAX2 1000
 
 # ============================================
-# SIDE MOTORS (2-5): Tiltable EDF for XY thrust
+# SIDE MOTORS (2-5): Tiltable EDF for lift + XY thrust
 # Positions match SDF exactly: Front, Right, Back, Left at 0.535m from center
-# Neutral axes stay horizontal here; the allocator rotates them with the tilt state.
+# Axes are tilted UP by the hover angle φ₀=45° so the allocator models the EDF
+# lift (Z = −sin45 = −0.70711) and lateral (cos45 = 0.70711) components. The tilt
+# servos are biased to the same 45° at hover (ActuatorEffectivenessIfodrone).
 # ============================================
 
-# Motor 2: Front EDF - tiltable around Y axis, linked to tilt servo 0
+# Motor 2: Front EDF - tilted up +X, linked to tilt servo 0
 param set-default CA_ROTOR2_PX 0.535
 param set-default CA_ROTOR2_PY 0.0
 param set-default CA_ROTOR2_PZ 0.045
-param set-default CA_ROTOR2_AX 1.0
+param set-default CA_ROTOR2_AX 0.70711
 param set-default CA_ROTOR2_AY 0.0
-param set-default CA_ROTOR2_AZ 0.0
+param set-default CA_ROTOR2_AZ -0.70711
 param set-default CA_ROTOR2_KM 0
 param set-default CA_ROTOR2_CT 0.5
 param set-default CA_ROTOR2_TILT 1
@@ -87,8 +89,8 @@ param set-default CA_ROTOR3_PX 0.0
 param set-default CA_ROTOR3_PY 0.535
 param set-default CA_ROTOR3_PZ 0.045
 param set-default CA_ROTOR3_AX 0.0
-param set-default CA_ROTOR3_AY 1.0
-param set-default CA_ROTOR3_AZ 0.0
+param set-default CA_ROTOR3_AY 0.70711
+param set-default CA_ROTOR3_AZ -0.70711
 param set-default CA_ROTOR3_KM 0
 param set-default CA_ROTOR3_CT 0.5
 param set-default CA_ROTOR3_TILT 2
@@ -101,9 +103,9 @@ param set-default SIM_GZ_EC_MAX4 1000
 param set-default CA_ROTOR4_PX -0.535
 param set-default CA_ROTOR4_PY 0.0
 param set-default CA_ROTOR4_PZ 0.045
-param set-default CA_ROTOR4_AX -1.0
+param set-default CA_ROTOR4_AX -0.70711
 param set-default CA_ROTOR4_AY 0.0
-param set-default CA_ROTOR4_AZ 0.0
+param set-default CA_ROTOR4_AZ -0.70711
 param set-default CA_ROTOR4_KM 0
 param set-default CA_ROTOR4_CT 0.5
 param set-default CA_ROTOR4_TILT 3
@@ -117,8 +119,8 @@ param set-default CA_ROTOR5_PX 0.0
 param set-default CA_ROTOR5_PY -0.535
 param set-default CA_ROTOR5_PZ 0.045
 param set-default CA_ROTOR5_AX 0.0
-param set-default CA_ROTOR5_AY -1.0
-param set-default CA_ROTOR5_AZ 0.0
+param set-default CA_ROTOR5_AY -0.70711
+param set-default CA_ROTOR5_AZ -0.70711
 param set-default CA_ROTOR5_KM 0
 param set-default CA_ROTOR5_CT 0.5
 param set-default CA_ROTOR5_TILT 4
@@ -134,8 +136,8 @@ param set-default SIM_GZ_EC_MAX6 1000
 param set-default CA_SV_TL_COUNT 4
 
 # Tilt 0: Front motor (rotor 2) - tilts around Y axis (90 deg)
-param set-default CA_SV_TL0_MINA -80.0
-param set-default CA_SV_TL0_MAXA 80.0
+param set-default CA_SV_TL0_MINA -60.0
+param set-default CA_SV_TL0_MAXA 60.0
 param set-default CA_SV_TL0_TD 0
 param set-default CA_SV_TL0_CT 0
 param set-default CA_SV0_SLEW 0.0
@@ -143,12 +145,12 @@ param set-default SIM_GZ_SV_FUNC1 201
 param set-default SIM_GZ_SV_MINA1 -60.0
 param set-default SIM_GZ_SV_MAXA1 60.0
 param set-default SIM_GZ_SV_MIN1 1000
-param set-default SIM_GZ_SV_DIS1 1500
+param set-default SIM_GZ_SV_DIS1 1875
 param set-default SIM_GZ_SV_MAX1 2000
 
 # Tilt 1: Right motor (rotor 3) - tilts around X axis (90 deg from front)
-param set-default CA_SV_TL1_MINA -80.0
-param set-default CA_SV_TL1_MAXA 80.0
+param set-default CA_SV_TL1_MINA -60.0
+param set-default CA_SV_TL1_MAXA 60.0
 param set-default CA_SV_TL1_TD 90
 param set-default CA_SV_TL1_CT 0
 param set-default CA_SV1_SLEW 0.0
@@ -156,12 +158,12 @@ param set-default SIM_GZ_SV_FUNC2 202
 param set-default SIM_GZ_SV_MINA2 -60.0
 param set-default SIM_GZ_SV_MAXA2 60.0
 param set-default SIM_GZ_SV_MIN2 1000
-param set-default SIM_GZ_SV_DIS2 1500
+param set-default SIM_GZ_SV_DIS2 1875
 param set-default SIM_GZ_SV_MAX2 2000
 
 # Tilt 2: Back motor (rotor 4) - tilts around Y axis (180 deg, opposite from front)
-param set-default CA_SV_TL2_MINA -80.0
-param set-default CA_SV_TL2_MAXA 80.0
+param set-default CA_SV_TL2_MINA -60.0
+param set-default CA_SV_TL2_MAXA 60.0
 param set-default CA_SV_TL2_TD 180
 param set-default CA_SV_TL2_CT 0
 param set-default CA_SV2_SLEW 0.0
@@ -169,12 +171,12 @@ param set-default SIM_GZ_SV_FUNC3 203
 param set-default SIM_GZ_SV_MINA3 -60.0
 param set-default SIM_GZ_SV_MAXA3 60.0
 param set-default SIM_GZ_SV_MIN3 1000
-param set-default SIM_GZ_SV_DIS3 1500
+param set-default SIM_GZ_SV_DIS3 1875
 param set-default SIM_GZ_SV_MAX3 2000
 
 # Tilt 3: Left motor (rotor 5) - tilts around X axis (270 deg, opposite from right)
-param set-default CA_SV_TL3_MINA -80.0
-param set-default CA_SV_TL3_MAXA 80.0
+param set-default CA_SV_TL3_MINA -60.0
+param set-default CA_SV_TL3_MAXA 60.0
 param set-default CA_SV_TL3_TD 270
 param set-default CA_SV_TL3_CT 0
 param set-default CA_SV3_SLEW 0.0
@@ -182,7 +184,7 @@ param set-default SIM_GZ_SV_FUNC4 204
 param set-default SIM_GZ_SV_MINA4 -60.0
 param set-default SIM_GZ_SV_MAXA4 60.0
 param set-default SIM_GZ_SV_MIN4 1000
-param set-default SIM_GZ_SV_DIS4 1500
+param set-default SIM_GZ_SV_DIS4 1875
 param set-default SIM_GZ_SV_MAX4 2000
 
 # ============================================
@@ -192,9 +194,9 @@ param set-default SIM_GZ_SV_MAX4 2000
 # IFODRONE body is kept level: roll/pitch setpoint = 0.
 # These gains control how aggressively the attitude error is converted to rate setpoints.
 # ============================================
-param set-default MC_ROLL_P 1.0
-param set-default MC_PITCH_P 1.0
-param set-default MC_YAW_P 4.8
+param set-default MC_ROLL_P 0.1
+param set-default MC_PITCH_P 0.1
+param set-default MC_YAW_P 0.48
 param set-default MC_YAW_WEIGHT 0.4
 # param set-default MC_ROLLRATE_MAX 220.0
 # param set-default MC_PITCHRATE_MAX 220.0
@@ -205,16 +207,16 @@ param set-default MC_YAW_WEIGHT 0.4
 # Inner loop: angular rate PID producing body torque.
 # IFODRONE has small roll/pitch authority (tilt servos), so keep gains moderate.
 # ============================================
-param set-default MC_ROLLRATE_P 2.15
-param set-default MC_ROLLRATE_I 0.2
-param set-default MC_ROLLRATE_D 0.003
+param set-default MC_ROLLRATE_P 0.215
+param set-default MC_ROLLRATE_I 0.02
+param set-default MC_ROLLRATE_D 0.0003
 param set-default MC_ROLLRATE_K 1.0
-param set-default MC_PITCHRATE_P 2.15
-param set-default MC_PITCHRATE_I 0.2
-param set-default MC_PITCHRATE_D 0.003
+param set-default MC_PITCHRATE_P 0.215
+param set-default MC_PITCHRATE_I 0.02
+param set-default MC_PITCHRATE_D 0.0003
 param set-default MC_PITCHRATE_K 1.0
-param set-default MC_YAWRATE_P 2.2
-param set-default MC_YAWRATE_I 0.1
+param set-default MC_YAWRATE_P 0.22
+param set-default MC_YAWRATE_I 0.01
 param set-default MC_YAWRATE_D 0.0
 param set-default MC_YAWRATE_K 1.0
 param set-default MC_RR_INT_LIM 0.30
@@ -224,7 +226,7 @@ param set-default MC_YR_INT_LIM 0.30
 # ============================================
 # THRUST / THROTTLE PARAMETERS (used by ifo_att_control manual mode)
 # ============================================
-param set-default MPC_THR_HOVER 0.8
+param set-default MPC_THR_HOVER 0.5
 param set-default MPC_THR_MAX 30.0
 param set-default MPC_MANTHR_MIN 0.08
 

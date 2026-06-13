@@ -28,10 +28,6 @@ bool IfodroneAttitudeControl::init()
 	return true;
 }
 
-void IfodroneAttitudeControl::parameters_updated()
-{
-}
-
 void IfodroneAttitudeControl::Run()
 {
 	if (should_exit()) {
@@ -46,7 +42,6 @@ void IfodroneAttitudeControl::Run()
 		parameter_update_s param_update;
 		_parameter_update_sub.copy(&param_update);
 		updateParams();
-		parameters_updated();
 	}
 
 	vehicle_attitude_s att;
@@ -68,34 +63,34 @@ void IfodroneAttitudeControl::Run()
 	const float pitch = euler.theta();
 	const float yaw   = euler.psi();
 
-	// ── Angular rates ─────────────────────────────────────────────────
-	vehicle_angular_velocity_s rates{};
-	_vehicle_angular_velocity_sub.copy(&rates);
-
-	const float roll_rate  = rates.xyz[0];
-	const float pitch_rate = rates.xyz[1];
-	const float yaw_rate   = rates.xyz[2];
-
-	// ── Yaw setpoint ──────────────────────────────────────────────────
-	// Manual/Stabilize: yaw stick integrates heading.
-	// Auto/Position: yaw comes from vehicle_attitude_setpoint.
+	// ── Mode ──────────────────────────────────────────────────────────
+	// "manual" here = stabilized manual flight without position/altitude assist.
 	const bool manual_mode = _vehicle_control_mode.flag_control_manual_enabled &&
 				 !_vehicle_control_mode.flag_control_altitude_enabled &&
 				 !_vehicle_control_mode.flag_control_velocity_enabled &&
 				 !_vehicle_control_mode.flag_control_position_enabled;
 
-	float yaw_rate_sp = 0.f;
+	// ── Yaw setpoint + thrust source ──────────────────────────────────
+	float    yaw_rate_ff = 0.f;
+	Vector3f thrust_body{0.f, 0.f, 0.f};
 
 	if (manual_mode) {
+		// Yaw stick integrates the heading setpoint.
 		if (!PX4_ISFINITE(_yaw_setpoint)) {
 			_yaw_setpoint = yaw;
 		}
 
-		static constexpr float YAW_RATE_MAX = 1.5f;
-		yaw_rate_sp = _manual_control_setpoint.yaw * YAW_RATE_MAX;
-		_yaw_setpoint = wrap_pi(_yaw_setpoint + yaw_rate_sp * dt);
+		const float yaw_stick_rate = _manual_control_setpoint.yaw * YAW_RATE_MAX;
+		_yaw_setpoint = wrap_pi(_yaw_setpoint + yaw_stick_rate * dt);
+		yaw_rate_ff   = yaw_stick_rate;
+
+		// Throttle stick → vertical thrust (level body: XY thrust = 0).
+		const float throttle_raw = (_manual_control_setpoint.throttle + 1.f) * 0.5f;
+		const float throttle     = THROTTLE_IDLE + throttle_raw * (1.f - THROTTLE_IDLE);
+		thrust_body(2) = -throttle;
 
 	} else {
+		// Auto / Position: yaw and thrust come from ifo_pos_control via vehicle_attitude_setpoint.
 		_yaw_setpoint = NAN;
 
 		vehicle_attitude_setpoint_s att_sp{};
@@ -108,8 +103,12 @@ void IfodroneAttitudeControl::Run()
 			}
 
 			if (PX4_ISFINITE(att_sp.yaw_sp_move_rate)) {
-				yaw_rate_sp = att_sp.yaw_sp_move_rate;
+				yaw_rate_ff = att_sp.yaw_sp_move_rate;
 			}
+
+			thrust_body(0) = att_sp.thrust_body[0];
+			thrust_body(1) = att_sp.thrust_body[1];
+			thrust_body(2) = att_sp.thrust_body[2];
 		}
 
 		if (!PX4_ISFINITE(_yaw_setpoint)) {
@@ -117,43 +116,20 @@ void IfodroneAttitudeControl::Run()
 		}
 	}
 
-	// ── Attitude errors ───────────────────────────────────────────────
-	const float roll_error  = -roll;   // setpoint always 0 (level)
-	const float pitch_error = -pitch;
+	// ── Attitude error → rate setpoint (P controller) ─────────────────
+	// IFODRONE keeps the body level: roll/pitch attitude setpoint is always 0.
+	const float roll_error  = 0.f - roll;
+	const float pitch_error = 0.f - pitch;
 	const float yaw_error   = wrap_pi(_yaw_setpoint - yaw);
 
-	// ── Full torque setpoint → CA → motors + tilt servos ────────────
-	// Roll/pitch: CA allocates to tilt servos (ActuatorEffectivenessIfodrone).
-	// Yaw:        CA allocates to coaxial motor differential (via KM).
-	const float yaw_torque = math::constrain(
-					 KP_YAW * yaw_error - KD_YAW * yaw_rate - KFF_YAW * yaw_rate_sp,
-					 -YAW_TORQUE_LIMIT, YAW_TORQUE_LIMIT);
-
-	vehicle_torque_setpoint_s torque_sp{};
-	torque_sp.timestamp        = hrt_absolute_time();
-	torque_sp.timestamp_sample = att.timestamp;
-	torque_sp.xyz[0] = math::constrain(KP_ATT * roll_error  - KD_ATT * roll_rate,  -TILT_LIMIT, TILT_LIMIT);
-	torque_sp.xyz[1] = math::constrain(KP_ATT * pitch_error - KD_ATT * pitch_rate, -TILT_LIMIT, TILT_LIMIT);
-	torque_sp.xyz[2] = yaw_torque;
-	_vehicle_torque_setpoint_pub.publish(torque_sp);
-
-	// ── Thrust (manual mode only) ──────────────────────────────────────
-	// In position/auto modes, ifo_pos_control publishes vehicle_thrust_setpoint.
-	// XY = 0: CA commands all 4 side EDFs symmetrically at PWM_MIN idle.
-	// A non-zero XY stick would activate only the EDFs pointing in that direction,
-	// leaving the opposing pair at zero — asymmetric and bad for stabilization.
-	if (manual_mode) {
-		const float throttle_raw = (_manual_control_setpoint.throttle + 1.f) * 0.5f;
-		const float throttle     = THROTTLE_IDLE + throttle_raw * (1.f - THROTTLE_IDLE);
-
-		vehicle_thrust_setpoint_s thrust_sp{};
-		thrust_sp.timestamp        = hrt_absolute_time();
-		thrust_sp.timestamp_sample = att.timestamp;
-		thrust_sp.xyz[0] = 0.f;
-		thrust_sp.xyz[1] = 0.f;
-		thrust_sp.xyz[2] = -throttle;
-		_vehicle_thrust_setpoint_pub.publish(thrust_sp);
-	}
+	vehicle_rates_setpoint_s rates_sp{};
+	rates_sp.roll  = math::constrain(_param_mc_roll_p.get()  * roll_error,  -RATE_LIMIT_RP,  RATE_LIMIT_RP);
+	rates_sp.pitch = math::constrain(_param_mc_pitch_p.get() * pitch_error, -RATE_LIMIT_RP,  RATE_LIMIT_RP);
+	rates_sp.yaw   = math::constrain(_param_mc_yaw_p.get()   * yaw_error + yaw_rate_ff,
+					 -RATE_LIMIT_YAW, RATE_LIMIT_YAW);
+	thrust_body.copyTo(rates_sp.thrust_body);
+	rates_sp.timestamp = hrt_absolute_time();
+	_vehicle_rates_setpoint_pub.publish(rates_sp);
 
 	perf_end(_loop_perf);
 }
@@ -188,10 +164,11 @@ int IfodroneAttitudeControl::print_usage(const char *reason)
 	PRINT_MODULE_DESCRIPTION(
 		R"DESCR_STR(
 ### Description
-IFODRONE attitude controller.
+IFODRONE outer-loop attitude controller.
 
-Direct PD controller: roll/pitch errors drive tilt servos directly.
-Yaw error drives main motor differential via control allocator.
+P controller: roll/pitch/yaw attitude error → body rate setpoint.
+Publishes vehicle_rates_setpoint (with thrust_body) for mc_rate_control,
+which runs the inner-loop rate PID at gyro rate.
 )DESCR_STR");
 
 	PRINT_MODULE_USAGE_NAME("ifo_att_control", "controller");

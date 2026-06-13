@@ -428,14 +428,9 @@ void IfodronePositionControl::Run()
 				const Vector3f thr_body = accelerationToThrust(acc_sp, states.yaw,
 							vehicle_attitude_valid ? &vehicle_attitude : nullptr);
 
-				vehicle_thrust_setpoint_s thrust_msg{};
-				thrust_msg.timestamp        = hrt_absolute_time();
-				thrust_msg.timestamp_sample = local_pos.timestamp_sample;
-				thrust_msg.xyz[0] = thr_body(0);
-				thrust_msg.xyz[1] = thr_body(1);
-				thrust_msg.xyz[2] = thr_body(2);
-				_thrust_sp_pub.publish(thrust_msg);
-
+				// Thrust is routed through vehicle_attitude_setpoint.thrust_body:
+				// ifo_att_control forwards it into vehicle_rates_setpoint and
+				// mc_rate_control is the single publisher of vehicle_thrust_setpoint.
 				// --- Publish attitude setpoint (yaw + thrust, level body) ---
 				vehicle_attitude_setpoint_s att_sp{};
 				att_sp.timestamp = hrt_absolute_time();

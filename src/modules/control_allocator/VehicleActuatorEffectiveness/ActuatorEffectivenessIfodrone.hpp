@@ -8,8 +8,8 @@
  * the CA translates that to motor speeds and tilt angles.
  *
  *   Motors 0-1 : coaxial pair, fixed −Z axis (Z-thrust + yaw via KM)
- *   Motors 2-5 : side EDFs, fixed horizontal axes
- *   Servos 0-3 : tilt servos for roll/pitch (front, right, back, left)
+ *   Motors 2-5 : side EDFs, axes tilted up by the hover angle (lift + lateral thrust)
+ *   Servos 0-3 : tilt servos for roll/pitch (front, right, back, left), biased to hover tilt
  */
 
 #pragma once
@@ -42,6 +42,11 @@ public:
 	const char *name() const override { return "IfoDrone"; }
 
 protected:
+	// Hover tilt angle of the side EDFs (degrees up from horizontal). The EDFs sit here
+	// with zero roll/pitch demand so they add lift; the airframe's tilted EDF thrust axes
+	// (CA_ROTOR2..5: cos φ₀ horizontal, −sin φ₀ vertical) must use the same angle.
+	static constexpr float HOVER_TILT_DEG{45.f};
+
 	ActuatorEffectivenessRotors _mc_motors;
 	ActuatorEffectivenessTilts  _tilts;
 

@@ -60,9 +60,9 @@ param set-default CA_ROTOR1_CT 0.6
 param set-default CA_ROTOR2_PX 0.535
 param set-default CA_ROTOR2_PY 0.0
 param set-default CA_ROTOR2_PZ 0.045
-param set-default CA_ROTOR2_AX 1.0
+param set-default CA_ROTOR2_AX 0.70711
 param set-default CA_ROTOR2_AY 0.0
-param set-default CA_ROTOR2_AZ 0.0
+param set-default CA_ROTOR2_AZ -0.70711
 param set-default CA_ROTOR2_KM 0.01
 param set-default CA_ROTOR2_CT 0.4
 param set-default CA_ROTOR2_TILT 1
@@ -71,8 +71,8 @@ param set-default CA_ROTOR3_PX 0.0
 param set-default CA_ROTOR3_PY 0.535
 param set-default CA_ROTOR3_PZ 0.045
 param set-default CA_ROTOR3_AX 0.0
-param set-default CA_ROTOR3_AY 1.0
-param set-default CA_ROTOR3_AZ 0.0
+param set-default CA_ROTOR3_AY 0.70711
+param set-default CA_ROTOR3_AZ -0.70711
 param set-default CA_ROTOR3_KM 0.01
 param set-default CA_ROTOR3_CT 0.4
 param set-default CA_ROTOR3_TILT 2
@@ -80,9 +80,9 @@ param set-default CA_ROTOR3_TILT 2
 param set-default CA_ROTOR4_PX -0.535
 param set-default CA_ROTOR4_PY 0.0
 param set-default CA_ROTOR4_PZ 0.045
-param set-default CA_ROTOR4_AX -1.0
+param set-default CA_ROTOR4_AX -0.70711
 param set-default CA_ROTOR4_AY 0.0
-param set-default CA_ROTOR4_AZ 0.0
+param set-default CA_ROTOR4_AZ -0.70711
 param set-default CA_ROTOR4_KM 0.01
 param set-default CA_ROTOR4_CT 0.4
 param set-default CA_ROTOR4_TILT 3
@@ -91,8 +91,8 @@ param set-default CA_ROTOR5_PX 0.0
 param set-default CA_ROTOR5_PY -0.535
 param set-default CA_ROTOR5_PZ 0.045
 param set-default CA_ROTOR5_AX 0.0
-param set-default CA_ROTOR5_AY -1.0
-param set-default CA_ROTOR5_AZ 0.0
+param set-default CA_ROTOR5_AY -0.70711
+param set-default CA_ROTOR5_AZ -0.70711
 param set-default CA_ROTOR5_KM 0.01
 param set-default CA_ROTOR5_CT 0.4
 param set-default CA_ROTOR5_TILT 4
@@ -102,23 +102,23 @@ param set-default CA_ROTOR5_TILT 4
 # ============================================
 param set-default CA_SV_TL_COUNT 4
 
-param set-default CA_SV_TL0_MINA -45.0
-param set-default CA_SV_TL0_MAXA  45.0
+param set-default CA_SV_TL0_MINA -60.0
+param set-default CA_SV_TL0_MAXA  60.0
 param set-default CA_SV_TL0_TD 0
 param set-default CA_SV_TL0_CT 0
 
-param set-default CA_SV_TL1_MINA -45.0
-param set-default CA_SV_TL1_MAXA  45.0
+param set-default CA_SV_TL1_MINA -60.0
+param set-default CA_SV_TL1_MAXA  60.0
 param set-default CA_SV_TL1_TD 90
 param set-default CA_SV_TL1_CT 0
 
-param set-default CA_SV_TL2_MINA -45.0
-param set-default CA_SV_TL2_MAXA  45.0
+param set-default CA_SV_TL2_MINA -60.0
+param set-default CA_SV_TL2_MAXA  60.0
 param set-default CA_SV_TL2_TD 180
 param set-default CA_SV_TL2_CT 0
 
-param set-default CA_SV_TL3_MINA -45.0
-param set-default CA_SV_TL3_MAXA  45.0
+param set-default CA_SV_TL3_MINA -60.0
+param set-default CA_SV_TL3_MAXA  60.0
 param set-default CA_SV_TL3_TD 270
 param set-default CA_SV_TL3_CT 0
 
@@ -186,8 +186,9 @@ param set-default PWM_MAIN_FUNC10 204
 param set-default PWM_MAIN_FUNC11 202
 param set-default PWM_MAIN_FUNC12 201
 
-# Standard hobby servo range (1000..2000 us, neutral 1500 us).
-# Tune per servo and mechanical linkage.
+# Standard hobby servo range (1000..2000 us). Disarmed default 1700 us pre-tilts the
+# EDFs up so they add lift at takeoff; tune per servo/linkage so 1700 us ≈ hover tilt
+# (φ₀=45° in ActuatorEffectivenessIfodrone — verify the angle/direction on the bench).
 param set-default PWM_MAIN_MIN9  1000
 param set-default PWM_MAIN_MIN10 1000
 param set-default PWM_MAIN_MIN11 1000
@@ -196,10 +197,10 @@ param set-default PWM_MAIN_MAX9  2000
 param set-default PWM_MAIN_MAX10 2000
 param set-default PWM_MAIN_MAX11 2000
 param set-default PWM_MAIN_MAX12 2000
-param set-default PWM_MAIN_DIS9  1500
-param set-default PWM_MAIN_DIS10 1500
-param set-default PWM_MAIN_DIS11 1500
-param set-default PWM_MAIN_DIS12 1500
+param set-default PWM_MAIN_DIS9  1700
+param set-default PWM_MAIN_DIS10 1700
+param set-default PWM_MAIN_DIS11 1700
+param set-default PWM_MAIN_DIS12 1700
 
 # ============================================
 # SAFETY / SYSTEM

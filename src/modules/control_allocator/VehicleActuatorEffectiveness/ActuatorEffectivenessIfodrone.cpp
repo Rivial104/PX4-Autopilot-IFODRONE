@@ -19,6 +19,7 @@
 #include "ActuatorEffectivenessIfodrone.hpp"
 
 #include <px4_platform_common/log.h>
+#include <lib/mathlib/mathlib.h>
 
 using namespace matrix;
 
@@ -59,15 +60,23 @@ ActuatorEffectivenessIfodrone::getEffectivenessMatrix(Configuration &configurati
 		configuration.addActuator(ActuatorType::SERVOS, tilt_torques[i], Vector3f{});
 	}
 
-	// Tilt offsets: correction so that CA=0 corresponds to level (0° tilt).
-	// For symmetric min/max (e.g. −80° to +80°) this evaluates to 0.
+	// Hover tilt bias: with zero roll/pitch torque demand the EDFs are held at
+	// HOVER_TILT_DEG (tilted up from horizontal) so they contribute lift. This must
+	// match the tilted EDF thrust axes configured in the airframe (CA_ROTOR2..5),
+	// where Z = −sin(φ₀) and the horizontal component = cos(φ₀): only then does the
+	// allocator's force model agree with the physical EDF orientation at hover.
+	// Roll/pitch torque is then commanded as a differential offset around φ₀.
+	//
+	// NOTE: for this to map to the true physical angle, the tilt range (CA_SV_TLx_MINA/MAXA)
+	// must equal the output servo range (SIM_GZ_SVx_MINA/MAXA on SITL).
+	const float hover_tilt = math::radians(HOVER_TILT_DEG);
 	_tilt_offsets.setZero();
 
 	for (int i = 0; i < _tilts.count(); ++i) {
 		const float delta_angle = _tilts.config(i).max_angle - _tilts.config(i).min_angle;
 
 		if (delta_angle > FLT_EPSILON) {
-			_tilt_offsets(_first_tilt_idx + i) = -1.f - 2.f * _tilts.config(i).min_angle / delta_angle;
+			_tilt_offsets(_first_tilt_idx + i) = 2.f * (hover_tilt - _tilts.config(i).min_angle) / delta_angle - 1.f;
 		}
 	}
 

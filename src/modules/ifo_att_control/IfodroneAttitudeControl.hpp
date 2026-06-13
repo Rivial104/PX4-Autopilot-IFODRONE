@@ -1,14 +1,19 @@
 /**
- * IFODRONE Attitude Controller
+ * IFODRONE Attitude Controller (outer loop)
  *
- * PD attitude controller — publishes full vehicle_torque_setpoint (roll+pitch+yaw).
- * The control allocator translates that to tilt servo angles (roll/pitch) and
- * main motor differential (yaw). mc_rate_control is NOT used.
+ * P attitude controller — converts attitude error into a body-rate setpoint and
+ * publishes vehicle_rates_setpoint for the inner loop (mc_rate_control), which
+ * runs at gyro rate and produces vehicle_torque_setpoint + vehicle_thrust_setpoint.
  *
- *   - Roll/pitch error → torque_sp.xyz[0/1] → CA → tilt servos
- *   - Yaw error        → torque_sp.xyz[2]   → CA → coaxial motor differential
- *   - Manual mode: throttle stick → vehicle_thrust_setpoint
- *   - Position mode: ifo_pos_control publishes vehicle_thrust_setpoint
+ * IFODRONE is always kept level: roll/pitch attitude setpoint = 0.
+ *   - Roll/pitch error → roll/pitch rate setpoint (P gains MC_ROLL_P / MC_PITCH_P)
+ *   - Yaw error        → yaw rate setpoint        (P gain  MC_YAW_P)
+ *   - thrust_body is carried through to the rate controller:
+ *       Manual:    throttle stick → -Z
+ *       Auto/Pos:  copied from vehicle_attitude_setpoint.thrust_body (ifo_pos_control)
+ *
+ * The control allocator (ActuatorEffectivenessIfodrone) maps the resulting torque to
+ * tilt servos (roll/pitch) and coaxial motor differential (yaw); thrust to motors.
  */
 
 #pragma once
@@ -24,14 +29,10 @@
 #include <uORB/SubscriptionCallback.hpp>
 #include <uORB/topics/manual_control_setpoint.h>
 #include <uORB/topics/parameter_update.h>
-#include <uORB/topics/vehicle_angular_velocity.h>
 #include <uORB/topics/vehicle_attitude.h>
 #include <uORB/topics/vehicle_attitude_setpoint.h>
 #include <uORB/topics/vehicle_control_mode.h>
-#include <uORB/topics/vehicle_land_detected.h>
-#include <uORB/topics/vehicle_status.h>
-#include <uORB/topics/vehicle_thrust_setpoint.h>
-#include <uORB/topics/vehicle_torque_setpoint.h>
+#include <uORB/topics/vehicle_rates_setpoint.h>
 
 using namespace time_literals;
 
@@ -53,19 +54,14 @@ public:
 
 private:
 	void Run() override;
-	void parameters_updated();
 
 	uORB::SubscriptionInterval         _parameter_update_sub{ORB_ID(parameter_update), 1_s};
 	uORB::SubscriptionCallbackWorkItem _vehicle_attitude_sub{this, ORB_ID(vehicle_attitude)};
 	uORB::Subscription                 _vehicle_attitude_setpoint_sub{ORB_ID(vehicle_attitude_setpoint)};
-	uORB::Subscription                 _vehicle_angular_velocity_sub{ORB_ID(vehicle_angular_velocity)};
 	uORB::Subscription                 _vehicle_control_mode_sub{ORB_ID(vehicle_control_mode)};
-	uORB::Subscription                 _vehicle_land_detected_sub{ORB_ID(vehicle_land_detected)};
-	uORB::Subscription                 _vehicle_status_sub{ORB_ID(vehicle_status)};
 	uORB::Subscription                 _manual_control_setpoint_sub{ORB_ID(manual_control_setpoint)};
 
-	uORB::Publication<vehicle_torque_setpoint_s> _vehicle_torque_setpoint_pub{ORB_ID(vehicle_torque_setpoint)};
-	uORB::Publication<vehicle_thrust_setpoint_s> _vehicle_thrust_setpoint_pub{ORB_ID(vehicle_thrust_setpoint)};
+	uORB::Publication<vehicle_rates_setpoint_s> _vehicle_rates_setpoint_pub{ORB_ID(vehicle_rates_setpoint)};
 
 	vehicle_control_mode_s    _vehicle_control_mode{};
 	manual_control_setpoint_s _manual_control_setpoint{};
@@ -73,19 +69,19 @@ private:
 	hrt_abstime _last_run{0};
 	float       _yaw_setpoint{NAN};
 
-	// Roll/pitch tilt servo PD gains (error [rad] → normalized servo command [-1,1])
-	static constexpr float KP_ATT{1.0f};
-	static constexpr float KD_ATT{0.05f};
-	static constexpr float TILT_LIMIT{1.0f};
+	// Manual-mode mapping
+	static constexpr float YAW_RATE_MAX{1.5f};     // manual yaw stick → yaw rate setpoint [rad/s]
+	static constexpr float THROTTLE_IDLE{0.05f};   // minimum throttle floor when armed
 
-	// Yaw torque PD gains (error [rad] → normalized torque [-1,1])
-	static constexpr float KP_YAW{0.04f};
-	static constexpr float KD_YAW{0.12f};
-	static constexpr float KFF_YAW{0.02f};
-	static constexpr float YAW_TORQUE_LIMIT{1.0f};
+	// Rate setpoint safety clamps (the inner loop tracks these) [rad/s]
+	static constexpr float RATE_LIMIT_RP{0.5f};    // ~200 deg/s roll/pitch
+	static constexpr float RATE_LIMIT_YAW{0.5f};   // ~200 deg/s yaw
 
-	// Minimum idle thrust when armed (ensures both coaxial motors always have a base command)
-	static constexpr float THROTTLE_IDLE{0.05f};
+	DEFINE_PARAMETERS(
+		(ParamFloat<px4::params::MC_ROLL_P>)  _param_mc_roll_p,
+		(ParamFloat<px4::params::MC_PITCH_P>) _param_mc_pitch_p,
+		(ParamFloat<px4::params::MC_YAW_P>)   _param_mc_yaw_p
+	)
 
 	perf_counter_t _loop_perf;
 };
