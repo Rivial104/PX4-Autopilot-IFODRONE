@@ -10,7 +10,7 @@
 * @increment 0.01
 * @group IFODRONE Rate Control
 */
-PARAM_DEFINE_FLOAT(IFO_RATE_P, 0.15f);
+PARAM_DEFINE_FLOAT(IFO_RATE_P, 3.0f);
 
 /**
 * Rate D gain — roll/pitch (inner loop).

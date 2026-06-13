@@ -93,6 +93,8 @@ private:
 	 */
 	trajectory_setpoint_s generateFailsafeSetpoint(const hrt_abstime &now, const PositionControlStates &states);
 
+	PositionControlStates set_vehicle_states(const vehicle_local_position_s &vlp_s, const float dt_s);
+
 	// --- Core position control ---
 	GotoControl     _goto_control;
 	PositionControl _control;

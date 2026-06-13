@@ -129,32 +129,7 @@ void IfodronePositionControl::Run()
 
 		_vehicle_land_detected_sub.update(&_vehicle_land_detected);
 
-		// --- Set vehicle states ---
-		PositionControlStates states{};
-
-		if (local_pos.xy_valid) {
-			states.position.xy() = Vector2f(local_pos.x, local_pos.y);
-		} else {
-			states.position(0) = states.position(1) = NAN;
-		}
-
-		if (local_pos.z_valid) {
-			states.position(2) = local_pos.z;
-		} else {
-			states.position(2) = NAN;
-		}
-
-		if (local_pos.v_xy_valid) {
-			states.velocity.xy() = Vector2f(local_pos.vx, local_pos.vy);
-		} else {
-			states.velocity(0) = states.velocity(1) = NAN;
-		}
-
-		if (local_pos.v_z_valid) {
-			states.velocity(2) = local_pos.vz;
-		} else {
-			states.velocity(2) = NAN;
-		}
+		PositionControlStates states{set_vehicle_states(local_pos, dt)};
 
 		// Use velocity derivative as acceleration estimate
 		states.acceleration = Vector3f(local_pos.ax, local_pos.ay, local_pos.az);
@@ -614,6 +589,48 @@ trajectory_setpoint_s IfodronePositionControl::generateFailsafeSetpoint(
 	}
 
 	return failsafe;
+}
+
+PositionControlStates IfodronePositionControl::set_vehicle_states(const vehicle_local_position_s &vlp, const float /*dt_s*/)
+{
+	PositionControlStates states;
+
+	const Vector2f position_xy(vlp.x, vlp.y);
+
+	if (vlp.xy_valid && position_xy.isAllFinite()) {
+		states.position.xy() = position_xy;
+	} else {
+		states.position(0) = states.position(1) = NAN;
+	}
+
+	if (PX4_ISFINITE(vlp.z) && vlp.z_valid) {
+		states.position(2) = vlp.z;
+	} else {
+		states.position(2) = NAN;
+	}
+
+	const Vector2f velocity_xy(vlp.vx, vlp.vy);
+
+	if (vlp.v_xy_valid && velocity_xy.isAllFinite()) {
+		states.velocity.xy() = velocity_xy;
+		states.acceleration(0) = vlp.ax;
+		states.acceleration(1) = vlp.ay;
+	} else {
+		states.velocity(0) = states.velocity(1) = NAN;
+		states.acceleration(0) = states.acceleration(1) = NAN;
+	}
+
+	if (PX4_ISFINITE(vlp.vz) && vlp.v_z_valid) {
+		states.velocity(2) = vlp.vz;
+		states.acceleration(2) = vlp.az;
+	} else {
+		states.velocity(2) = NAN;
+		states.acceleration(2) = NAN;
+	}
+
+	states.yaw = vlp.heading;
+
+	return states;
 }
 
 int IfodronePositionControl::task_spawn(int argc, char *argv[])

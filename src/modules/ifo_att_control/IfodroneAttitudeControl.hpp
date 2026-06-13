@@ -65,10 +65,10 @@ private:
 	hrt_abstime _last_run{0};
 	float       _yaw_setpoint{NAN};
 
-	static constexpr float THROTTLE_IDLE{0.05f};
-	static constexpr float KFF_YAW{0.0f};
-	static constexpr float RATE_LIMIT_RP{6.0f};   // max roll/pitch rate setpoint [rad/s]
-	static constexpr float RATE_LIMIT_YAW{3.0f};  // max yaw rate setpoint [rad/s]
+	static constexpr float THROTTLE_IDLE{0.15f};
+	static constexpr float KFF_YAW{0.1f};
+	static constexpr float RATE_LIMIT_RP{50.0f};   // max roll/pitch rate setpoint [rad/s]
+	static constexpr float RATE_LIMIT_YAW{30.0f};  // max yaw rate setpoint [rad/s]
 
 	DEFINE_PARAMETERS(
 		(ParamFloat<px4::params::IFO_ATT_P>)    _param_ifo_att_p,

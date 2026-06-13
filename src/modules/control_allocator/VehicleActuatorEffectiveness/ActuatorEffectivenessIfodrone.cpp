@@ -51,23 +51,7 @@ ActuatorEffectivenessIfodrone::getEffectivenessMatrix(Configuration &configurati
 
 	_first_tilt_idx = configuration.num_actuators_matrix[0];
 
-	// Manually add 4 tilt servos with physically correct roll/pitch effectiveness.
-	// The standard ActuatorEffectivenessTilts::updateTorqueSign only handles pitch and
-	// yaw; it cannot represent right/left tilts that create roll torque.
-	// Sign derivation: a +1 servo command on the front EDF tilts its thrust vector to
-	// create nose-down (negative pitch) torque; back EDF is opposite; right/left create ±roll.
-	static const Vector3f tilt_torques[4] = {
-		{0.f,  1.f, 0.f},   // Servo 0: front (TD=0)   → +pitch (nose up)
-		{-1.f, 0.f, 0.f},   // Servo 1: right (TD=90)  → −roll  (right wing up)
-		{0.f, -1.f, 0.f},   // Servo 2: back  (TD=180) → −pitch (nose down)
-		{1.f,  0.f, 0.f},   // Servo 3: left  (TD=270) → +roll  (right wing down)
-	};
-
-	for (int i = 0; i < 4; ++i) {
-		configuration.addActuator(ActuatorType::SERVOS, tilt_torques[i], Vector3f{});
-	}
-
-	// Read hover tilt angle: CA=0 maps to this angle instead of 0° (horizontal).
+	// Read hover tilt angle (from horizontal) before computing effectiveness.
 	float hover_angle_deg = 0.f;
 	param_t hover_param = param_find("IFO_TILT_HOVER");
 
@@ -76,6 +60,32 @@ ActuatorEffectivenessIfodrone::getEffectivenessMatrix(Configuration &configurati
 	}
 
 	const float hover_angle_rad = math::radians(hover_angle_deg);
+	const float sin_tilt = sinf(hover_angle_rad);
+	const float cos_tilt = cosf(hover_angle_rad);
+
+	// Tilt servo effectiveness:
+	//   Torque: roll/pitch from differential Z-force at lever arm (as before).
+	//   Force:  each tilted EDF contributes Z = -sin(φ₀) (upward) and
+	//           XY = cos(φ₀) in its outward axis (front=+X, right=+Y, back=−X, left=−Y).
+	//   This lets the CA account for the XY force imbalance that arises when
+	//   servos are commanded differentially for roll/pitch control.
+	static const Vector3f tilt_torques[4] = {
+		{0.f,  1.f, 0.f},   // Servo 0: front (TD=0)   → +pitch (nose up)
+		{-1.f, 0.f, 0.f},   // Servo 1: right (TD=90)  → −roll  (right wing up)
+		{0.f, -1.f, 0.f},   // Servo 2: back  (TD=180) → −pitch (nose down)
+		{1.f,  0.f, 0.f},   // Servo 3: left  (TD=270) → +roll  (right wing down)
+	};
+
+	const Vector3f tilt_forces[4] = {
+		{ cos_tilt,  0.f,      sin_tilt},  // Servo 0: front → +X outward, −Z upward
+		{ 0.f,       cos_tilt, sin_tilt},  // Servo 1: right → +Y outward, −Z upward
+		{-cos_tilt,  0.f,      sin_tilt},  // Servo 2: back  → −X outward, −Z upward
+		{ 0.f,      -cos_tilt, sin_tilt},  // Servo 3: left  → −Y outward, −Z upward
+	};
+
+	for (int i = 0; i < 4; ++i) {
+		configuration.addActuator(ActuatorType::SERVOS, tilt_torques[i], tilt_forces[i]);
+	}
 
 	_tilt_offsets.setZero();
 

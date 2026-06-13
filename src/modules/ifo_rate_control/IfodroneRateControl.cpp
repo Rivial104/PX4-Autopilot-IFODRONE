@@ -92,9 +92,9 @@ void IfodroneRateControl::Run()
 	vehicle_torque_setpoint_s torque_sp{};
 	torque_sp.timestamp        = hrt_absolute_time();
 	torque_sp.timestamp_sample = ang_vel.timestamp_sample;
-	torque_sp.xyz[0] = math::constrain(kp  * roll_rate_err  - kd  * _roll_rate_dot,  -TORQUE_LIMIT, TORQUE_LIMIT);
-	torque_sp.xyz[1] = math::constrain(kp  * pitch_rate_err - kd  * _pitch_rate_dot, -TORQUE_LIMIT, TORQUE_LIMIT);
-	torque_sp.xyz[2] = math::constrain(kyp * yaw_rate_err   - kyd * _yaw_rate_dot,   -TORQUE_LIMIT, TORQUE_LIMIT);
+	torque_sp.xyz[0] = kp  * roll_rate_err  - kd  * _roll_rate_dot;
+	torque_sp.xyz[1] = kp  * pitch_rate_err - kd  * _pitch_rate_dot;
+	torque_sp.xyz[2] = kyp * yaw_rate_err   - kyd * _yaw_rate_dot;
 	_vehicle_torque_setpoint_pub.publish(torque_sp);
 
 	perf_end(_loop_perf);

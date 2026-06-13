@@ -64,8 +64,8 @@ private:
 	float _pitch_rate_dot{0.f};
 	float _yaw_rate_dot{0.f};
 
-	static constexpr float TORQUE_LIMIT{1.0f};
-	static constexpr float DERIV_FILTER{0.15f};  // derivative low-pass coefficient
+	static constexpr float TORQUE_LIMIT{100.0f};
+	static constexpr float DERIV_FILTER{0.05f};  // derivative low-pass coefficient
 
 	DEFINE_PARAMETERS(
 		(ParamFloat<px4::params::IFO_RATE_P>)  _param_ifo_rate_p,
