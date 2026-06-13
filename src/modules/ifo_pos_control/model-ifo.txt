@@ -560,7 +560,7 @@
 
     <!-- ================= MOTOR 4 – BACK TILT MOTOR (MAGENTA) ================= -->
     <link name='motor_4'>
-      <pose>-0.5 0 0.045 0 1.570 0</pose>
+      <pose>-0.5 0 0.045 0 -1.570 0</pose>
       <inertial>
         <pose>0 0 0 0 0 0</pose>
         <mass>0.05</mass>
@@ -623,7 +623,7 @@
     </joint>
 
     <link name='rotor_4'>
-      <pose>-0.535 0 0.045 0 1.57 0</pose>
+      <pose>-0.535 0 0.045 0 -1.57 0</pose>
       <inertial>
         <pose>0 0 0 0 0 0</pose>
         <mass>0.005</mass>
@@ -673,7 +673,7 @@
 
     <!-- ================= MOTOR 5 – LEFT TILT MOTOR (CYAN) ================= -->
     <link name='motor_5'>
-      <pose>0 0.5 0.045 1.570 0 0</pose>
+      <pose>0 0.5 0.045 -1.570 0 0</pose>
       <inertial>
         <mass>0.05</mass>
         <inertia>
@@ -744,7 +744,7 @@
     </joint>
 
     <link name='rotor_5'>
-      <pose>0 0.535 0.045 -1.57 0 0</pose>
+      <pose>0 0.535 0.045 1.57 0 0</pose>
       <inertial>
         <mass>0.005</mass>
         <inertia>
@@ -803,7 +803,7 @@
       <timeConstantUp>0.0125</timeConstantUp>
       <timeConstantDown>0.025</timeConstantDown>
       <maxRotVelocity>1500</maxRotVelocity>
-      <motorConstant>6e-05</motorConstant>
+      <motorConstant>3e-04</motorConstant>
       <momentConstant>0.06</momentConstant>
       <commandSubTopic>command/motor_speed</commandSubTopic>
       <motorNumber>0</motorNumber>
@@ -822,7 +822,7 @@
       <timeConstantUp>0.0125</timeConstantUp>
       <timeConstantDown>0.025</timeConstantDown>
       <maxRotVelocity>1500</maxRotVelocity>
-      <motorConstant>6e-05</motorConstant>
+      <motorConstant>3e-04</motorConstant>
       <momentConstant>0.06</momentConstant>
       <commandSubTopic>command/motor_speed</commandSubTopic>
       <motorNumber>1</motorNumber>
