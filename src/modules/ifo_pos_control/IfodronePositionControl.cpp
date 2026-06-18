@@ -96,9 +96,6 @@ void IfodronePositionControl::Run()
 					 ((local_pos.timestamp_sample - _time_stamp_last_loop) * 1e-6f), 0.002f, 0.04f);
 		_time_stamp_last_loop = local_pos.timestamp_sample;
 
-		vehicle_attitude_s vehicle_attitude{};
-		const bool vehicle_attitude_valid = _vehicle_attitude_sub.copy(&vehicle_attitude);
-
 		// --- Update control mode ---
 		if (_vehicle_control_mode_sub.updated()) {
 			const bool prev_pos_ctrl = _vehicle_control_mode.flag_multicopter_position_control_enabled;
@@ -275,8 +272,7 @@ void IfodronePositionControl::Run()
 					if (!PX4_ISFINITE(acc_sp(i))) { acc_sp(i) = 0.f; }
 				}
 
-				const Vector3f thr_body = accelerationToThrust(acc_sp, states.yaw,
-							vehicle_attitude_valid ? &vehicle_attitude : nullptr);
+				const Vector3f thr_body = accelerationToThrust(acc_sp, states.yaw);
 
 				// Publish attitude setpoint: level body, yaw from hold state
 				vehicle_attitude_setpoint_s att_sp{};
@@ -425,8 +421,7 @@ void IfodronePositionControl::Run()
 				const float yaw_sp = PX4_ISFINITE(local_pos_sp.yaw) ? local_pos_sp.yaw : states.yaw;
 				const float yawspeed_sp = PX4_ISFINITE(local_pos_sp.yawspeed) ? local_pos_sp.yawspeed : 0.f;
 
-				const Vector3f thr_body = accelerationToThrust(acc_sp, states.yaw,
-							vehicle_attitude_valid ? &vehicle_attitude : nullptr);
+				const Vector3f thr_body = accelerationToThrust(acc_sp, states.yaw);
 
 				// Thrust is routed through vehicle_attitude_setpoint.thrust_body:
 				// ifo_att_control forwards it into vehicle_rates_setpoint and
@@ -467,8 +462,7 @@ void IfodronePositionControl::Run()
 	perf_end(_cycle_perf);
 }
 
-matrix::Vector3f IfodronePositionControl::accelerationToThrust(const Vector3f &acc_sp, float yaw,
-		const vehicle_attitude_s *attitude) const
+matrix::Vector3f IfodronePositionControl::accelerationToThrust(const Vector3f &acc_sp, float yaw) const
 {
 	const float hover_thr = math::constrain(_param_ifo_thr_hover.get(), 0.05f, 0.9f);
 	const float thr_min   = math::constrain(_param_ifo_thr_min.get(), 0.0f, 0.9f);
@@ -487,24 +481,26 @@ matrix::Vector3f IfodronePositionControl::accelerationToThrust(const Vector3f &a
 		acc_sp(1) * (hover_thr / CONSTANTS_ONE_G),
 		-thrust_z);
 
+	// --- NED → body conversion, convention note ---------------------------------
+	// vehicle_thrust_setpoint is a BODY-frame vector; acceleration/thrust setpoints
+	// here are NED. IFODRONE is a level-body vehicle: ifo_att_control holds roll/pitch
+	// at 0 and the side EDFs produce the body-frame lateral thrust in hover.
+	//
+	// We deliberately rotate by HEADING ONLY (commanded level body), not by the actual
+	// attitude. If the actual (transiently tilted) attitude were used, holding a
+	// NED-vertical thrust T while rolled by φ would inject a body-lateral command
+	// ≈ −T·sinφ, i.e. the side EDFs would be told to cancel the inertial-frame lateral
+	// force the coax (main) motors already produce while tilted. That double-handles the
+	// tilt against the attitude loop and drives the down-side EDF into its lower limit.
+	// Leveling is the attitude controller's job; residual tilt-induced drift is corrected
+	// by the position loop.
+	const float cos_yaw = cosf(yaw);
+	const float sin_yaw = sinf(yaw);
+
 	Vector3f thr_body;
-
-	if (attitude != nullptr
-	    && PX4_ISFINITE(attitude->q[0]) && PX4_ISFINITE(attitude->q[1])
-	    && PX4_ISFINITE(attitude->q[2]) && PX4_ISFINITE(attitude->q[3])) {
-		Quatf q_att(attitude->q);
-		q_att.normalize();
-		thr_body = Dcmf(q_att).transpose() * thrust_ned;
-
-	} else {
-		// Fallback for startup: assume level body and rotate NED XY by yaw only.
-		const float cos_yaw = cosf(yaw);
-		const float sin_yaw = sinf(yaw);
-
-		thr_body(0) =  cos_yaw * thrust_ned(0) + sin_yaw * thrust_ned(1);
-		thr_body(1) = -sin_yaw * thrust_ned(0) + cos_yaw * thrust_ned(1);
-		thr_body(2) = thrust_ned(2);
-	}
+	thr_body(0) =  cos_yaw * thrust_ned(0) + sin_yaw * thrust_ned(1);
+	thr_body(1) = -sin_yaw * thrust_ned(0) + cos_yaw * thrust_ned(1);
+	thr_body(2) = thrust_ned(2);
 
 	thr_body(2) = math::constrain(thr_body(2), -thr_max, -thr_min);
 

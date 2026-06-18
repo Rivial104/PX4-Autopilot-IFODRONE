@@ -42,10 +42,11 @@ public:
 	const char *name() const override { return "IfoDrone"; }
 
 protected:
-	// Hover tilt angle of the side EDFs (degrees up from horizontal). The EDFs sit here
-	// with zero roll/pitch demand so they add lift; the airframe's tilted EDF thrust axes
-	// (CA_ROTOR2..5: cos φ₀ horizontal, −sin φ₀ vertical) must use the same angle.
-	static constexpr float HOVER_TILT_DEG{45.f};
+	// Nominal tilt angle of the side EDFs (degrees up from horizontal). 0 ⇒ the EDFs sit
+	// level/horizontal with zero roll/pitch demand (pure XY lateral thrust); the airframe's
+	// EDF thrust axes (CA_ROTOR2..5) are horizontal (radial, Z=0) to match. Lift is carried
+	// by the coaxial pair; the servos tilt the EDFs off-level only to command roll/pitch.
+	static constexpr float HOVER_TILT_DEG{0.f};
 
 	ActuatorEffectivenessRotors _mc_motors;
 	ActuatorEffectivenessTilts  _tilts;
