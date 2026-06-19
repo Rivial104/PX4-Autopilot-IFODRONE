@@ -73,6 +73,8 @@ void IfodroneAttitudeControl::Run()
 	// ── Yaw setpoint + thrust source ──────────────────────────────────
 	float    yaw_rate_ff = 0.f;
 	Vector3f thrust_body{0.f, 0.f, 0.f};
+	float    roll_sp  = 0.f;   // commanded tilt (rad); 0 = level. Auto/Position fills from att_sp.
+	float    pitch_sp = 0.f;
 
 	if (manual_mode) {
 		// Yaw stick integrates the heading setpoint.
@@ -98,6 +100,11 @@ void IfodroneAttitudeControl::Run()
 		if (_vehicle_attitude_setpoint_sub.copy(&att_sp)) {
 			const Eulerf e_sp(Quatf(att_sp.q_d));
 
+			// Track the commanded tilt from ifo_pos_control (roll/pitch encode the
+			// horizontal acceleration → translation). Hover/auto publishes level (0,0).
+			if (PX4_ISFINITE(e_sp.phi()))   { roll_sp  = e_sp.phi(); }
+			if (PX4_ISFINITE(e_sp.theta())) { pitch_sp = e_sp.theta(); }
+
 			if (PX4_ISFINITE(e_sp.psi())) {
 				_yaw_setpoint = e_sp.psi();
 			}
@@ -117,9 +124,10 @@ void IfodroneAttitudeControl::Run()
 	}
 
 	// ── Attitude error → rate setpoint (P controller) ─────────────────
-	// IFODRONE keeps the body level: roll/pitch attitude setpoint is always 0.
-	const float roll_error  = 0.f - roll;
-	const float pitch_error = 0.f - pitch;
+	// roll/pitch setpoint is 0 (level) in hover/pure-manual; in Position/Auto it
+	// tracks the tilt commanded by ifo_pos_control (tilt-to-translate).
+	const float roll_error  = roll_sp  - roll;
+	const float pitch_error = pitch_sp - pitch;
 	const float yaw_error   = wrap_pi(_yaw_setpoint - yaw);
 
 	vehicle_rates_setpoint_s rates_sp{};

@@ -82,6 +82,15 @@ private:
 	matrix::Vector3f accelerationToThrust(const matrix::Vector3f &acc_sp, float yaw) const;
 
 	/**
+	 * Convert a NED acceleration setpoint into a TILT attitude setpoint
+	 * (tilt-to-translate): body -Z is tilted toward the desired thrust direction so the
+	 * coaxial lift gains a horizontal component, while the side EDFs stay symmetric. Uses
+	 * the IFODRONE hover-thrust scaling; horizontal tilt is limited by IFO_THR_XY_MAX.
+	 */
+	void accelerationToAttitude(const matrix::Vector3f &acc_sp, float yaw_sp,
+				    vehicle_attitude_setpoint_s &att_sp) const;
+
+	/**
 	 * Adjust setpoint for EKF resets (position/velocity jumps).
 	 */
 	void adjustSetpointForEKFResets(const vehicle_local_position_s &local_pos, trajectory_setpoint_s &setpoint);
