@@ -74,8 +74,8 @@ private:
 	static constexpr float THROTTLE_IDLE{0.05f};   // minimum throttle floor when armed
 
 	// Rate setpoint safety clamps (the inner loop tracks these) [rad/s]
-	static constexpr float RATE_LIMIT_RP{0.5f};    // ~200 deg/s roll/pitch
-	static constexpr float RATE_LIMIT_YAW{0.5f};   // ~200 deg/s yaw
+	static constexpr float RATE_LIMIT_RP{20.0f};    // ~200 deg/s roll/pitch
+	static constexpr float RATE_LIMIT_YAW{20.0f};   // ~200 deg/s yaw
 
 	DEFINE_PARAMETERS(
 		(ParamFloat<px4::params::MC_ROLL_P>)  _param_mc_roll_p,
