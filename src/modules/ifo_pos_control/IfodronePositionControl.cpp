@@ -462,59 +462,25 @@ void IfodronePositionControl::Run()
 	perf_end(_cycle_perf);
 }
 
-matrix::Vector3f IfodronePositionControl::accelerationToThrust(const Vector3f &acc_sp, float yaw) const
+matrix::Vector3f IfodronePositionControl::accelerationToThrust(const Vector3f &acc_sp, float /*yaw*/) const
 {
 	const float hover_thr = math::constrain(_param_ifo_thr_hover.get(), 0.05f, 0.9f);
 	const float thr_min   = math::constrain(_param_ifo_thr_min.get(), 0.0f, 0.9f);
 	const float thr_max   = math::constrain(_param_ifo_thr_max.get(), thr_min, 1.0f);
-	const float thr_xy_max = math::constrain(_param_ifo_thr_xy_max.get(), 0.0f, 1.0f);
 
-	// --- Z axis: hover baseline + correction from vertical acceleration ---
-	// NED: acc_sp(2) > 0 means "push down" → less upward thrust
-	// thrust_z is a positive value representing upward force
+	// ── ATTITUDE-ISOLATION MODE: vertical thrust ONLY ───────────────────────────
+	// We command only the Z (vertical) body thrust here; lateral X/Y body thrust is
+	// forced to ZERO. Rationale (design intent): the side EDFs must run symmetrically
+	// so the vehicle never flies sideways via differential thrust — the ONLY thing that
+	// changes orientation is the tilt servos (driven by the attitude → rate → torque
+	// chain), whose tilt-induced Z-component produces roll/pitch. XY position/velocity
+	// is intentionally not controlled for now (XY velocity setpoint = 0, no lateral
+	// thrust); only Z drives takeoff and altitude hold.
 	const float thrust_z = math::constrain(
 				       hover_thr - acc_sp(2) * (hover_thr / CONSTANTS_ONE_G),
 				       thr_min, thr_max);
 
-	Vector3f thrust_ned(
-		acc_sp(0) * (hover_thr / CONSTANTS_ONE_G),
-		acc_sp(1) * (hover_thr / CONSTANTS_ONE_G),
-		-thrust_z);
-
-	// --- NED → body conversion, convention note ---------------------------------
-	// vehicle_thrust_setpoint is a BODY-frame vector; acceleration/thrust setpoints
-	// here are NED. IFODRONE is a level-body vehicle: ifo_att_control holds roll/pitch
-	// at 0 and the side EDFs produce the body-frame lateral thrust in hover.
-	//
-	// We deliberately rotate by HEADING ONLY (commanded level body), not by the actual
-	// attitude. If the actual (transiently tilted) attitude were used, holding a
-	// NED-vertical thrust T while rolled by φ would inject a body-lateral command
-	// ≈ −T·sinφ, i.e. the side EDFs would be told to cancel the inertial-frame lateral
-	// force the coax (main) motors already produce while tilted. That double-handles the
-	// tilt against the attitude loop and drives the down-side EDF into its lower limit.
-	// Leveling is the attitude controller's job; residual tilt-induced drift is corrected
-	// by the position loop.
-	const float cos_yaw = cosf(yaw);
-	const float sin_yaw = sinf(yaw);
-
-	Vector3f thr_body;
-	thr_body(0) =  cos_yaw * thrust_ned(0) + sin_yaw * thrust_ned(1);
-	thr_body(1) = -sin_yaw * thrust_ned(0) + cos_yaw * thrust_ned(1);
-	thr_body(2) = thrust_ned(2);
-
-	thr_body(2) = math::constrain(thr_body(2), -thr_max, -thr_min);
-
-	// Clamp XY thrust magnitude
-	Vector2f thr_xy(thr_body(0), thr_body(1));
-	const float thr_xy_norm = thr_xy.norm();
-
-	if (thr_xy_norm > thr_xy_max && thr_xy_norm > 1e-5f) {
-		thr_xy *= thr_xy_max / thr_xy_norm;
-		thr_body(0) = thr_xy(0);
-		thr_body(1) = thr_xy(1);
-	}
-
-	return thr_body;
+	return Vector3f(0.f, 0.f, -thrust_z);
 }
 
 void IfodronePositionControl::adjustSetpointForEKFResets(
