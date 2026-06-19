@@ -146,7 +146,7 @@ param set-default SIM_GZ_SV_FUNC1 201
 param set-default SIM_GZ_SV_MINA1 -75.0
 param set-default SIM_GZ_SV_MAXA1 75.0
 param set-default SIM_GZ_SV_MIN1 1000
-param set-default SIM_GZ_SV_DIS1 1500
+param set-default SIM_GZ_SV_DIS1 1875
 param set-default SIM_GZ_SV_MAX1 2000
 
 # Tilt 1: Right motor (rotor 3) - tilts around X axis (90 deg from front)
@@ -159,7 +159,7 @@ param set-default SIM_GZ_SV_FUNC2 202
 param set-default SIM_GZ_SV_MINA2 -75.0
 param set-default SIM_GZ_SV_MAXA2 75.0
 param set-default SIM_GZ_SV_MIN2 1000
-param set-default SIM_GZ_SV_DIS2 1500
+param set-default SIM_GZ_SV_DIS2 1875
 param set-default SIM_GZ_SV_MAX2 2000
 
 # Tilt 2: Back motor (rotor 4) - tilts around Y axis (180 deg, opposite from front)
@@ -172,7 +172,7 @@ param set-default SIM_GZ_SV_FUNC3 203
 param set-default SIM_GZ_SV_MINA3 -75.0
 param set-default SIM_GZ_SV_MAXA3 75.0
 param set-default SIM_GZ_SV_MIN3 1000
-param set-default SIM_GZ_SV_DIS3 1500
+param set-default SIM_GZ_SV_DIS3 1875
 param set-default SIM_GZ_SV_MAX3 2000
 
 # Tilt 3: Left motor (rotor 5) - tilts around X axis (270 deg, opposite from right)
@@ -185,7 +185,7 @@ param set-default SIM_GZ_SV_FUNC4 204
 param set-default SIM_GZ_SV_MINA4 -75.0
 param set-default SIM_GZ_SV_MAXA4 75.0
 param set-default SIM_GZ_SV_MIN4 1000
-param set-default SIM_GZ_SV_DIS4 1500
+param set-default SIM_GZ_SV_DIS4 1875
 param set-default SIM_GZ_SV_MAX4 2000
 
 # ============================================
