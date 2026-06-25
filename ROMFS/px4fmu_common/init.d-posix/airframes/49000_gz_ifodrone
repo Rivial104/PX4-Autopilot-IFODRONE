@@ -263,6 +263,10 @@ param set-default SIM_GZ_EC_REV 0
 
 param set-default CA_METHOD 0
 
+# Side-EDF tilt-servo hover bias: 45° down at hover (nozzle down → thrust up component).
+# Read by ActuatorEffectivenessIfodrone; matches the disarmed servo position (DIS=1700).
+param set-default IFO_TILT_HOVER 45.0
+
 # Side EDFs (motors 2-5) are unidirectional BLDCs — thrust outward only, never reversed.
 # Bidirectional force along each body axis comes from the OPPOSING PAIR (front<->back for X,
 # left<->right for Y); the allocator drives the motor whose axis matches the demand.
