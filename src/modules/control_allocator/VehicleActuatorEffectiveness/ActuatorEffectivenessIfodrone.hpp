@@ -4,8 +4,8 @@
  * Actuator effectiveness for IfoDrone.
  *
  * Both motors and tilt servos are allocated by the CA.
- * ifo_att_control publishes vehicle_torque_setpoint (roll + pitch + yaw);
- * the CA translates that to motor speeds and tilt angles.
+ * Stock mc_rate_control publishes vehicle_torque_setpoint (roll + pitch + yaw) and
+ * vehicle_thrust_setpoint (body xyz); the CA translates that to motor speeds and tilt angles.
  *
  *   Motors 0-1 : coaxial pair, fixed −Z axis (Z-thrust + yaw via KM)
  *   Motors 2-5 : side EDFs, fixed horizontal axes

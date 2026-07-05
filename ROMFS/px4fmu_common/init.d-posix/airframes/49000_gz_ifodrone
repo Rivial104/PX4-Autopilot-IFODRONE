@@ -40,6 +40,10 @@ param set-default CA_ROTOR0_PZ 0.1
 param set-default CA_ROTOR0_AX 0.0
 param set-default CA_ROTOR0_AY 0.0
 param set-default CA_ROTOR0_AZ -1.0
+# Coax yaw KM: ORIGINAL sign (rotor_0 ccw). Verified in gz: this sign gives controlled yaw
+# (maxYawRate ~1 rad/s); the opposite sign spins up to >40 rad/s. The yaw spin seen earlier
+# was NOT the coax sign but the side-EDF reaction torque (gz momentConstant, unmodeled by the
+# CA where side-EDF KM=0) — see the model.sdf side-EDF momentConstant. (2026-07-05)
 param set-default CA_ROTOR0_KM 0.4
 param set-default CA_ROTOR0_CT 0.6
 param set-default SIM_GZ_EC_FUNC1 101
@@ -191,28 +195,27 @@ param set-default SIM_GZ_SV_MAX4 2000
 # ============================================
 # FLIGHT CONTROLLER PARAMETERS
 # ============================================
-# ATTITUDE P-CONTROLLER (ifo_att_control -> vehicle_rates_setpoint)
-# IFODRONE body is kept level: roll/pitch setpoint = 0.
+# ATTITUDE CONTROLLER (mc_att_control -> vehicle_rates_setpoint)
+# IFODRONE body is kept level: the adapter feeds a level (roll/pitch = 0) attitude setpoint.
 # These gains control how aggressively the attitude error is converted to rate setpoints.
 # ============================================
 param set-default MC_ROLL_P 1.0
 param set-default MC_PITCH_P 1.0
 param set-default MC_YAW_P 0.48
-param set-default MC_YAW_WEIGHT 0.4
-# param set-default MC_ROLLRATE_MAX 220.0
-# param set-default MC_PITCHRATE_MAX 220.0
-# param set-default MC_YAWRATE_MAX 200.0
+param set-default MC_ROLLRATE_MAX 220.0
+param set-default MC_PITCHRATE_MAX 220.0
+param set-default MC_YAWRATE_MAX 200.0
 
 # ============================================
 # RATE PID CONTROLLER (mc_rate_control -> torque + thrust)
 # Inner loop: angular rate PID producing body torque.
 # IFODRONE has small roll/pitch authority (tilt servos), so keep gains moderate.
 # ============================================
-param set-default MC_ROLLRATE_P 0.20
+param set-default MC_ROLLRATE_P 1.20
 param set-default MC_ROLLRATE_I 0.10
 param set-default MC_ROLLRATE_D 0.0003
-param set-default MC_ROLLRATE_K 1.0
-param set-default MC_PITCHRATE_P 0.30
+param set-default MC_ROLLRATE_K 0.7
+param set-default MC_PITCHRATE_P 1.20
 param set-default MC_PITCHRATE_I 0.10
 param set-default MC_PITCHRATE_D 0.0003
 param set-default MC_PITCHRATE_K 1.0
@@ -225,10 +228,38 @@ param set-default MC_PR_INT_LIM 0.30
 param set-default MC_YR_INT_LIM 0.30
 
 # ============================================
-# THRUST / THROTTLE PARAMETERS (used by ifo_att_control manual mode)
+# POSITION / VELOCITY CONTROLLER (stock mc_pos_control)
+# Ported from the previous ifo_pos_control (IFO_*) tuning. mc_pos_control produces the NED
+# thrust setpoint; ifo_level_adapter re-expresses it as a level attitude + body-frame thrust.
+# ============================================
+param set-default MPC_XY_P 0.95
+param set-default MPC_Z_P 1.0
+param set-default MPC_XY_VEL_P_ACC 1.8
+param set-default MPC_XY_VEL_I_ACC 0.4
+param set-default MPC_XY_VEL_D_ACC 0.2
+param set-default MPC_Z_VEL_P_ACC 1.0
+param set-default MPC_Z_VEL_I_ACC 0.2
+param set-default MPC_Z_VEL_D_ACC 0.0
+
+param set-default MPC_XY_VEL_MAX 5.0
+param set-default MPC_VEL_MANUAL 5.0
+param set-default MPC_Z_VEL_MAX_UP 3.0
+param set-default MPC_Z_VEL_MAX_DN 1.5
+param set-default MPC_TKO_SPEED 1.5
+param set-default MPC_LAND_SPEED 0.7
+param set-default MPC_TKO_RAMP_T 2.0
+
+# Lateral authority limit: mc_pos_control caps horizontal thrust as a tilt angle. The adapter
+# keeps the body level, so this cap bounds the side-EDF (thrust_body[0/1]) demand. Replaces
+# the old IFO_THR_XY_MAX (0.35 normalized ~ 35 deg of horizontal-vs-vertical thrust at hover).
+param set-default MPC_TILTMAX_AIR 35.0
+
+# ============================================
+# THRUST / THROTTLE PARAMETERS (mc_pos_control collective + manual throttle)
 # ============================================
 param set-default MPC_THR_HOVER 0.5
-param set-default MPC_THR_MAX 30.0
+param set-default MPC_THR_MIN 0.12
+param set-default MPC_THR_MAX 0.8
 param set-default MPC_MANTHR_MIN 0.08
 
 param set-default MC_AIRMODE 1

@@ -4,8 +4,8 @@
  * IFODRONE control allocator effectiveness.
  *
  * Both motors and tilt servos participate in the CA effectiveness matrix.
- * ifo_att_control publishes vehicle_torque_setpoint (roll+pitch+yaw);
- * the CA allocates to all 10 actuators simultaneously.
+ * Stock mc_rate_control publishes vehicle_torque_setpoint (roll+pitch+yaw) and
+ * vehicle_thrust_setpoint (body xyz); the CA allocates to all 10 actuators simultaneously.
  *
  *   Motors 0-1 : coaxial pair (−Z axis) — Z-thrust + yaw via differential KM
  *   Motors 2-5 : side EDFs — lateral XY thrust (static horizontal axes)
@@ -43,10 +43,16 @@ ActuatorEffectivenessIfodrone::getEffectivenessMatrix(Configuration &configurati
 
 	const bool motors_ok = _mc_motors.addActuators(configuration);
 
-	// Side EDFs are unidirectional. Trim sets the shared idle baseline for each
+	// Side EDFs are unidirectional. Trim sets the shared baseline thrust for each
 	// opposing pair; CA allocates differentially (one up, one down by equal delta).
+	//
+	// This baseline MUST be well above idle: roll/pitch torque is produced by the
+	// tilt servos VECTORING the EDF thrust (torque ≈ arm · F_edf · sin(tilt)). At idle
+	// (~0.9 N) the servos deflect but produce ~no torque, so attitude diverges. A
+	// higher baseline gives the servos real thrust to vector AND symmetric headroom
+	// for the differential XY thrust. Opposing pairs cancel, so no net force is added.
 	for (int i = 2; i <= 5; ++i) {
-		configuration.trim[configuration.selected_matrix](i) = 0.2f;
+		configuration.trim[configuration.selected_matrix](i) = 0.5f;
 	}
 
 	_first_tilt_idx = configuration.num_actuators_matrix[0];
@@ -56,11 +62,14 @@ ActuatorEffectivenessIfodrone::getEffectivenessMatrix(Configuration &configurati
 	// yaw; it cannot represent right/left tilts that create roll torque.
 	// Sign derivation: a +1 servo command on the front EDF tilts its thrust vector to
 	// create nose-up (positive pitch) torque; back EDF is opposite; right/left create ±roll.
+	// Signs verified by gz causal-chain diagnostics: for each axis, a small attitude error
+	// must drive the servos so the body corrects (not diverges). Roll-original inverted the
+	// correction (servos worsened roll), so roll uses the opposite sign here.
 	static const Vector3f tilt_torques[4] = {
-		{0.f, -1.f, 0.f},   // Servo 0: front (TD=0)   → −pitch (nose down)
-		{ -1.f, 0.f, 0.f},   // Servo 1: right (TD=90)  → +roll  (right wing down)
-		{0.f,  1.f, 0.f},   // Servo 2: back  (TD=180) → +pitch (nose up)
-		{1.f, 0.f, 0.f},   // Servo 3: left  (TD=270) → −roll  (right wing up)
+		{0.f, 1.f, 0.f},   // Servo 0: front (TD=0)   pitch
+		{1.f, 0.f, 0.f},   // Servo 1: right (TD=90)  roll
+		{0.f, -1.f, 0.f},   // Servo 2: back  (TD=180) pitch
+		{-1.f, 0.f, 0.f},   // Servo 3: left  (TD=270) roll
 	};
 
 	for (int i = 0; i < 4; ++i) {

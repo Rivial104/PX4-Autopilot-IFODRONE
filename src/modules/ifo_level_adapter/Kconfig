@@ -1,0 +1,15 @@
+menuconfig MODULES_IFO_LEVEL_ADAPTER
+	bool "ifo_level_adapter"
+	default n
+	---help---
+		Enable the IFODRONE level adapter: bridges the stock mc_pos_control (vtol
+		virtual attitude setpoint) to the stock mc_att_control, rewriting the tilted
+		attitude setpoint into a level attitude setpoint + body-frame thrust so the
+		IFODRONE body stays level while translating via the side EDFs.
+
+menuconfig USER_IFO_LEVEL_ADAPTER
+	bool "ifo_level_adapter running as userspace module"
+	default y
+	depends on BOARD_PROTECTED && MODULES_IFO_LEVEL_ADAPTER
+	---help---
+		Put ifo_level_adapter in userspace memory

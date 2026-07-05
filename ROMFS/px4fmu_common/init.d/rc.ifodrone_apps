@@ -1,40 +1,27 @@
 #!/bin/sh
 #
-# IfoDrone specific apps. Cascaded MC-style control chain:
-#   ifo_pos_control : trajectory_setpoint → vehicle_attitude_setpoint (yaw + thrust_body)
-#   ifo_att_control : attitude P          → vehicle_rates_setpoint (+ thrust_body passthrough)
-#   mc_rate_control : rate PID            → vehicle_torque_setpoint + vehicle_thrust_setpoint
-#   control_allocator: torque/thrust      → actuator_motors + actuator_servos (tilts)
+# IfoDrone specific apps. STOCK multicopter control cascade + a thin level adapter:
+#   mc_pos_control vtol : trajectory_setpoint → mc_virtual_attitude_setpoint (tilted q_d + collective)
+#   ifo_level_adapter   : virtual att sp      → vehicle_attitude_setpoint (LEVEL q_d + thrust_body[0/1/2])
+#   mc_att_control      : attitude control    → vehicle_rates_setpoint (roll/pitch->0, yaw, thrust passthrough)
+#   mc_rate_control     : rate PID            → vehicle_torque_setpoint + vehicle_thrust_setpoint
+#   control_allocator   : torque/thrust       → actuator_motors + actuator_servos (tilts)
 #
-# Single publisher per topic, identical chain in manual and offboard/mission.
+# The body is kept level (roll/pitch = 0); horizontal translation is realized by the side
+# EDFs via thrust_body[0/1] in ActuatorEffectivenessIfodrone. mc_pos_control is started with
+# "vtol" only to divert its output to mc_virtual_attitude_setpoint so the adapter is the sole
+# publisher of vehicle_attitude_setpoint while position control is active.
 #
 
 control_allocator start
-
-#
-# Start IfoDrone Position Controller (trajectory_setpoint -> vehicle_attitude_setpoint)
-#
-ifo_pos_control start
-
-#
-# Start IfoDrone Attitude Controller (attitude P -> vehicle_rates_setpoint)
-#
-ifo_att_control start
-
-#
-# Start Rate Controller (rate PID -> vehicle_torque_setpoint + vehicle_thrust_setpoint)
-#
 mc_rate_control start
+mc_att_control start
 
+mc_pos_control start vtol
+ifo_level_adapter start
 
-#
-# Start Hover Thrust Estimator (needed for thrust estimation)
-#
 mc_hover_thrust_estimator start
 
-#
-# Start Flight Mode Manager (required for mission/auto modes)
-#
 flight_mode_manager start
 
 #
