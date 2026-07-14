@@ -24,6 +24,8 @@
 # @maintainer IFODRONE
 #
 
+# garnuch
+
 . ${R}etc/init.d/rc.ifodrone_defaults
 
 param set-default SYS_AUTOSTART 4072
