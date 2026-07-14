@@ -56,14 +56,14 @@ ActuatorEffectivenessIfodrone::getEffectivenessMatrix(Configuration &configurati
 	// yaw; it cannot represent right/left tilts that create roll torque.
 	// Sign derivation: a +1 servo command on the front EDF tilts its thrust vector to
 	// create nose-up (positive pitch) torque; back EDF is opposite; right/left create ±roll.
-	// TILT_EFF < 1 under-models per-servo torque so the pseudo-inverse commands a larger
-	// tilt deflection for the same demanded roll/pitch torque (more tilt authority).
-	static constexpr float TILT_EFF = 0.5f;
+	// NOTE: do not tune tilt authority by scaling these entries — normalize_rpy rescales
+	// the mix columns by their own norm, cancelling any common factor. Use IFO_TILT_GAIN
+	// (applied on the allocated deflection in updateSetpoint) instead.
 	static const Vector3f tilt_torques[4] = {
-		{0.f, -TILT_EFF, 0.f},   // Servo 0: front (TD=0)   → −pitch (nose down)
-		{ TILT_EFF, 0.f, 0.f},   // Servo 1: right (TD=90)  → +roll  (right wing down)
-		{0.f,  TILT_EFF, 0.f},   // Servo 2: back  (TD=180) → +pitch (nose up)
-		{-TILT_EFF, 0.f, 0.f},   // Servo 3: left  (TD=270) → −roll  (right wing up)
+		{0.f, -1.f, 0.f},   // Servo 0: front (TD=0)   → −pitch (nose down)
+		{ 1.f, 0.f, 0.f},   // Servo 1: right (TD=90)  → +roll  (right wing down)
+		{0.f,  1.f, 0.f},   // Servo 2: back  (TD=180) → +pitch (nose up)
+		{-1.f, 0.f, 0.f},   // Servo 3: left  (TD=270) → −roll  (right wing up)
 	};
 
 	for (int i = 0; i < 4; ++i) {
@@ -76,6 +76,12 @@ ActuatorEffectivenessIfodrone::getEffectivenessMatrix(Configuration &configurati
 
 	if (hover_param != PARAM_INVALID) {
 		param_get(hover_param, &hover_angle_deg);
+	}
+
+	param_t gain_param = param_find("IFO_TILT_GAIN");
+
+	if (gain_param != PARAM_INVALID) {
+		param_get(gain_param, &_tilt_gain);
 	}
 
 	const float hover_angle_rad = math::radians(hover_angle_deg);
@@ -97,5 +103,13 @@ void ActuatorEffectivenessIfodrone::updateSetpoint(const matrix::Vector<float, N
 		int /*matrix_index*/, ActuatorVector &actuator_sp,
 		const ActuatorVector &/*actuator_min*/, const ActuatorVector &/*actuator_max*/)
 {
+	// Tilt authority gain: scale the allocated servo deflection around the hover offset.
+	// Applied here (post-allocation) because normalize_rpy re-normalizes the mix, which
+	// cancels any scaling of the servo effectiveness entries. Clipping to the angle
+	// limits happens afterwards in clipActuatorSetpoint().
+	for (int i = 0; i < _tilts.count(); ++i) {
+		actuator_sp(_first_tilt_idx + i) *= _tilt_gain;
+	}
+
 	actuator_sp += _tilt_offsets;
 }

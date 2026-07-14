@@ -86,10 +86,16 @@ void IfodroneAttitudeControl::Run()
 		_yaw_setpoint = wrap_pi(_yaw_setpoint + yaw_stick_rate * dt);
 		yaw_rate_ff   = yaw_stick_rate;
 
-		// Throttle stick → vertical thrust (level body: XY thrust = 0).
+		// Throttle stick → vertical thrust.
 		const float throttle_raw = (_manual_control_setpoint.throttle + 1.f) * 0.5f;
 		const float throttle     = THROTTLE_IDLE + throttle_raw * (1.f - THROTTLE_IDLE);
 		thrust_body(2) = -throttle;
+
+		// Roll/pitch sticks → lateral body thrust (side EDFs), same limit as
+		// ifo_pos_control: stick forward = +X, stick right = +Y.
+		const float thr_xy_max = _param_ifo_thr_xy_max.get();
+		thrust_body(0) = _manual_control_setpoint.pitch * thr_xy_max;
+		thrust_body(1) = _manual_control_setpoint.roll  * thr_xy_max;
 
 	} else {
 		// Auto / Position: yaw and thrust come from ifo_pos_control via vehicle_attitude_setpoint.

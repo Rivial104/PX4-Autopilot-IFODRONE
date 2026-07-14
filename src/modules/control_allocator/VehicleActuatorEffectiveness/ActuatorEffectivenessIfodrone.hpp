@@ -47,4 +47,5 @@ protected:
 
 	int            _first_tilt_idx{0};
 	ActuatorVector _tilt_offsets{};
+	float          _tilt_gain{1.f};
 };

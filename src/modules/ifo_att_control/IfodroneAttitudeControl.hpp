@@ -9,7 +9,8 @@
  *   - Roll/pitch error → roll/pitch rate setpoint (P gains MC_ROLL_P / MC_PITCH_P)
  *   - Yaw error        → yaw rate setpoint        (P gain  MC_YAW_P)
  *   - thrust_body is carried through to the rate controller:
- *       Manual:    throttle stick → -Z
+ *       Manual:    throttle stick → -Z, roll/pitch sticks → lateral XY (side EDFs,
+ *                  scaled by IFO_THR_XY_MAX)
  *       Auto/Pos:  copied from vehicle_attitude_setpoint.thrust_body (ifo_pos_control)
  *
  * The control allocator (ActuatorEffectivenessIfodrone) maps the resulting torque to
@@ -86,7 +87,8 @@ private:
 	DEFINE_PARAMETERS(
 		(ParamFloat<px4::params::MC_ROLL_P>)  _param_mc_roll_p,
 		(ParamFloat<px4::params::MC_PITCH_P>) _param_mc_pitch_p,
-		(ParamFloat<px4::params::MC_YAW_P>)   _param_mc_yaw_p
+		(ParamFloat<px4::params::MC_YAW_P>)   _param_mc_yaw_p,
+		(ParamFloat<px4::params::IFO_THR_XY_MAX>) _param_ifo_thr_xy_max
 	)
 
 	perf_counter_t _loop_perf;

@@ -239,5 +239,9 @@ param set-default CA_METHOD 0
 
 param set-default IFO_TILT_HOVER 45.0
 
+# Tilt servo authority: scales allocated servo deflection around IFO_TILT_HOVER.
+# Applied post-allocation (effectiveness scaling is cancelled by mix normalization).
+param set-default IFO_TILT_GAIN 2.0
+
 # Auto/takeoff yaw mode: hold heading (mode 4)
 param set-default MPC_YAW_MODE 4
