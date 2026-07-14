@@ -26,9 +26,10 @@
 
 . ${R}etc/init.d/rc.ifodrone_defaults
 
-param set-default SYS_AUTOCONFIG 1
+param set-default SYS_AUTOSTART 4072
 param set-default CA_AIRFRAME 90
 param set-default CA_ROTOR_COUNT 6
+param set-default CA_MAG0_ROT 2
 
 # ============================================
 # ROTOR GEOMETRY (must match SITL airframe)
