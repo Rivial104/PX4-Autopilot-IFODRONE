@@ -274,9 +274,9 @@ void IfodronePositionControl::Run()
 				local_pos_sp.timestamp = hrt_absolute_time();
 				_local_pos_sp_pub.publish(local_pos_sp);
 
-				// Convert acceleration setpoint → TILT attitude setpoint
-				// (tilt-to-translate: roll/pitch encode the horizontal accel; the side
-				// EDFs stay symmetric and the coax tilt provides the lateral force).
+				// Convert acceleration setpoint → LEVEL attitude + lateral body thrust
+				// (translate-by-thrust: roll/pitch stay 0, horizontal accel becomes
+				// lateral body thrust delivered by the side EDFs).
 				Vector3f acc_sp(
 					local_pos_sp.acceleration[0],
 					local_pos_sp.acceleration[1],
@@ -286,10 +286,16 @@ void IfodronePositionControl::Run()
 					if (!PX4_ISFINITE(acc_sp(i))) { acc_sp(i) = 0.f; }
 				}
 
+				const Vector3f thr_body = accelerationToThrust(acc_sp, _hold_yaw_angle);
+
 				vehicle_attitude_setpoint_s att_sp{};
 				att_sp.timestamp        = hrt_absolute_time();
 				att_sp.yaw_sp_move_rate = 0.0f;
-				accelerationToAttitude(acc_sp, _hold_yaw_angle, att_sp);
+				const Quatf q_sp(Eulerf(0.0f, 0.0f, _hold_yaw_angle));
+				q_sp.copyTo(att_sp.q_d);
+				att_sp.thrust_body[0] = thr_body(0);
+				att_sp.thrust_body[1] = thr_body(1);
+				att_sp.thrust_body[2] = thr_body(2);
 				_attitude_setpoint_pub.publish(att_sp);
 
 			} else {
@@ -469,29 +475,7 @@ void IfodronePositionControl::Run()
 	perf_end(_cycle_perf);
 }
 
-matrix::Vector3f IfodronePositionControl::accelerationToThrust(const Vector3f &acc_sp, float /*yaw*/) const
-{
-	const float hover_thr = math::constrain(_param_ifo_thr_hover.get(), 0.05f, 0.9f);
-	const float thr_min   = math::constrain(_param_ifo_thr_min.get(), 0.0f, 0.9f);
-	const float thr_max   = math::constrain(_param_ifo_thr_max.get(), thr_min, 1.0f);
-
-	// ── ATTITUDE-ISOLATION MODE: vertical thrust ONLY ───────────────────────────
-	// We command only the Z (vertical) body thrust here; lateral X/Y body thrust is
-	// forced to ZERO. Rationale (design intent): the side EDFs must run symmetrically
-	// so the vehicle never flies sideways via differential thrust — the ONLY thing that
-	// changes orientation is the tilt servos (driven by the attitude → rate → torque
-	// chain), whose tilt-induced Z-component produces roll/pitch. XY position/velocity
-	// is intentionally not controlled for now (XY velocity setpoint = 0, no lateral
-	// thrust); only Z drives takeoff and altitude hold.
-	const float thrust_z = math::constrain(
-				       hover_thr - acc_sp(2) * (hover_thr / CONSTANTS_ONE_G),
-				       thr_min, thr_max);
-
-	return Vector3f(0.f, 0.f, -thrust_z);
-}
-
-void IfodronePositionControl::accelerationToAttitude(const Vector3f &acc_sp, float yaw_sp,
-		vehicle_attitude_setpoint_s &att_sp) const
+matrix::Vector3f IfodronePositionControl::accelerationToThrust(const Vector3f &acc_sp, float yaw) const
 {
 	const float hover_thr  = math::constrain(_param_ifo_thr_hover.get(), 0.05f, 0.9f);
 	const float thr_min    = math::constrain(_param_ifo_thr_min.get(), 0.0f, 0.9f);
@@ -499,21 +483,28 @@ void IfodronePositionControl::accelerationToAttitude(const Vector3f &acc_sp, flo
 	const float thr_xy_max = math::constrain(_param_ifo_thr_xy_max.get(), 0.0f, 1.0f);
 	const float k = hover_thr / CONSTANTS_ONE_G;
 
-	// Vertical (collective) thrust magnitude — counters gravity + vertical accel.
+	// ── LATERAL-THRUST TRANSLATION (body stays level) ───────────────────────────
+	// The vehicle is always regulated to roll/pitch = 0. Horizontal translation is
+	// produced by LATERAL body thrust (X/Y) delivered by the side EDFs — never by
+	// tilting. The attitude → rate → torque chain only keeps the body level.
+	//
+	//   Vertical  : collective (coax) thrust counters gravity + vertical accel.
+	//   Horizontal: NED accel → thrust fraction (clamped by IFO_THR_XY_MAX), then
+	//               rotated NED→body by yaw into thrust_body[0] (fwd) / [1] (right).
 	const float thrust_z = math::constrain(hover_thr - acc_sp(2) * k, thr_min, thr_max);
 
-	// Desired NED thrust vector: horizontal from lateral accel (tilt-limited via
-	// IFO_THR_XY_MAX), vertical = -thrust_z (up). thrustToAttitude tilts body -Z to this
-	// direction and writes the collective into thrust_body[2]; thrust_body[0/1] stay 0,
-	// so the side EDFs get no lateral demand and translation comes purely from the tilt.
-	Vector2f thr_xy(acc_sp(0) * k, acc_sp(1) * k);
+	Vector2f thr_xy_ned(acc_sp(0) * k, acc_sp(1) * k);
 
-	if (thr_xy.norm() > thr_xy_max && thr_xy.norm() > 1e-5f) {
-		thr_xy = thr_xy.unit() * thr_xy_max;
+	if (thr_xy_ned.norm() > thr_xy_max && thr_xy_ned.norm() > 1e-5f) {
+		thr_xy_ned = thr_xy_ned.unit() * thr_xy_max;
 	}
 
-	const Vector3f thr_sp_ned(thr_xy(0), thr_xy(1), -thrust_z);
-	ControlMath::thrustToAttitude(thr_sp_ned, yaw_sp, att_sp);
+	const float cy = cosf(yaw);
+	const float sy = sinf(yaw);
+	const float thr_bx =  cy * thr_xy_ned(0) + sy * thr_xy_ned(1);   // body X (forward)
+	const float thr_by = -sy * thr_xy_ned(0) + cy * thr_xy_ned(1);   // body Y (right)
+
+	return Vector3f(thr_bx, thr_by, -thrust_z);
 }
 
 void IfodronePositionControl::adjustSetpointForEKFResets(

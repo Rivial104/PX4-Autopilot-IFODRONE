@@ -2,8 +2,8 @@
 #
 # IfoDrone specific apps. Cascaded MC-style control chain:
 #   ifo_pos_control : trajectory_setpoint → vehicle_attitude_setpoint (yaw + thrust_body)
-#   ifo_att_control : attitude P          → vehicle_rates_setpoint (+ thrust_body passthrough)
-#   mc_rate_control : rate PID            → vehicle_torque_setpoint + vehicle_thrust_setpoint
+#   ifo_att_control : attitude P          → vehicle_rates_setpoint + vehicle_thrust_setpoint
+#   mc_rate_control : rate PID            → vehicle_torque_setpoint (thrust disabled via MC_PUB_THRUST=0)
 #   control_allocator: torque/thrust      → actuator_motors + actuator_servos (tilts)
 #
 # Single publisher per topic, identical chain in manual and offboard/mission.
@@ -22,7 +22,7 @@ ifo_pos_control start
 ifo_att_control start
 
 #
-# Start Rate Controller (rate PID -> vehicle_torque_setpoint + vehicle_thrust_setpoint)
+# Start Rate Controller (rate PID -> vehicle_torque_setpoint; thrust owned by ifo_att_control)
 #
 mc_rate_control start
 

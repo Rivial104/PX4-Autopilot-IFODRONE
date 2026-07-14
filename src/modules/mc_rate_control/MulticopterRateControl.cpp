@@ -255,9 +255,14 @@ MulticopterRateControl::Run()
 				}
 			}
 
-			vehicle_thrust_setpoint.timestamp_sample = angular_velocity.timestamp_sample;
-			vehicle_thrust_setpoint.timestamp = hrt_absolute_time();
-			_vehicle_thrust_setpoint_pub.publish(vehicle_thrust_setpoint);
+			// Thrust setpoint is normally a passthrough of thrust_body. Some airframes
+			// (e.g. IFODRONE) let another module own vehicle_thrust_setpoint; skip
+			// publishing here in that case to keep a single publisher per topic.
+			if (_param_mc_pub_thrust.get()) {
+				vehicle_thrust_setpoint.timestamp_sample = angular_velocity.timestamp_sample;
+				vehicle_thrust_setpoint.timestamp = hrt_absolute_time();
+				_vehicle_thrust_setpoint_pub.publish(vehicle_thrust_setpoint);
+			}
 
 			vehicle_torque_setpoint.timestamp_sample = angular_velocity.timestamp_sample;
 			vehicle_torque_setpoint.timestamp = hrt_absolute_time();

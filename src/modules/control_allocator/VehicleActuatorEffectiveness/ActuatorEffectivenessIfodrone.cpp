@@ -58,9 +58,9 @@ ActuatorEffectivenessIfodrone::getEffectivenessMatrix(Configuration &configurati
 	// create nose-up (positive pitch) torque; back EDF is opposite; right/left create ±roll.
 	static const Vector3f tilt_torques[4] = {
 		{0.f, -1.f, 0.f},   // Servo 0: front (TD=0)   → −pitch (nose down)
-		{ -1.f, 0.f, 0.f},   // Servo 1: right (TD=90)  → +roll  (right wing down)
+		{ 1.f, 0.f, 0.f},   // Servo 1: right (TD=90)  → +roll  (right wing down)
 		{0.f,  1.f, 0.f},   // Servo 2: back  (TD=180) → +pitch (nose up)
-		{1.f, 0.f, 0.f},   // Servo 3: left  (TD=270) → −roll  (right wing up)
+		{-1.f, 0.f, 0.f},   // Servo 3: left  (TD=270) → −roll  (right wing up)
 	};
 
 	for (int i = 0; i < 4; ++i) {

@@ -204,10 +204,13 @@ param set-default MC_YAW_WEIGHT 0.4
 # param set-default MC_YAWRATE_MAX 200.0
 
 # ============================================
-# RATE PID CONTROLLER (mc_rate_control -> torque + thrust)
+# RATE PID CONTROLLER (mc_rate_control -> torque only)
 # Inner loop: angular rate PID producing body torque.
 # IFODRONE has small roll/pitch authority (tilt servos), so keep gains moderate.
+# Thrust setpoint is owned by ifo_att_control, so mc_rate_control must NOT publish
+# vehicle_thrust_setpoint (single publisher per topic).
 # ============================================
+param set-default MC_PUB_THRUST 0
 param set-default MC_ROLLRATE_P 0.20
 param set-default MC_ROLLRATE_I 0.10
 param set-default MC_ROLLRATE_D 0.0003

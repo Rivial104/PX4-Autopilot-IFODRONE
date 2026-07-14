@@ -76,19 +76,12 @@ private:
 	void parameters_update(bool force);
 
 	/**
-	 * Convert PositionControl library acceleration setpoint into body-frame
-	 * thrust for the IFODRONE.
+	 * Convert a NED acceleration setpoint into a body-frame thrust vector for the
+	 * IFODRONE. The body is kept level (roll/pitch = 0); horizontal acceleration is
+	 * turned into LATERAL body thrust (thrust_body[0]/[1], delivered by the side EDFs
+	 * and limited by IFO_THR_XY_MAX), vertical into collective thrust (thrust_body[2]).
 	 */
 	matrix::Vector3f accelerationToThrust(const matrix::Vector3f &acc_sp, float yaw) const;
-
-	/**
-	 * Convert a NED acceleration setpoint into a TILT attitude setpoint
-	 * (tilt-to-translate): body -Z is tilted toward the desired thrust direction so the
-	 * coaxial lift gains a horizontal component, while the side EDFs stay symmetric. Uses
-	 * the IFODRONE hover-thrust scaling; horizontal tilt is limited by IFO_THR_XY_MAX.
-	 */
-	void accelerationToAttitude(const matrix::Vector3f &acc_sp, float yaw_sp,
-				    vehicle_attitude_setpoint_s &att_sp) const;
 
 	/**
 	 * Adjust setpoint for EKF resets (position/velocity jumps).

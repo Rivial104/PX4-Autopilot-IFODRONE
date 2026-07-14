@@ -33,6 +33,7 @@
 #include <uORB/topics/vehicle_attitude_setpoint.h>
 #include <uORB/topics/vehicle_control_mode.h>
 #include <uORB/topics/vehicle_rates_setpoint.h>
+#include <uORB/topics/vehicle_thrust_setpoint.h>
 
 using namespace time_literals;
 
@@ -62,6 +63,7 @@ private:
 	uORB::Subscription                 _manual_control_setpoint_sub{ORB_ID(manual_control_setpoint)};
 
 	uORB::Publication<vehicle_rates_setpoint_s> _vehicle_rates_setpoint_pub{ORB_ID(vehicle_rates_setpoint)};
+	uORB::Publication<vehicle_thrust_setpoint_s> _vehicle_thrust_setpoint_pub{ORB_ID(vehicle_thrust_setpoint)};
 
 	vehicle_control_mode_s    _vehicle_control_mode{};
 	manual_control_setpoint_s _manual_control_setpoint{};
@@ -70,12 +72,16 @@ private:
 	float       _yaw_setpoint{NAN};
 
 	// Manual-mode mapping
-	static constexpr float YAW_RATE_MAX{1.5f};     // manual yaw stick → yaw rate setpoint [rad/s]
+	static constexpr float YAW_RATE_MAX{10.0f};     // manual yaw stick → yaw rate setpoint [rad/s]
 	static constexpr float THROTTLE_IDLE{0.05f};   // minimum throttle floor when armed
 
 	// Rate setpoint safety clamps (the inner loop tracks these) [rad/s]
 	static constexpr float RATE_LIMIT_RP{20.0f};    // ~200 deg/s roll/pitch
 	static constexpr float RATE_LIMIT_YAW{20.0f};   // ~200 deg/s yaw
+
+	// Collective tilt-compensation floor for cos(tilt): caps the 1/cos boost
+	// (0.5 → at 60° tilt, at most 2× thrust; beyond that recovery is hopeless anyway).
+	static constexpr float TILT_COMP_MIN_COS{0.5f};
 
 	DEFINE_PARAMETERS(
 		(ParamFloat<px4::params::MC_ROLL_P>)  _param_mc_roll_p,

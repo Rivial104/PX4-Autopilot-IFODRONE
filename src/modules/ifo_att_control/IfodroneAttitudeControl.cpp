@@ -73,8 +73,8 @@ void IfodroneAttitudeControl::Run()
 	// ── Yaw setpoint + thrust source ──────────────────────────────────
 	float    yaw_rate_ff = 0.f;
 	Vector3f thrust_body{0.f, 0.f, 0.f};
-	float    roll_sp  = 0.f;   // commanded tilt (rad); 0 = level. Auto/Position fills from att_sp.
-	float    pitch_sp = 0.f;
+	const float roll_sp  = 0.f;   // always level (rad); horizontal translation is via lateral thrust.
+	const float pitch_sp = 0.f;
 
 	if (manual_mode) {
 		// Yaw stick integrates the heading setpoint.
@@ -100,11 +100,9 @@ void IfodroneAttitudeControl::Run()
 		if (_vehicle_attitude_setpoint_sub.copy(&att_sp)) {
 			const Eulerf e_sp(Quatf(att_sp.q_d));
 
-			// Track the commanded tilt from ifo_pos_control (roll/pitch encode the
-			// horizontal acceleration → translation). Hover/auto publishes level (0,0).
-			if (PX4_ISFINITE(e_sp.phi()))   { roll_sp  = e_sp.phi(); }
-			if (PX4_ISFINITE(e_sp.theta())) { pitch_sp = e_sp.theta(); }
-
+			// IFODRONE stays level: roll/pitch setpoint is always 0. Horizontal
+			// translation comes from lateral body thrust (thrust_body[0]/[1] → side
+			// EDFs), NOT from tilting — so only yaw is tracked from the setpoint.
 			if (PX4_ISFINITE(e_sp.psi())) {
 				_yaw_setpoint = e_sp.psi();
 			}
@@ -124,20 +122,39 @@ void IfodroneAttitudeControl::Run()
 	}
 
 	// ── Attitude error → rate setpoint (P controller) ─────────────────
-	// roll/pitch setpoint is 0 (level) in hover/pure-manual; in Position/Auto it
-	// tracks the tilt commanded by ifo_pos_control (tilt-to-translate).
+	// roll/pitch setpoint is always 0 (level) in every mode: horizontal translation
+	// comes from lateral body thrust (thrust_body), not from tilting the airframe.
 	const float roll_error  = roll_sp  - roll;
 	const float pitch_error = pitch_sp - pitch;
 	const float yaw_error   = wrap_pi(_yaw_setpoint - yaw);
 
+	// ── Tilt compensation for the collective (hover) thrust ───────────
+	// The coaxial thrust acts along body -Z. When the airframe is tilted by θ from
+	// vertical, its vertical lift is only |thrust_z|·cos(θ), so altitude sinks. Scale
+	// the collective by 1/cos(θ), with cos(θ) = cos(roll)·cos(pitch) = R33, so the
+	// commanded vertical lift is held regardless of (disturbance) tilt. Lateral thrust
+	// (side EDFs) is left untouched. cos(θ) is floored so the boost stays bounded.
+	const float cos_tilt = math::max(cosf(roll) * cosf(pitch), TILT_COMP_MIN_COS);
+	thrust_body(2) = math::constrain(thrust_body(2) / cos_tilt, -1.f, 0.f);
+
 	vehicle_rates_setpoint_s rates_sp{};
+	vehicle_thrust_setpoint_s thrust_sp{};
+
 	rates_sp.roll  = math::constrain(_param_mc_roll_p.get()  * roll_error,  -RATE_LIMIT_RP,  RATE_LIMIT_RP);
 	rates_sp.pitch = math::constrain(_param_mc_pitch_p.get() * pitch_error, -RATE_LIMIT_RP,  RATE_LIMIT_RP);
 	rates_sp.yaw   = math::constrain(_param_mc_yaw_p.get()   * yaw_error + yaw_rate_ff,
 					 -RATE_LIMIT_YAW, RATE_LIMIT_YAW);
 	thrust_body.copyTo(rates_sp.thrust_body);
-	rates_sp.timestamp = hrt_absolute_time();
+	thrust_body.copyTo(thrust_sp.xyz);
+
+	const hrt_abstime now = hrt_absolute_time();
+
+	rates_sp.timestamp = now;
 	_vehicle_rates_setpoint_pub.publish(rates_sp);
+
+	thrust_sp.timestamp_sample = att.timestamp_sample;
+	thrust_sp.timestamp        = now;
+	_vehicle_thrust_setpoint_pub.publish(thrust_sp);
 
 	perf_end(_loop_perf);
 }

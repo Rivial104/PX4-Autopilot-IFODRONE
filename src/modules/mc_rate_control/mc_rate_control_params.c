@@ -293,6 +293,20 @@ PARAM_DEFINE_FLOAT(MC_YAWRATE_K, 1.0f);
 PARAM_DEFINE_INT32(MC_BAT_SCALE_EN, 0);
 
 /**
+ * Publish vehicle_thrust_setpoint from the rate controller
+ *
+ * When enabled (default), the rate controller publishes vehicle_thrust_setpoint
+ * (a passthrough of thrust_body) alongside vehicle_torque_setpoint. Disable this
+ * on airframes where another module owns the thrust setpoint to keep a single
+ * publisher per topic (e.g. IFODRONE, where ifo_att_control publishes thrust).
+ * Torque publishing is unaffected.
+ *
+ * @boolean
+ * @group Multicopter Rate Control
+ */
+PARAM_DEFINE_INT32(MC_PUB_THRUST, 1);
+
+/**
  * Low pass filter cutoff frequency for yaw torque setpoint
  *
  * Reduces vibrations by lowering high frequency torque caused by rotor acceleration.

@@ -10,19 +10,16 @@
 # Hardware airframe for Matek H743-Slim V3.
 #
 # Output mapping (FMU MAIN, no IO co-processor on H743 Slim):
-#   MAIN1 (S1)  -> Motor 0  (top main, function 101)
+#   MAIN1 (S1)  -> Motor 0  (top main,    function 101)
 #   MAIN2 (S2)  -> Motor 1  (bottom main, function 102)
-#   MAIN3 (S3)  -> Motor 2  (front EDF, function 103)
-#   MAIN4 (S4)  -> Motor 3  (right EDF, function 104)
-#   MAIN5 (S5)  -> Motor 4  (back EDF,  function 105)
-#   MAIN6 (S6)  -> Motor 5  (left EDF,  function 106)
-#   MAIN7 (S7)  -> Tilt servo 0 (front, function 201)
-#   MAIN8 (S8)  -> Tilt servo 1 (right, function 202)
-#   MAIN9 (S9)  -> Tilt servo 2 (back,  function 203)
-#   MAIN10(S10) -> Tilt servo 3 (left,  function 204)
-#
-# To use S1..S4 for the SERVOS instead (your original wiring):
-#   set FUNC1..FUNC4 to 201..204 and FUNC5..FUNC10 to 101..106 - everything else stays.
+#   MAIN5 (S5)  -> Motor 4  (back EDF,    function 105) [side 2]
+#   MAIN6 (S6)  -> Motor 3  (right EDF,   function 104) [side 1]
+#   MAIN7 (S7)  -> Motor 5  (left EDF,    function 106) [side 3]
+#   MAIN8 (S8)  -> Motor 2  (front EDF,   function 103) [side 0]
+#   MAIN9 (S9)  -> Tilt servo 3 (back,    function 203)
+#   MAIN10(S10) -> Tilt servo 4 (left,    function 204)
+#   MAIN11(S11) -> Tilt servo 2 (right,   function 202)
+#   MAIN12(S12) -> Tilt servo 1 (front,   function 201)
 #
 # @maintainer IFODRONE
 #
@@ -60,9 +57,9 @@ param set-default CA_ROTOR1_CT 0.6
 param set-default CA_ROTOR2_PX 0.535
 param set-default CA_ROTOR2_PY 0.0
 param set-default CA_ROTOR2_PZ 0.045
-param set-default CA_ROTOR2_AX 0.70711
+param set-default CA_ROTOR2_AX 1.0
 param set-default CA_ROTOR2_AY 0.0
-param set-default CA_ROTOR2_AZ -0.70711
+param set-default CA_ROTOR2_AZ 0.0
 param set-default CA_ROTOR2_KM 0.01
 param set-default CA_ROTOR2_CT 0.4
 param set-default CA_ROTOR2_TILT 1
@@ -71,8 +68,8 @@ param set-default CA_ROTOR3_PX 0.0
 param set-default CA_ROTOR3_PY 0.535
 param set-default CA_ROTOR3_PZ 0.045
 param set-default CA_ROTOR3_AX 0.0
-param set-default CA_ROTOR3_AY 0.70711
-param set-default CA_ROTOR3_AZ -0.70711
+param set-default CA_ROTOR3_AY 1.0
+param set-default CA_ROTOR3_AZ 0.0
 param set-default CA_ROTOR3_KM 0.01
 param set-default CA_ROTOR3_CT 0.4
 param set-default CA_ROTOR3_TILT 2
@@ -80,9 +77,9 @@ param set-default CA_ROTOR3_TILT 2
 param set-default CA_ROTOR4_PX -0.535
 param set-default CA_ROTOR4_PY 0.0
 param set-default CA_ROTOR4_PZ 0.045
-param set-default CA_ROTOR4_AX -0.70711
+param set-default CA_ROTOR4_AX -1.0
 param set-default CA_ROTOR4_AY 0.0
-param set-default CA_ROTOR4_AZ -0.70711
+param set-default CA_ROTOR4_AZ 0.0
 param set-default CA_ROTOR4_KM 0.01
 param set-default CA_ROTOR4_CT 0.4
 param set-default CA_ROTOR4_TILT 3
@@ -91,8 +88,8 @@ param set-default CA_ROTOR5_PX 0.0
 param set-default CA_ROTOR5_PY -0.535
 param set-default CA_ROTOR5_PZ 0.045
 param set-default CA_ROTOR5_AX 0.0
-param set-default CA_ROTOR5_AY -0.70711
-param set-default CA_ROTOR5_AZ -0.70711
+param set-default CA_ROTOR5_AY -1.0
+param set-default CA_ROTOR5_AZ 0.0
 param set-default CA_ROTOR5_KM 0.01
 param set-default CA_ROTOR5_CT 0.4
 param set-default CA_ROTOR5_TILT 4
@@ -103,39 +100,57 @@ param set-default CA_ROTOR5_TILT 4
 param set-default CA_SV_TL_COUNT 4
 
 param set-default CA_SV_TL0_MINA -60.0
-param set-default CA_SV_TL0_MAXA  60.0
+param set-default CA_SV_TL0_MAXA  90.0
 param set-default CA_SV_TL0_TD 0
 param set-default CA_SV_TL0_CT 0
 
 param set-default CA_SV_TL1_MINA -60.0
-param set-default CA_SV_TL1_MAXA  60.0
+param set-default CA_SV_TL1_MAXA  90.0
 param set-default CA_SV_TL1_TD 90
 param set-default CA_SV_TL1_CT 0
 
 param set-default CA_SV_TL2_MINA -60.0
-param set-default CA_SV_TL2_MAXA  60.0
+param set-default CA_SV_TL2_MAXA  90.0
 param set-default CA_SV_TL2_TD 180
 param set-default CA_SV_TL2_CT 0
 
 param set-default CA_SV_TL3_MINA -60.0
-param set-default CA_SV_TL3_MAXA  60.0
+param set-default CA_SV_TL3_MAXA  90.0
 param set-default CA_SV_TL3_TD 270
 param set-default CA_SV_TL3_CT 0
 
 # ============================================
-# PWM OUTPUT MAPPING - FMU MAIN (S1..S10)
+# PWM OUTPUT MAPPING - FMU MAIN
 # Function codes:
 #   101..106 = Motor 1..6
 #   201..204 = Servo 1..4
+#
+# Physical wiring:
+#   MAIN1 (S1)  -> Motor 0  (top main,    func 101)
+#   MAIN2 (S2)  -> Motor 1  (bottom main, func 102)
+#   MAIN5 (S5)  -> Motor 4  (back EDF,    func 105) [side 2]
+#   MAIN6 (S6)  -> Motor 3  (right EDF,   func 104) [side 1]
+#   MAIN7 (S7)  -> Motor 5  (left EDF,    func 106) [side 3]
+#   MAIN8 (S8)  -> Motor 2  (front EDF,   func 103) [side 0]
+#   MAIN9 (S9)  -> Tilt servo 3 (back,    func 203)
+#   MAIN10(S10) -> Tilt servo 4 (left,    func 204)
+#   MAIN11(S11) -> Tilt servo 2 (right,   func 202)
+#   MAIN12(S12) -> Tilt servo 1 (front,   func 201)
 # ============================================
 
-# ----- Motors on S1..S6 (DShot or PWM) -----
+# ----- Main coaxial motors on S1..S2 -----
 param set-default PWM_MAIN_FUNC1 101
 param set-default PWM_MAIN_FUNC2 102
-param set-default PWM_MAIN_FUNC3 103
-param set-default PWM_MAIN_FUNC4 104
+
+# ----- Side EDFs on S5..S8 -----
+# MAIN5 = side 2 = back  EDF (Motor 4, func 105)
+# MAIN6 = side 1 = right EDF (Motor 3, func 104)
+# MAIN7 = side 3 = left  EDF (Motor 5, func 106)
+# MAIN8 = side 0 = front EDF (Motor 2, func 103)
 param set-default PWM_MAIN_FUNC5 105
-param set-default PWM_MAIN_FUNC6 106
+param set-default PWM_MAIN_FUNC6 104
+param set-default PWM_MAIN_FUNC7 106
+param set-default PWM_MAIN_FUNC8 103
 
 # Motor PWM range (standard 1000..2000 us; ESCs must be calibrated to this)
 # param set-default PWM_MAIN_MIN1 1000
@@ -146,29 +161,31 @@ param set-default PWM_MAIN_FUNC6 106
 # param set-default PWM_MAIN_MIN6 1000
 param set-default PWM_MAIN_MAX1 2000
 param set-default PWM_MAIN_MAX2 2000
-param set-default PWM_MAIN_MAX3 2000
-param set-default PWM_MAIN_MAX4 2000
 param set-default PWM_MAIN_MAX5 2000
 param set-default PWM_MAIN_MAX6 2000
+param set-default PWM_MAIN_MAX7 2000
+param set-default PWM_MAIN_MAX8 2000
 
-# Armed idle for main motors: spin at ~1100 us to keep thrust budget for yaw.
-# EDFs set to 1020 us (near minimum) — they only spin up when lateral thrust is needed.
-# Adjust per ESC — must be above the ESC's start threshold (typically 1020-1080 us).
+# Armed idle PWM minimums.
+# Main motors: 1100 us to maintain yaw control authority at idle.
+# Side EDFs: 1100 us so all ESCs reliably spin at armed idle.
+#   With pseudo-inverse trim=0.5 the CA outputs ~0.5 → ~1510 us,
+#   so 1100 mainly guards the first cycle before the CA has a torque setpoint.
 param set-default PWM_MAIN_MIN1 1100
 param set-default PWM_MAIN_MIN2 1100
-param set-default PWM_MAIN_MIN3 1020
-param set-default PWM_MAIN_MIN4 1020
-param set-default PWM_MAIN_MIN5 1020
-param set-default PWM_MAIN_MIN6 1020
+param set-default PWM_MAIN_MIN5 1100
+param set-default PWM_MAIN_MIN6 1100
+param set-default PWM_MAIN_MIN7 1100
+param set-default PWM_MAIN_MIN8 1100
 
 # Disarmed state: 1000 us = zero thrust / ESC standby.
 # Do NOT use values below 1000 — some ESCs enter programming mode at <1000 us.
 param set-default PWM_MAIN_DIS1 1000
 param set-default PWM_MAIN_DIS2 1000
-param set-default PWM_MAIN_DIS3 1000
-param set-default PWM_MAIN_DIS4 1000
 param set-default PWM_MAIN_DIS5 1000
 param set-default PWM_MAIN_DIS6 1000
+param set-default PWM_MAIN_DIS7 1000
+param set-default PWM_MAIN_DIS8 1000
 
 # Motor update rate. 400 Hz works for analog ESCs.
 # For DShot: set DSHOT_CONFIG instead and leave PWM_MAIN_RATE at default.
@@ -179,16 +196,13 @@ param set-default PWM_MAIN_RATE 400
 # tilt2 (right, func 202) -> MAIN11
 # tilt3 (back,  func 203) -> MAIN9
 # tilt4 (left,  func 204) -> MAIN10
-param set-default PWM_MAIN_FUNC7  0
-param set-default PWM_MAIN_FUNC8  0
 param set-default PWM_MAIN_FUNC9  203
 param set-default PWM_MAIN_FUNC10 204
 param set-default PWM_MAIN_FUNC11 202
 param set-default PWM_MAIN_FUNC12 201
 
-# Standard hobby servo range (1000..2000 us). Disarmed default 1700 us pre-tilts the
-# EDFs up so they add lift at takeoff; tune per servo/linkage so 1700 us ≈ hover tilt
-# (φ₀=45° in ActuatorEffectivenessIfodrone — verify the angle/direction on the bench).
+# Standard hobby servo range (1000..2000 us, neutral 1500 us).
+# Tune per servo and mechanical linkage.
 param set-default PWM_MAIN_MIN9  1000
 param set-default PWM_MAIN_MIN10 1000
 param set-default PWM_MAIN_MIN11 1000
@@ -215,6 +229,12 @@ param set-default MC_AIRMODE 1
 # IFODRONE position controller defaults
 param set-default IFO_THR_XY_MAX 0.35
 param set-default IFO_THR_HOVER 0.5
+
+# Use pseudo-inverse allocator (CA_METHOD=0), same as SITL.
+# Sequential desaturation (AUTO default) zeroes the side EDF trim=0.5 in practice.
+param set-default CA_METHOD 0
+
+param set-default IFO_TILT_HOVER 45.0
 
 # Auto/takeoff yaw mode: hold heading (mode 4)
 param set-default MPC_YAW_MODE 4
