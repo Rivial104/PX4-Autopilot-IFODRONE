@@ -115,4 +115,22 @@ void addIfNotNanVector3f(matrix::Vector3f &setpoint, const matrix::Vector3f &add
  * @param vector possibly containing NAN elements
  */
 void setZeroIfNanVector3f(matrix::Vector3f &vector);
+
+/**
+ * Convert a NED thrust demand to the IFODRONE body frame and constrain it to
+ * what the actuators can safely produce.
+ *
+ * The fixed coaxial pair can only produce thrust along body -Z. A positive
+ * body-Z demand is therefore removed instead of letting the allocator emulate
+ * it with tilted side EDFs. The body-XY magnitude is also limited explicitly,
+ * bounding side-EDF authority even when attitude rotation couples vertical
+ * NED thrust into body XY.
+ *
+ * @param thrust_ned desired thrust in the NED frame
+ * @param attitude current body-to-NED attitude
+ * @param thrust_xy_max maximum body-XY thrust magnitude
+ * @return feasible thrust demand in the body frame
+ */
+matrix::Vector3f constrainIfodroneBodyThrust(const matrix::Vector3f &thrust_ned,
+		const matrix::Quatf &attitude, float thrust_xy_max);
 }

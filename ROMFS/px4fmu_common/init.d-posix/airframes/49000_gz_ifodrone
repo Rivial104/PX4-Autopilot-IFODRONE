@@ -277,5 +277,13 @@ param set-default CA_METHOD 0
 # param set-default CA_R_REV 60
 param set-default IFO_EDF_TRIM 0.2
 
+# Post-allocation command gains: halve differential EDF and tilt motion around
+# their trims while preserving coax authority and hover operating points.
+param set-default IFO_EDF_GAIN 0.5
+param set-default IFO_TILT_GAIN 0.5
+
+# Hard limit of the body-XY wrench sent to the side EDFs.
+param set-default IFO_THR_XY_MAX 0.2
+
 # Tilt-servo angle at zero torque demand (0 = EDF thrust axes horizontal)
 param set-default IFO_TILT_HOVER 0.0

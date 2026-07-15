@@ -132,6 +132,29 @@ void ActuatorEffectivenessIfodrone::updateSetpoint(const matrix::Vector<float, N
 		int /*matrix_index*/, ActuatorVector &actuator_sp,
 		const ActuatorVector &/*actuator_min*/, const ActuatorVector &/*actuator_max*/)
 {
-	// Cache the allocation result: next cycle's linearization point
+	const float hover_angle_rad = math::radians(_param_ifo_tilt_hover.get());
+	const float edf_trim = math::constrain(_param_ifo_edf_trim.get(), 0.f, 0.9f);
+	const float edf_gain = math::constrain(_param_ifo_edf_gain.get(), 0.f, 1.f);
+	const float tilt_gain = math::constrain(_param_ifo_tilt_gain.get(), 0.f, 1.f);
+	const int num_rotors = _mc_motors.geometry().num_rotors;
+
+	// Reduce side-EDF authority around the shared idle trim. Fixed coaxial motors
+	// have no tilt index and are intentionally left untouched.
+	for (int i = 0; i < num_rotors; ++i) {
+		if (_mc_motors.geometry().rotors[i].tilt_index >= 0) {
+			actuator_sp(i) = edf_trim + edf_gain * (actuator_sp(i) - edf_trim);
+		}
+	}
+
+	// Reduce servo authority around the hover angle so gain changes never move
+	// the neutral tilt position.
+	for (int i = 0; i < _tilts.count(); ++i) {
+		const int actuator_idx = _first_tilt_idx + i;
+		const float trim = tiltTrim(i, hover_angle_rad);
+		actuator_sp(actuator_idx) = trim + tilt_gain * (actuator_sp(actuator_idx) - trim);
+	}
+
+	// Cache the command actually sent: next cycle's state-dependent matrix must
+	// be linearized at the reduced EDF thrust and tilt angles.
 	_last_actuator_sp = actuator_sp;
 }

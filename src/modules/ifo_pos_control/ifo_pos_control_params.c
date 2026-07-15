@@ -112,7 +112,7 @@ PARAM_DEFINE_FLOAT(IFO_THR_HOVER, 0.5f);
  * @decimal 2
  * @group IFODRONE Position Control
  */
-PARAM_DEFINE_FLOAT(IFO_THR_XY_MAX, 0.35f);
+PARAM_DEFINE_FLOAT(IFO_THR_XY_MAX, 0.2f);
 
 /**
  * Maximum horizontal velocity

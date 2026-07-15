@@ -123,6 +123,11 @@ void IfodroneAttitudeControl::Run()
 		}
 	}
 
+	// Final feasibility guard at the allocator boundary. The fixed coaxial pair
+	// cannot produce body +Z; never forward that component even if another
+	// attitude-setpoint publisher bypasses ifo_pos_control.
+	thrust_body(2) = math::min(thrust_body(2), 0.f);
+
 	// ── Attitude error → rate setpoint (P controller) ─────────────────
 	// The IFODRONE body is kept level: roll/pitch setpoint is 0 in all modes.
 	const float roll_error  = roll_sp  - roll;

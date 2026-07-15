@@ -3,9 +3,9 @@
  *
  * Structure modeled after mc_pos_control. Uses the PositionControl library
  * (cascaded P-position + PID-velocity) to produce a full 3D thrust setpoint,
- * which is rotated into the body frame with the current attitude and published
- * together with an always-level (roll/pitch = 0) attitude setpoint. How the
- * thrust and torque demands are realized is decided by the control allocator.
+ * which is rotated into the body frame, constrained to the actuator-feasible
+ * wrench, and published with an always-level (roll/pitch = 0) attitude
+ * setpoint. The control allocator realizes the resulting thrust and torque.
  *
  * Supports:
  *   - Offboard mode (external trajectory_setpoint)
@@ -14,6 +14,7 @@
  */
 
 #include "IfodronePositionControl.hpp"
+#include "PositionControl/ControlMath.hpp"
 
 #include <float.h>
 #include <lib/mathlib/mathlib.h>
@@ -422,25 +423,19 @@ void IfodronePositionControl::publishSetpoints(const PositionControlStates &stat
 	local_pos_sp.timestamp = hrt_absolute_time();
 	_local_pos_sp_pub.publish(local_pos_sp);
 
-	// Full 3D thrust setpoint (NED) computed by the PositionControl library
-	// (hover-thrust scaling, vertical priority, IFO_THR_XY_MAX horizontal margin)
-	Vector3f thr_ned(local_pos_sp.thrust);
-
-	for (int i = 0; i < 3; i++) {
-		if (!PX4_ISFINITE(thr_ned(i))) {
-			thr_ned(i) = 0.f;
-		}
-	}
+	// Full 3D thrust setpoint (NED) computed by the PositionControl library.
+	const Vector3f thr_ned(local_pos_sp.thrust);
 
 	const float yaw = PX4_ISFINITE(states.yaw) ? states.yaw : 0.f;
 	const float yaw_sp = PX4_ISFINITE(local_pos_sp.yaw) ? local_pos_sp.yaw : yaw;
 	const float yawspeed_sp = PX4_ISFINITE(local_pos_sp.yawspeed) ? local_pos_sp.yawspeed : 0.f;
 
-	// Rotate NED→body with the full current attitude: when the body is not
-	// perfectly level, the vertical/lateral demands couple and the allocator
-	// must receive them in the body frame.
+	// Rotate NED→body with the full current attitude, but only publish a
+	// physically feasible wrench. In particular, body +Z cannot be produced by
+	// the fixed coaxial pair and must not be synthesized by tilting the EDFs.
 	const Quatf q = _q_att_valid ? _q_att : Quatf(Eulerf(0.f, 0.f, yaw));
-	const Vector3f thr_body = q.rotateVectorInverse(thr_ned);
+	const Vector3f thr_body = ControlMath::constrainIfodroneBodyThrust(
+					  thr_ned, q, _param_ifo_thr_xy_max.get());
 
 	// Attitude setpoint: always level, yaw only
 	vehicle_attitude_setpoint_s att_sp{};

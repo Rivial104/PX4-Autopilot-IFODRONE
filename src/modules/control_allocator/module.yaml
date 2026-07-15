@@ -76,6 +76,32 @@ parameters:
             max: 0.9
             default: 0.2
 
+        IFO_EDF_GAIN:
+            description:
+                short: IFODRONE side-EDF command gain
+                long: |
+                  Scales each side-EDF command around IFO_EDF_TRIM after allocation.
+                  A value below 1 reduces differential side-EDF authority without
+                  changing the coaxial motors or the shared EDF idle baseline.
+            type: float
+            decimal: 2
+            min: 0.0
+            max: 1.0
+            default: 1.0
+
+        IFO_TILT_GAIN:
+            description:
+                short: IFODRONE tilt-servo command gain
+                long: |
+                  Scales each tilt-servo command around IFO_TILT_HOVER after
+                  allocation. A value below 1 reduces tilt authority symmetrically
+                  while preserving the configured hover angle.
+            type: float
+            decimal: 2
+            min: 0.0
+            max: 1.0
+            default: 1.0
+
         # Motor parameters
         CA_R_REV:
             description:

@@ -11,3 +11,5 @@ px4_add_library(IfoPositionControl
 	PositionControl.hpp
 )
 target_include_directories(IfoPositionControl PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+
+px4_add_unit_gtest(SRC IfodroneControlMathTest.cpp LINKLIBS IfoPositionControl)

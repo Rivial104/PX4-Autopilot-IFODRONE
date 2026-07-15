@@ -56,6 +56,8 @@ protected:
 
 	DEFINE_PARAMETERS(
 		(ParamFloat<px4::params::IFO_TILT_HOVER>) _param_ifo_tilt_hover,
-		(ParamFloat<px4::params::IFO_EDF_TRIM>)   _param_ifo_edf_trim
+		(ParamFloat<px4::params::IFO_EDF_TRIM>)   _param_ifo_edf_trim,
+		(ParamFloat<px4::params::IFO_EDF_GAIN>)   _param_ifo_edf_gain,
+		(ParamFloat<px4::params::IFO_TILT_GAIN>)  _param_ifo_tilt_gain
 	)
 };

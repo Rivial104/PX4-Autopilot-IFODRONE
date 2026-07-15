@@ -13,9 +13,8 @@
  * IFODRONE specifics:
  *   - Attitude setpoint is always level (roll/pitch = 0), only yaw is commanded.
  *   - The full 3D thrust setpoint from the PositionControl library is rotated
- *     into the body frame with the current attitude and published in
- *     vehicle_attitude_setpoint.thrust_body; the control allocator decides how
- *     the actuators realize it.
+ *     into the body frame, constrained to the unidirectional-coax/side-EDF
+ *     envelope, and published in vehicle_attitude_setpoint.thrust_body.
  */
 
 #pragma once
@@ -79,8 +78,8 @@ private:
 
 	/**
 	 * Publish the PositionControl library outputs: vehicle_local_position_setpoint
-	 * and a level (roll/pitch = 0) vehicle_attitude_setpoint carrying the full 3D
-	 * thrust setpoint rotated into the body frame with the current attitude.
+	 * and a level (roll/pitch = 0) vehicle_attitude_setpoint carrying the
+	 * actuator-feasible body-frame thrust setpoint.
 	 */
 	void publishSetpoints(const PositionControlStates &states);
 

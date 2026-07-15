@@ -252,4 +252,31 @@ void setZeroIfNanVector3f(Vector3f &vector)
 	addIfNotNanVector3f(vector, Vector3f());
 }
 
+Vector3f constrainIfodroneBodyThrust(const Vector3f &thrust_ned, const Quatf &attitude,
+				     float thrust_xy_max)
+{
+	Vector3f thrust_ned_finite = thrust_ned;
+
+	for (int i = 0; i < 3; ++i) {
+		if (!PX4_ISFINITE(thrust_ned_finite(i))) {
+			thrust_ned_finite(i) = 0.f;
+		}
+	}
+
+	Vector3f thrust_body = attitude.rotateVectorInverse(thrust_ned_finite);
+
+	// The coaxial pair is unidirectional and cannot produce force along body +Z.
+	thrust_body(2) = math::min(thrust_body(2), 0.f);
+
+	// Limit the actual side-EDF demand after the full attitude transformation.
+	const float xy_limit = math::max(thrust_xy_max, 0.f);
+	const float xy_norm = thrust_body.xy().norm();
+
+	if (xy_norm > xy_limit && xy_norm > FLT_EPSILON) {
+		thrust_body.xy() *= xy_limit / xy_norm;
+	}
+
+	return thrust_body;
+}
+
 } // ControlMath
