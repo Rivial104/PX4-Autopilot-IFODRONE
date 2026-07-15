@@ -128,6 +128,18 @@ public:
 	 */
 	static matrix::Vector3f tiltedAxis(float tilt_angle, float tilt_direction);
 
+	/**
+	 * Hinge axis for a rotor with a horizontal base thrust axis, matching the
+	 * IFODRONE SDF joint axis convention (base +X → hinge +Y, base +Y → hinge +X,
+	 * base −X → hinge −Y, base −Y → hinge −X). Single source of the tilt sign
+	 * convention: used both to rotate rotor axes and to build tilt-servo
+	 * effectiveness columns (d axis / d angle = hinge × axis).
+	 */
+	static matrix::Vector3f hingeAxisForBase(const matrix::Vector3f &base_axis);
+
+	/// Normalized base (untilted) axis of rotor i, as configured by parameters
+	const matrix::Vector3f &baseAxis(int i) const { return _base_axis[i]; }
+
 	void enablePropellerTorque(bool enable) { _geometry.propeller_torque_disabled = !enable; }
 
 	void enableYawByDifferentialThrust(bool enable) { _geometry.yaw_by_differential_thrust_disabled = !enable; }

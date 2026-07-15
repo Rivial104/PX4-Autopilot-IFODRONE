@@ -12,8 +12,8 @@
  *       Manual:    throttle stick → -Z
  *       Auto/Pos:  copied from vehicle_attitude_setpoint.thrust_body (ifo_pos_control)
  *
- * The control allocator (ActuatorEffectivenessIfodrone) maps the resulting torque to
- * tilt servos (roll/pitch) and coaxial motor differential (yaw); thrust to motors.
+ * The control allocator (ActuatorEffectivenessIfodrone) allocates the resulting
+ * torque + thrust setpoints to all actuators (motors and tilt servos) at once.
  */
 
 #pragma once

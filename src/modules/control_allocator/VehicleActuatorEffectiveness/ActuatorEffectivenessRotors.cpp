@@ -257,6 +257,24 @@ uint32_t ActuatorEffectivenessRotors::updateAxisFromTilts(const ActuatorEffectiv
 	return nontilted_motors;
 }
 
+Vector3f ActuatorEffectivenessRotors::hingeAxisForBase(const Vector3f &base_axis)
+{
+	// IFODRONE side rotors are configured with horizontal neutral axes (+/-X or +/-Y).
+	// The SDF joint axes are given in the gz ENU body frame; converting to FRD
+	// keeps X-aligned hinges but negates Y-aligned ones (FRD y = -ENU y):
+	//   base +X → SDF hinge [0,1,0]  (ENU) → FRD (0,-1,0)   (front, motor_2_joint)
+	//   base +Y → SDF hinge [1,0,0]  (ENU) → FRD (1,0,0)    (right, motor_3_joint)
+	//   base -X → SDF hinge [0,-1,0] (ENU) → FRD (0,1,0)    (back,  motor_4_joint)
+	//   base -Y → SDF hinge [-1,0,0] (ENU) → FRD (-1,0,0)   (left,  motor_5_joint)
+	// With this convention a positive command tilts the thrust axis downwards
+	// (d axis/d angle = hinge × axis = +Z at neutral), e.g. front +1 → nose-down.
+	if (fabsf(base_axis(0)) >= fabsf(base_axis(1))) {
+		return Vector3f(0.f, (base_axis(0) >= 0.f) ? -1.f : 1.f, 0.f);
+	}
+
+	return Vector3f((base_axis(1) >= 0.f) ? 1.f : -1.f, 0.f, 0.f);
+}
+
 uint32_t ActuatorEffectivenessRotors::updateAxisFromTiltSetpoints(const ActuatorEffectivenessTilts &tilts,
 		const ActuatorVector &actuator_sp, int first_tilt_idx)
 {
@@ -302,21 +320,7 @@ uint32_t ActuatorEffectivenessRotors::updateAxisFromTiltSetpoints(const Actuator
 			base_axis = Vector3f(0.f, 0.f, -1.f);
 		}
 
-		// IFODRONE side rotors are configured with horizontal neutral axes (+/-X or +/-Y).
-		// Build a hinge axis that matches the SDF joint axis convention:
-		//   base +X → hinge +Y   (SDF motor_2_joint axis [0,1,0])
-		//   base +Y → hinge +X   (SDF motor_3_joint axis [1,0,0])
-		//   base -X → hinge -Y   (SDF motor_4_joint axis [0,-1,0])
-		//   base -Y → hinge -X   (SDF motor_5_joint axis [-1,0,0])
-		Vector3f hinge_axis;
-
-		if (fabsf(base_axis(0)) >= fabsf(base_axis(1))) {
-			hinge_axis = Vector3f(0.f, (base_axis(0) >= 0.f) ? 1.f : -1.f, 0.f);
-		} else {
-			hinge_axis = Vector3f((base_axis(1) >= 0.f) ? 1.f : -1.f, 0.f, 0.f);
-		}
-
-		hinge_axis.normalize();
+		const Vector3f hinge_axis = hingeAxisForBase(base_axis);
 		const float c = cosf(tilt_angle);
 		const float s = sinf(tilt_angle);
 		_geometry.rotors[i].axis = base_axis * c

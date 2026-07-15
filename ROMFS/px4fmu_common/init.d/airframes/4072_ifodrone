@@ -208,9 +208,9 @@ param set-default PWM_MAIN_DIS12 1700
 param set-default COM_RC_IN_MODE 1
 param set-default FD_ESCS_EN 0
 
-# Airmode: when yaw/torque demand would clip one motor to 0, redistribute so
-# both motors stay above 0. Prevents coaxial motor asymmetry from rate PID.
-param set-default MC_AIRMODE 1
+# Airmode off: roll/pitch authority comes from the tilt servos, independent of
+# motor throttle, so raising collective thrust to preserve RP authority is moot.
+param set-default MC_AIRMODE 0
 
 # IFODRONE position controller defaults
 param set-default IFO_THR_XY_MAX 0.35

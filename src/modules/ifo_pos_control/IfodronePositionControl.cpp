@@ -1,12 +1,11 @@
 /**
  * IFODRONE Position Controller
  *
- * Structure modeled after mc_pos_control but simplified for the IFODRONE
- * airframe where position and orientation are decoupled.
- *
- * Uses the PositionControl library for cascaded P-position + PID-velocity
- * to produce an acceleration setpoint, then converts acceleration to
- * body-frame thrust using the current attitude.
+ * Structure modeled after mc_pos_control. Uses the PositionControl library
+ * (cascaded P-position + PID-velocity) to produce a full 3D thrust setpoint,
+ * which is rotated into the body frame with the current attitude and published
+ * together with an always-level (roll/pitch = 0) attitude setpoint. How the
+ * thrust and torque demands are realized is decided by the control allocator.
  *
  * Supports:
  *   - Offboard mode (external trajectory_setpoint)
@@ -15,7 +14,6 @@
  */
 
 #include "IfodronePositionControl.hpp"
-#include "PositionControl/ControlMath.hpp"
 
 #include <float.h>
 #include <lib/mathlib/mathlib.h>
@@ -112,6 +110,13 @@ void IfodronePositionControl::Run()
 		}
 
 		_vehicle_land_detected_sub.update(&_vehicle_land_detected);
+
+		vehicle_attitude_s att;
+
+		if (_vehicle_attitude_sub.update(&att)) {
+			_q_att = Quatf(att.q);
+			_q_att_valid = true;
+		}
 
 		// --- Set vehicle states ---
 		PositionControlStates states{};
@@ -268,29 +273,7 @@ void IfodronePositionControl::Run()
 				_control.setState(states);
 				_control.update(dt);
 
-				// Publish local position setpoint
-				vehicle_local_position_setpoint_s local_pos_sp{};
-				_control.getLocalPositionSetpoint(local_pos_sp);
-				local_pos_sp.timestamp = hrt_absolute_time();
-				_local_pos_sp_pub.publish(local_pos_sp);
-
-				// Convert acceleration setpoint → TILT attitude setpoint
-				// (tilt-to-translate: roll/pitch encode the horizontal accel; the side
-				// EDFs stay symmetric and the coax tilt provides the lateral force).
-				Vector3f acc_sp(
-					local_pos_sp.acceleration[0],
-					local_pos_sp.acceleration[1],
-					local_pos_sp.acceleration[2]);
-
-				for (int i = 0; i < 3; i++) {
-					if (!PX4_ISFINITE(acc_sp(i))) { acc_sp(i) = 0.f; }
-				}
-
-				vehicle_attitude_setpoint_s att_sp{};
-				att_sp.timestamp        = hrt_absolute_time();
-				att_sp.yaw_sp_move_rate = 0.0f;
-				accelerationToAttitude(acc_sp, _hold_yaw_angle, att_sp);
-				_attitude_setpoint_pub.publish(att_sp);
+				publishSetpoints(states);
 
 			} else {
 				// -------------------------------------------------------
@@ -407,44 +390,7 @@ void IfodronePositionControl::Run()
 					}
 				}
 
-				// --- Get library outputs ---
-				vehicle_local_position_setpoint_s local_pos_sp{};
-				_control.getLocalPositionSetpoint(local_pos_sp);
-				local_pos_sp.timestamp = hrt_absolute_time();
-				_local_pos_sp_pub.publish(local_pos_sp);
-
-				Vector3f acc_sp(
-					local_pos_sp.acceleration[0],
-					local_pos_sp.acceleration[1],
-					local_pos_sp.acceleration[2]
-				);
-
-				for (int i = 0; i < 3; i++) {
-					if (!PX4_ISFINITE(acc_sp(i))) {
-						acc_sp(i) = 0.f;
-					}
-				}
-
-				const float yaw_sp = PX4_ISFINITE(local_pos_sp.yaw) ? local_pos_sp.yaw : states.yaw;
-				const float yawspeed_sp = PX4_ISFINITE(local_pos_sp.yawspeed) ? local_pos_sp.yawspeed : 0.f;
-
-				const Vector3f thr_body = accelerationToThrust(acc_sp, states.yaw);
-
-				// Thrust is routed through vehicle_attitude_setpoint.thrust_body:
-				// ifo_att_control forwards it into vehicle_rates_setpoint and
-				// mc_rate_control is the single publisher of vehicle_thrust_setpoint.
-				// --- Publish attitude setpoint (yaw + thrust, level body) ---
-				vehicle_attitude_setpoint_s att_sp{};
-				att_sp.timestamp = hrt_absolute_time();
-				att_sp.yaw_sp_move_rate = yawspeed_sp;
-				const Quatf q_sp(Eulerf(0.0f, 0.0f, yaw_sp));
-				q_sp.copyTo(att_sp.q_d);
-				att_sp.thrust_body[0] = thr_body(0);
-				att_sp.thrust_body[1] = thr_body(1);
-				att_sp.thrust_body[2] = thr_body(2);
-				_attitude_setpoint_pub.publish(att_sp);
-
-
+				publishSetpoints(states);
 			}
 
 		} else {
@@ -469,51 +415,41 @@ void IfodronePositionControl::Run()
 	perf_end(_cycle_perf);
 }
 
-matrix::Vector3f IfodronePositionControl::accelerationToThrust(const Vector3f &acc_sp, float /*yaw*/) const
+void IfodronePositionControl::publishSetpoints(const PositionControlStates &states)
 {
-	const float hover_thr = math::constrain(_param_ifo_thr_hover.get(), 0.05f, 0.9f);
-	const float thr_min   = math::constrain(_param_ifo_thr_min.get(), 0.0f, 0.9f);
-	const float thr_max   = math::constrain(_param_ifo_thr_max.get(), thr_min, 1.0f);
+	vehicle_local_position_setpoint_s local_pos_sp{};
+	_control.getLocalPositionSetpoint(local_pos_sp);
+	local_pos_sp.timestamp = hrt_absolute_time();
+	_local_pos_sp_pub.publish(local_pos_sp);
 
-	// ── ATTITUDE-ISOLATION MODE: vertical thrust ONLY ───────────────────────────
-	// We command only the Z (vertical) body thrust here; lateral X/Y body thrust is
-	// forced to ZERO. Rationale (design intent): the side EDFs must run symmetrically
-	// so the vehicle never flies sideways via differential thrust — the ONLY thing that
-	// changes orientation is the tilt servos (driven by the attitude → rate → torque
-	// chain), whose tilt-induced Z-component produces roll/pitch. XY position/velocity
-	// is intentionally not controlled for now (XY velocity setpoint = 0, no lateral
-	// thrust); only Z drives takeoff and altitude hold.
-	const float thrust_z = math::constrain(
-				       hover_thr - acc_sp(2) * (hover_thr / CONSTANTS_ONE_G),
-				       thr_min, thr_max);
+	// Full 3D thrust setpoint (NED) computed by the PositionControl library
+	// (hover-thrust scaling, vertical priority, IFO_THR_XY_MAX horizontal margin)
+	Vector3f thr_ned(local_pos_sp.thrust);
 
-	return Vector3f(0.f, 0.f, -thrust_z);
-}
-
-void IfodronePositionControl::accelerationToAttitude(const Vector3f &acc_sp, float yaw_sp,
-		vehicle_attitude_setpoint_s &att_sp) const
-{
-	const float hover_thr  = math::constrain(_param_ifo_thr_hover.get(), 0.05f, 0.9f);
-	const float thr_min    = math::constrain(_param_ifo_thr_min.get(), 0.0f, 0.9f);
-	const float thr_max    = math::constrain(_param_ifo_thr_max.get(), thr_min, 1.0f);
-	const float thr_xy_max = math::constrain(_param_ifo_thr_xy_max.get(), 0.0f, 1.0f);
-	const float k = hover_thr / CONSTANTS_ONE_G;
-
-	// Vertical (collective) thrust magnitude — counters gravity + vertical accel.
-	const float thrust_z = math::constrain(hover_thr - acc_sp(2) * k, thr_min, thr_max);
-
-	// Desired NED thrust vector: horizontal from lateral accel (tilt-limited via
-	// IFO_THR_XY_MAX), vertical = -thrust_z (up). thrustToAttitude tilts body -Z to this
-	// direction and writes the collective into thrust_body[2]; thrust_body[0/1] stay 0,
-	// so the side EDFs get no lateral demand and translation comes purely from the tilt.
-	Vector2f thr_xy(acc_sp(0) * k, acc_sp(1) * k);
-
-	if (thr_xy.norm() > thr_xy_max && thr_xy.norm() > 1e-5f) {
-		thr_xy = thr_xy.unit() * thr_xy_max;
+	for (int i = 0; i < 3; i++) {
+		if (!PX4_ISFINITE(thr_ned(i))) {
+			thr_ned(i) = 0.f;
+		}
 	}
 
-	const Vector3f thr_sp_ned(thr_xy(0), thr_xy(1), -thrust_z);
-	ControlMath::thrustToAttitude(thr_sp_ned, yaw_sp, att_sp);
+	const float yaw = PX4_ISFINITE(states.yaw) ? states.yaw : 0.f;
+	const float yaw_sp = PX4_ISFINITE(local_pos_sp.yaw) ? local_pos_sp.yaw : yaw;
+	const float yawspeed_sp = PX4_ISFINITE(local_pos_sp.yawspeed) ? local_pos_sp.yawspeed : 0.f;
+
+	// Rotate NED→body with the full current attitude: when the body is not
+	// perfectly level, the vertical/lateral demands couple and the allocator
+	// must receive them in the body frame.
+	const Quatf q = _q_att_valid ? _q_att : Quatf(Eulerf(0.f, 0.f, yaw));
+	const Vector3f thr_body = q.rotateVectorInverse(thr_ned);
+
+	// Attitude setpoint: always level, yaw only
+	vehicle_attitude_setpoint_s att_sp{};
+	att_sp.timestamp = hrt_absolute_time();
+	att_sp.yaw_sp_move_rate = yawspeed_sp;
+	const Quatf q_sp(Eulerf(0.f, 0.f, yaw_sp));
+	q_sp.copyTo(att_sp.q_d);
+	thr_body.copyTo(att_sp.thrust_body);
+	_attitude_setpoint_pub.publish(att_sp);
 }
 
 void IfodronePositionControl::adjustSetpointForEKFResets(

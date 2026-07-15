@@ -11,10 +11,11 @@
  *   - goto_setpoint: direct position target (converted to trajectory_setpoint internally)
  *
  * IFODRONE specifics:
- *   - Body setpoint is always level: no pitch/roll attitude generation.
- *   - Z thrust is independent (hover_thrust ± correction).
- *   - XY thrust accounts for the current body attitude, including tilted Z thrust.
- *   - Only yaw is published in vehicle_attitude_setpoint.
+ *   - Attitude setpoint is always level (roll/pitch = 0), only yaw is commanded.
+ *   - The full 3D thrust setpoint from the PositionControl library is rotated
+ *     into the body frame with the current attitude and published in
+ *     vehicle_attitude_setpoint.thrust_body; the control allocator decides how
+ *     the actuators realize it.
  */
 
 #pragma once
@@ -38,6 +39,7 @@
 #include <uORB/topics/parameter_update.h>
 #include <uORB/topics/takeoff_status.h>
 #include <uORB/topics/trajectory_setpoint.h>
+#include <uORB/topics/vehicle_attitude.h>
 #include <uORB/topics/vehicle_attitude_setpoint.h>
 #include <uORB/topics/vehicle_constraints.h>
 #include <uORB/topics/vehicle_control_mode.h>
@@ -76,19 +78,11 @@ private:
 	void parameters_update(bool force);
 
 	/**
-	 * Convert PositionControl library acceleration setpoint into body-frame
-	 * thrust for the IFODRONE.
+	 * Publish the PositionControl library outputs: vehicle_local_position_setpoint
+	 * and a level (roll/pitch = 0) vehicle_attitude_setpoint carrying the full 3D
+	 * thrust setpoint rotated into the body frame with the current attitude.
 	 */
-	matrix::Vector3f accelerationToThrust(const matrix::Vector3f &acc_sp, float yaw) const;
-
-	/**
-	 * Convert a NED acceleration setpoint into a TILT attitude setpoint
-	 * (tilt-to-translate): body -Z is tilted toward the desired thrust direction so the
-	 * coaxial lift gains a horizontal component, while the side EDFs stay symmetric. Uses
-	 * the IFODRONE hover-thrust scaling; horizontal tilt is limited by IFO_THR_XY_MAX.
-	 */
-	void accelerationToAttitude(const matrix::Vector3f &acc_sp, float yaw_sp,
-				    vehicle_attitude_setpoint_s &att_sp) const;
+	void publishSetpoints(const PositionControlStates &states);
 
 	/**
 	 * Adjust setpoint for EKF resets (position/velocity jumps).
@@ -110,6 +104,7 @@ private:
 	uORB::Subscription                 _goto_setpoint_sub{ORB_ID(goto_setpoint)};
 	uORB::Subscription                 _manual_control_setpoint_sub{ORB_ID(manual_control_setpoint)};
 	uORB::Subscription                 _trajectory_setpoint_sub{ORB_ID(trajectory_setpoint)};
+	uORB::Subscription                 _vehicle_attitude_sub{ORB_ID(vehicle_attitude)};
 	uORB::Subscription                 _vehicle_constraints_sub{ORB_ID(vehicle_constraints)};
 	uORB::Subscription                 _vehicle_control_mode_sub{ORB_ID(vehicle_control_mode)};
 	uORB::Subscription                 _vehicle_land_detected_sub{ORB_ID(vehicle_land_detected)};
@@ -124,6 +119,8 @@ private:
 	hrt_abstime _time_position_control_enabled{0};
 
 	// --- Cached state ---
+	matrix::Quatf          _q_att{};   ///< current attitude (NED→body thrust rotation)
+	bool                   _q_att_valid{false};
 	trajectory_setpoint_s  _setpoint{PositionControl::empty_trajectory_setpoint};
 	trajectory_setpoint_s  _last_valid_setpoint{PositionControl::empty_trajectory_setpoint};
 	vehicle_control_mode_s _vehicle_control_mode{};

@@ -49,6 +49,33 @@ parameters:
                 2: Automatic
             default: 2
 
+        # IFODRONE (CA_AIRFRAME 90)
+        IFO_TILT_HOVER:
+            description:
+                short: IFODRONE hover tilt angle
+                long: |
+                  Tilt-servo angle the allocation rests at with zero torque demand.
+                  0 = side-EDF thrust axes horizontal.
+            type: float
+            decimal: 1
+            unit: deg
+            min: -60.0
+            max: 90.0
+            default: 0.0
+
+        IFO_EDF_TRIM:
+            description:
+                short: IFODRONE side-EDF idle trim
+                long: |
+                  Idle thrust baseline of the side EDFs. Opposing pairs are allocated
+                  differentially around this value; it also sets the minimum assumed
+                  EDF thrust when scaling the tilt-servo torque authority.
+            type: float
+            decimal: 2
+            min: 0.0
+            max: 0.9
+            default: 0.2
+
         # Motor parameters
         CA_R_REV:
             description:
