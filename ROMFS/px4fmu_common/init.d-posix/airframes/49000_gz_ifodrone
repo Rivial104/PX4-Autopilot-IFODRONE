@@ -78,7 +78,7 @@ param set-default CA_ROTOR2_AX 1.0
 param set-default CA_ROTOR2_AY 0.0
 param set-default CA_ROTOR2_AZ 0.0
 param set-default CA_ROTOR2_KM 0
-param set-default CA_ROTOR2_CT 1.5
+param set-default CA_ROTOR2_CT 0.1
 param set-default CA_ROTOR2_TILT 1
 param set-default SIM_GZ_EC_FUNC3 103
 param set-default SIM_GZ_EC_DIS3 0
@@ -93,7 +93,7 @@ param set-default CA_ROTOR3_AX 0.0
 param set-default CA_ROTOR3_AY 1.0
 param set-default CA_ROTOR3_AZ 0.0
 param set-default CA_ROTOR3_KM 0
-param set-default CA_ROTOR3_CT 1.5
+param set-default CA_ROTOR3_CT 0.1
 param set-default CA_ROTOR3_TILT 2
 param set-default SIM_GZ_EC_FUNC4 104
 param set-default SIM_GZ_EC_DIS4 0
@@ -108,7 +108,7 @@ param set-default CA_ROTOR4_AX -1.0
 param set-default CA_ROTOR4_AY 0.0
 param set-default CA_ROTOR4_AZ 0.0
 param set-default CA_ROTOR4_KM 0
-param set-default CA_ROTOR4_CT 1.5
+param set-default CA_ROTOR4_CT 0.1
 param set-default CA_ROTOR4_TILT 3
 param set-default SIM_GZ_EC_FUNC5 105
 param set-default SIM_GZ_EC_DIS5 0
@@ -123,7 +123,7 @@ param set-default CA_ROTOR5_AX 0.0
 param set-default CA_ROTOR5_AY -1.0
 param set-default CA_ROTOR5_AZ 0.0
 param set-default CA_ROTOR5_KM 0
-param set-default CA_ROTOR5_CT 1.5
+param set-default CA_ROTOR5_CT 0.1
 param set-default CA_ROTOR5_TILT 4
 param set-default SIM_GZ_EC_FUNC6 106
 param set-default SIM_GZ_EC_DIS6 0
