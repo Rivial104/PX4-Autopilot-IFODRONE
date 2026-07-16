@@ -235,6 +235,11 @@ param set-default FD_ESCS_EN 0
 # External mag (instance 2) mounted rotated: Yaw 270 (enum 6)
 param set-default CAL_MAG2_ROT 6
 
+# Battery: 6S Li-Po, 3.3 V/cell empty, 4.2 V/cell charged
+param set-default BAT1_N_CELLS 6
+param set-default BAT1_V_EMPTY 3.3
+param set-default BAT1_V_CHARGED 4.2
+
 # ============================================
 # SERIAL PORTS (survive param reset_all!)
 # ============================================

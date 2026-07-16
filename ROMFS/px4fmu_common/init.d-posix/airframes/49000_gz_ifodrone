@@ -214,19 +214,19 @@ param set-default MC_YAW_WEIGHT 0.4
 # the old normalized setup — expect to retune these in SITL.
 # ============================================
 param set-default MC_ROLLRATE_P 0.20
-param set-default MC_ROLLRATE_I 0.10
+param set-default MC_ROLLRATE_I 0.20
 param set-default MC_ROLLRATE_D 0.0003
 param set-default MC_ROLLRATE_K 1.0
 param set-default MC_PITCHRATE_P 0.30
-param set-default MC_PITCHRATE_I 0.10
+param set-default MC_PITCHRATE_I 0.20
 param set-default MC_PITCHRATE_D 0.0003
 param set-default MC_PITCHRATE_K 1.0
 param set-default MC_YAWRATE_P 0.22
 param set-default MC_YAWRATE_I 0.01
 param set-default MC_YAWRATE_D 0.0
 param set-default MC_YAWRATE_K 1.0
-param set-default MC_RR_INT_LIM 0.30
-param set-default MC_PR_INT_LIM 0.30
+param set-default MC_RR_INT_LIM 0.50
+param set-default MC_PR_INT_LIM 0.50
 param set-default MC_YR_INT_LIM 0.30
 
 # ============================================
@@ -284,8 +284,8 @@ param set-default IFO_EDF_TRIM 0.3
 # smaller d(angle)/d(cmd) in its Jacobian) and body-XY demand capped by
 # IFO_THR_XY_MAX. Values below 1 here hide plant gain from the allocator and
 # corrupt its saturation/unallocated bookkeeping - use only for quick tests.
-param set-default IFO_EDF_GAIN 1.0
-param set-default IFO_TILT_GAIN 0.2
+param set-default IFO_EDF_GAIN 1.5
+param set-default IFO_TILT_GAIN 2.5
 
 # Hard limit of the body-XY wrench sent to the side EDFs.
 param set-default IFO_THR_XY_MAX 0.2
