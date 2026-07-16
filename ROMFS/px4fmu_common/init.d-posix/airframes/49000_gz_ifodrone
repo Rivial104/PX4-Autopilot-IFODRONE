@@ -238,7 +238,7 @@ param set-default MPC_MANTHR_MIN 0.08
 
 # Airmode off: roll/pitch authority comes from the tilt servos, independent of
 # motor throttle, so raising collective thrust to preserve RP authority is moot.
-param set-default MC_AIRMODE 0
+param set-default MC_AIRMODE 1
 
 # SITL: Allow arming without RC and disable ESC failure detection
 param set-default COM_RC_IN_MODE 0
