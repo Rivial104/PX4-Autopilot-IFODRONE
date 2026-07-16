@@ -132,59 +132,61 @@ param set-default SIM_GZ_EC_MAX6 1000
 
 # ============================================
 # TILT SERVOS (4 servos for 4 side motors)
-# Allocated by the control allocator (ActuatorEffectivenessIfodrone): full wrench
-# Jacobian columns, scaled by the current EDF thrust and tilt angle.
+# Allocated by the control allocator (ActuatorEffectivenessIfodrone): torque-only
+# Jacobian columns, scaled by the current EDF thrust and tilt angle (force rows
+# are zero so Fz never allocates to collective tilt). Range +-35 deg: symmetric,
+# disarm PWM 1500 = 0 deg, and it bounds the worst-case tilt for flip safety.
 # ============================================
 param set-default CA_SV_TL_COUNT 4
 
 # Tilt 0: Front motor (rotor 2) - tilts around Y axis (90 deg)
-param set-default CA_SV_TL0_MINA -60.0
-param set-default CA_SV_TL0_MAXA 90.0
+param set-default CA_SV_TL0_MINA -35.0
+param set-default CA_SV_TL0_MAXA 35.0
 param set-default CA_SV_TL0_TD 0
 param set-default CA_SV_TL0_CT 0
 param set-default CA_SV0_SLEW 0.0
 param set-default SIM_GZ_SV_FUNC1 201
-param set-default SIM_GZ_SV_MINA1 -60.0
-param set-default SIM_GZ_SV_MAXA1 90.0
+param set-default SIM_GZ_SV_MINA1 -35.0
+param set-default SIM_GZ_SV_MAXA1 35.0
 param set-default SIM_GZ_SV_MIN1 1000
 param set-default SIM_GZ_SV_DIS1 1500
 param set-default SIM_GZ_SV_MAX1 2000
 
 # Tilt 1: Right motor (rotor 3) - tilts around X axis (90 deg from front)
-param set-default CA_SV_TL1_MINA -60.0
-param set-default CA_SV_TL1_MAXA 90.0
+param set-default CA_SV_TL1_MINA -35.0
+param set-default CA_SV_TL1_MAXA 35.0
 param set-default CA_SV_TL1_TD 90
 param set-default CA_SV_TL1_CT 0
 param set-default CA_SV1_SLEW 0.0
 param set-default SIM_GZ_SV_FUNC2 202
-param set-default SIM_GZ_SV_MINA2 -60.0
-param set-default SIM_GZ_SV_MAXA2 90.0
+param set-default SIM_GZ_SV_MINA2 -35.0
+param set-default SIM_GZ_SV_MAXA2 35.0
 param set-default SIM_GZ_SV_MIN2 1000
 param set-default SIM_GZ_SV_DIS2 1500
 param set-default SIM_GZ_SV_MAX2 2000
 
 # Tilt 2: Back motor (rotor 4) - tilts around Y axis (180 deg, opposite from front)
-param set-default CA_SV_TL2_MINA -60.0
-param set-default CA_SV_TL2_MAXA 90.0
+param set-default CA_SV_TL2_MINA -35.0
+param set-default CA_SV_TL2_MAXA 35.0
 param set-default CA_SV_TL2_TD 180
 param set-default CA_SV_TL2_CT 0
 param set-default CA_SV2_SLEW 0.0
 param set-default SIM_GZ_SV_FUNC3 203
-param set-default SIM_GZ_SV_MINA3 -60.0
-param set-default SIM_GZ_SV_MAXA3 90.0
+param set-default SIM_GZ_SV_MINA3 -35.0
+param set-default SIM_GZ_SV_MAXA3 35.0
 param set-default SIM_GZ_SV_MIN3 1000
 param set-default SIM_GZ_SV_DIS3 1500
 param set-default SIM_GZ_SV_MAX3 2000
 
 # Tilt 3: Left motor (rotor 5) - tilts around X axis (270 deg, opposite from right)
-param set-default CA_SV_TL3_MINA -60.0
-param set-default CA_SV_TL3_MAXA 90.0
+param set-default CA_SV_TL3_MINA -35.0
+param set-default CA_SV_TL3_MAXA 35.0
 param set-default CA_SV_TL3_TD 270
 param set-default CA_SV_TL3_CT 0
 param set-default CA_SV3_SLEW 0.0
 param set-default SIM_GZ_SV_FUNC4 204
-param set-default SIM_GZ_SV_MINA4 -60.0
-param set-default SIM_GZ_SV_MAXA4 90.0
+param set-default SIM_GZ_SV_MINA4 -35.0
+param set-default SIM_GZ_SV_MAXA4 35.0
 param set-default SIM_GZ_SV_MIN4 1000
 param set-default SIM_GZ_SV_DIS4 1500
 param set-default SIM_GZ_SV_MAX4 2000
@@ -277,10 +279,13 @@ param set-default CA_METHOD 0
 # param set-default CA_R_REV 60
 param set-default IFO_EDF_TRIM 0.2
 
-# Post-allocation command gains: halve differential EDF and tilt motion around
-# their trims while preserving coax authority and hover operating points.
-param set-default IFO_EDF_GAIN 0.5
-param set-default IFO_TILT_GAIN 0.5
+# Post-allocation command gains: emergency knobs only. Authority reduction is
+# done honestly instead: tilt range narrowed to +-35 deg (the allocator sees the
+# smaller d(angle)/d(cmd) in its Jacobian) and body-XY demand capped by
+# IFO_THR_XY_MAX. Values below 1 here hide plant gain from the allocator and
+# corrupt its saturation/unallocated bookkeeping - use only for quick tests.
+param set-default IFO_EDF_GAIN 1.0
+param set-default IFO_TILT_GAIN 1.0
 
 # Hard limit of the body-XY wrench sent to the side EDFs.
 param set-default IFO_THR_XY_MAX 0.2

@@ -10,7 +10,7 @@
  *
  *   Motors 0-1 : coaxial pair, fixed −Z axis (Z-thrust + yaw via KM)
  *   Motors 2-5 : side EDFs, axes tilted by the current servo setpoints
- *   Servos 0-3 : tilt servos (front, right, back, left) — full wrench Jacobian
+ *   Servos 0-3 : tilt servos (front, right, back, left) — torque-only Jacobian
  */
 
 #pragma once

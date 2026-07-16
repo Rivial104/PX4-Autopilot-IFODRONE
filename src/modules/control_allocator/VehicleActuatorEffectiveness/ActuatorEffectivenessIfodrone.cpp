@@ -9,9 +9,10 @@
  *   Motor columns : from rotor geometry, with the side-EDF axes rotated to the
  *                   current tilt angles — a tilted EDF correctly contributes
  *                   both lateral and vertical force.
- *   Servo columns : full wrench Jacobian d(torque, thrust)/d(servo command),
- *                   evaluated at the current tilt angle and scaled by the
- *                   current EDF thrust (tilt authority ∝ EDF thrust).
+ *   Servo columns : torque Jacobian d(torque)/d(servo command), evaluated at
+ *                   the current tilt angle and scaled by the current EDF
+ *                   thrust (tilt authority ∝ EDF thrust). Force rows are zero
+ *                   so Fz demand is never allocated to collective tilt.
  *
  * Trims: the side EDFs idle at IFO_EDF_TRIM (opposing pairs allocate
  * differentially around it), and the tilt servos rest at IFO_TILT_HOVER
@@ -91,9 +92,14 @@ ActuatorEffectivenessIfodrone::getEffectivenessMatrix(Configuration &configurati
 		}
 	}
 
-	// Tilt servo columns: d(wrench)/d(command) at the current operating point.
+	// Tilt servo columns: d(torque)/d(command) at the current operating point.
 	// d(axis)/d(angle) = hinge × axis, so for EDF thrust m and command range
 	// [min, max]: dF/ds = ct·m·(hinge × axis)·(max−min)/2, dτ/ds = r × dF/ds.
+	// The force rows are intentionally ZERO: a vertical-force demand must never
+	// be realized by collectively tilting the EDFs (asymmetries torque the body
+	// toward roll 180° during descent); Fz belongs to the coax pair, and the
+	// tilt-induced force of an already-tilted EDF is modeled on the motor
+	// columns via the rotated axes above.
 	for (int i = 0; i < _tilts.count(); ++i) {
 		int rotor_idx = -1;
 
@@ -105,7 +111,6 @@ ActuatorEffectivenessIfodrone::getEffectivenessMatrix(Configuration &configurati
 		}
 
 		Vector3f dtorque{};
-		Vector3f dthrust{};
 
 		if (rotor_idx >= 0) {
 			const auto &rotor = _mc_motors.geometry().rotors[rotor_idx];
@@ -113,11 +118,11 @@ ActuatorEffectivenessIfodrone::getEffectivenessMatrix(Configuration &configurati
 			const float dangle_dcmd = (_tilts.config(i).max_angle - _tilts.config(i).min_angle) / 2.f;
 			const float edf_thrust = math::max(_last_actuator_sp(rotor_idx), edf_trim);
 
-			dthrust = hinge.cross(rotor.axis) * (rotor.thrust_coef * edf_thrust * dangle_dcmd);
+			const Vector3f dthrust = hinge.cross(rotor.axis) * (rotor.thrust_coef * edf_thrust * dangle_dcmd);
 			dtorque = rotor.position.cross(dthrust);
 		}
 
-		const int actuator_idx = configuration.addActuator(ActuatorType::SERVOS, dtorque, dthrust);
+		const int actuator_idx = configuration.addActuator(ActuatorType::SERVOS, dtorque, Vector3f{});
 
 		if (actuator_idx >= 0) {
 			// Allocation zero = hover tilt angle
