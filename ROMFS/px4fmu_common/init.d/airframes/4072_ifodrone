@@ -236,6 +236,20 @@ param set-default FD_ESCS_EN 0
 param set-default CAL_MAG2_ROT 6
 
 # ============================================
+# SERIAL PORTS (survive param reset_all!)
+# ============================================
+# SiK telemetry radio on TEL3, GCS profile (MODE 0 = Normal, not Onboard)
+param set-default MAV_1_CONFIG 103
+param set-default MAV_1_MODE 0
+param set-default MAV_1_RADIO_CTL 1
+param set-default MAV_1_FLOW_CTRL 2
+param set-default SER_TEL3_BAUD 57600
+
+# RC receiver on TEL1 (CRSF)
+param set-default RC_PORT_CONFIG 101
+param set-default RC_INPUT_PROTO 6
+
+# ============================================
 # RC MAPPING
 # ============================================
 # Flight modes on channel 7 (3-pos switch): low = Stabilized, mid = Altitude,

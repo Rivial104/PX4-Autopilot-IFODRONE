@@ -264,7 +264,7 @@ param set-default FD_FAIL_P 0
 # Mode 0 (default) makes FlightTaskAuto rotate the heading toward the next
 # waypoint, which causes the IFODRONE to spin during HOLD because the smoothed
 # velocity vector wanders. Mode 4 = no auto-yaw, hold last commanded heading.
-param set-default MPC_YAW_MODE 4
+param set-default MPC_YAW_MODE 0
 
 param set-default SIM_GZ_EC_REV 0
 
@@ -277,7 +277,7 @@ param set-default CA_METHOD 0
 # (it also floors the assumed EDF thrust when scaling tilt-servo torque authority);
 # EC_MIN stays low (350) so the EDFs are NOT spun up hard at arm.
 # param set-default CA_R_REV 60
-param set-default IFO_EDF_TRIM 0.2
+param set-default IFO_EDF_TRIM 0.3
 
 # Post-allocation command gains: emergency knobs only. Authority reduction is
 # done honestly instead: tilt range narrowed to +-35 deg (the allocator sees the
@@ -285,7 +285,7 @@ param set-default IFO_EDF_TRIM 0.2
 # IFO_THR_XY_MAX. Values below 1 here hide plant gain from the allocator and
 # corrupt its saturation/unallocated bookkeeping - use only for quick tests.
 param set-default IFO_EDF_GAIN 1.0
-param set-default IFO_TILT_GAIN 1.0
+param set-default IFO_TILT_GAIN 0.2
 
 # Hard limit of the body-XY wrench sent to the side EDFs.
 param set-default IFO_THR_XY_MAX 0.2
