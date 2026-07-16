@@ -100,6 +100,8 @@ ActuatorEffectivenessIfodrone::getEffectivenessMatrix(Configuration &configurati
 	// toward roll 180° during descent); Fz belongs to the coax pair, and the
 	// tilt-induced force of an already-tilted EDF is modeled on the motor
 	// columns via the rotated axes above.
+	float torque_ref = 0.f;   // |servo torque| at idle EDF thrust — roll/pitch row unit
+
 	for (int i = 0; i < _tilts.count(); ++i) {
 		int rotor_idx = -1;
 
@@ -120,6 +122,9 @@ ActuatorEffectivenessIfodrone::getEffectivenessMatrix(Configuration &configurati
 
 			const Vector3f dthrust = hinge.cross(rotor.axis) * (rotor.thrust_coef * edf_thrust * dangle_dcmd);
 			dtorque = rotor.position.cross(dthrust);
+
+			torque_ref = math::max(torque_ref,
+					       rotor.position.norm() * rotor.thrust_coef * edf_trim * fabsf(dangle_dcmd));
 		}
 
 		const int actuator_idx = configuration.addActuator(ActuatorType::SERVOS, dtorque, Vector3f{});
@@ -128,6 +133,20 @@ ActuatorEffectivenessIfodrone::getEffectivenessMatrix(Configuration &configurati
 			// Allocation zero = hover tilt angle
 			configuration.trim[configuration.selected_matrix](actuator_idx) = tiltTrim(i, hover_angle_rad);
 		}
+	}
+
+	// Rescale the roll/pitch rows to normalized torque units: demand ±1 ≈ full
+	// servo authority at idle EDF thrust. The reference is FIXED at the trim
+	// operating point, so the live EDF-thrust scaling of the servo columns is
+	// preserved (entries grow with m), as is the relative weighting between
+	// servos and EDF-differential within each row. In physical CT units the
+	// entries (~0.007) would all fall below the ControlAllocator weak-authority
+	// threshold (0.05) and the rows would be zeroed — no roll/pitch allocation
+	// at all (observed: frozen servos, unallocated torque, attitude drift).
+	if (torque_ref > FLT_EPSILON) {
+		auto &matrix = configuration.effectiveness_matrices[configuration.selected_matrix];
+		matrix.row(ControlAxis::ROLL) /= torque_ref;
+		matrix.row(ControlAxis::PITCH) /= torque_ref;
 	}
 
 	return motors_ok;
