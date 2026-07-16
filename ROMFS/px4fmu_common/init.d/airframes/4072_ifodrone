@@ -43,7 +43,7 @@ param set-default CA_ROTOR0_PZ 0.1
 param set-default CA_ROTOR0_AX 0.0
 param set-default CA_ROTOR0_AY 0.0
 param set-default CA_ROTOR0_AZ -1.0
-param set-default CA_ROTOR0_KM 0.1
+param set-default CA_ROTOR0_KM 0.4
 param set-default CA_ROTOR0_CT 0.6
 
 # Motor 1: Bottom main (counter-rotating CW, KM negative = CW in PX4 convention)
@@ -53,54 +53,69 @@ param set-default CA_ROTOR1_PZ -0.1
 param set-default CA_ROTOR1_AX 0.0
 param set-default CA_ROTOR1_AY 0.0
 param set-default CA_ROTOR1_AZ -1.0
-param set-default CA_ROTOR1_KM -0.1
+param set-default CA_ROTOR1_KM -0.4
 param set-default CA_ROTOR1_CT 0.6
 
-# Side EDFs (tiltable) - tilt servo IDs 1..4
+# Side EDFs (tiltable) - tilt servo IDs 1..4.
+# SITL-validated geometry: BASE axes are HORIZONTAL (radial, AZ=0) and the
+# resting down-tilt comes from IFO_TILT_HOVER below — the allocator rotates the
+# axes to the actual tilt every cycle, so do NOT bake the tilt into the axes.
+# CT 0.1 vs coax 0.6 = calibrated thrust ratio; KM 0 (EDF reaction unmodeled).
 param set-default CA_ROTOR2_PX 0.535
 param set-default CA_ROTOR2_PY 0.0
 param set-default CA_ROTOR2_PZ 0.045
-param set-default CA_ROTOR2_AX 0.70711
+param set-default CA_ROTOR2_AX 1.0
 param set-default CA_ROTOR2_AY 0.0
-param set-default CA_ROTOR2_AZ -0.70711
-param set-default CA_ROTOR2_KM 0.01
-param set-default CA_ROTOR2_CT 0.4
+param set-default CA_ROTOR2_AZ 0.0
+param set-default CA_ROTOR2_KM 0
+param set-default CA_ROTOR2_CT 0.1
 param set-default CA_ROTOR2_TILT 1
 
 param set-default CA_ROTOR3_PX 0.0
 param set-default CA_ROTOR3_PY 0.535
 param set-default CA_ROTOR3_PZ 0.045
 param set-default CA_ROTOR3_AX 0.0
-param set-default CA_ROTOR3_AY 0.70711
-param set-default CA_ROTOR3_AZ -0.70711
-param set-default CA_ROTOR3_KM 0.01
-param set-default CA_ROTOR3_CT 0.4
+param set-default CA_ROTOR3_AY 1.0
+param set-default CA_ROTOR3_AZ 0.0
+param set-default CA_ROTOR3_KM 0
+param set-default CA_ROTOR3_CT 0.1
 param set-default CA_ROTOR3_TILT 2
 
 param set-default CA_ROTOR4_PX -0.535
 param set-default CA_ROTOR4_PY 0.0
 param set-default CA_ROTOR4_PZ 0.045
-param set-default CA_ROTOR4_AX -0.70711
+param set-default CA_ROTOR4_AX -1.0
 param set-default CA_ROTOR4_AY 0.0
-param set-default CA_ROTOR4_AZ -0.70711
-param set-default CA_ROTOR4_KM 0.01
-param set-default CA_ROTOR4_CT 0.4
+param set-default CA_ROTOR4_AZ 0.0
+param set-default CA_ROTOR4_KM 0
+param set-default CA_ROTOR4_CT 0.1
 param set-default CA_ROTOR4_TILT 3
 
 param set-default CA_ROTOR5_PX 0.0
 param set-default CA_ROTOR5_PY -0.535
 param set-default CA_ROTOR5_PZ 0.045
 param set-default CA_ROTOR5_AX 0.0
-param set-default CA_ROTOR5_AY -0.70711
-param set-default CA_ROTOR5_AZ -0.70711
-param set-default CA_ROTOR5_KM 0.01
-param set-default CA_ROTOR5_CT 0.4
+param set-default CA_ROTOR5_AY -1.0
+param set-default CA_ROTOR5_AZ 0.0
+param set-default CA_ROTOR5_KM 0
+param set-default CA_ROTOR5_CT 0.1
 param set-default CA_ROTOR5_TILT 4
 
 # ============================================
 # TILT SERVO GEOMETRY
+# Full mechanical range +-60 deg (unlike SITL's +-35): the resting point is
+# tilted DOWN by IFO_TILT_HOVER, so headroom around it is asymmetric and the
+# wider range keeps enough control authority on the down side.
 # ============================================
 param set-default CA_SV_TL_COUNT 4
+
+# EDFs rest tilted DOWN (exhaust downward -> thrust gains a lift component).
+# Negative angle = thrust axis rotated towards -Z (up) in the allocator's
+# convention. The allocation trims to this angle with zero torque demand and
+# the effectiveness matrix is linearized around it. VERIFY the direction on
+# the bench: at disarm the ducts must visibly point down; if they point up,
+# fix the servo linkage/PWM direction, not this parameter's sign.
+param set-default IFO_TILT_HOVER -30.0
 
 param set-default CA_SV_TL0_MINA -60.0
 param set-default CA_SV_TL0_MAXA  60.0
@@ -151,11 +166,15 @@ param set-default PWM_MAIN_MAX4 2000
 param set-default PWM_MAIN_MAX5 2000
 param set-default PWM_MAIN_MAX6 2000
 
-# Armed idle for main motors: spin at ~1100 us to keep thrust budget for yaw.
-# EDFs set to 1020 us (near minimum) — they only spin up when lateral thrust is needed.
-# Adjust per ESC — must be above the ESC's start threshold (typically 1020-1080 us).
-param set-default PWM_MAIN_MIN1 1100
-param set-default PWM_MAIN_MIN2 1100
+# Armed idle: 1020 us on all motors = ESC armed but props NOT spinning
+# (a small margin above the 1000 us disarm level, below the typical ESC start
+# threshold of ~1050-1080 us). Motors only spin once thrust is demanded.
+# NOTE: the side EDFs receive the allocation idle IFO_EDF_TRIM (~0.2 -> about
+# 1220 us) as soon as the vehicle is armed - that baseline is part of the
+# differential-pair control design. If a dead-still bench arm is required,
+# lower IFO_EDF_TRIM (at the cost of lateral/tilt control authority).
+param set-default PWM_MAIN_MIN1 1020
+param set-default PWM_MAIN_MIN2 1020
 param set-default PWM_MAIN_MIN3 1020
 param set-default PWM_MAIN_MIN4 1020
 param set-default PWM_MAIN_MIN5 1020
@@ -186,9 +205,11 @@ param set-default PWM_MAIN_FUNC10 204
 param set-default PWM_MAIN_FUNC11 202
 param set-default PWM_MAIN_FUNC12 201
 
-# Standard hobby servo range (1000..2000 us). Disarmed default 1700 us pre-tilts the
-# EDFs up so they add lift at takeoff; tune per servo/linkage so 1700 us ≈ hover tilt
-# (φ₀=45° in ActuatorEffectivenessIfodrone — verify the angle/direction on the bench).
+# Standard hobby servo range: 1000..2000 us maps linearly to -60..+60 deg
+# (CA_SV_TL*_MINA/MAXA). Disarmed 1250 us = -30 deg = IFO_TILT_HOVER, so the
+# EDFs rest tilted down both disarmed and at zero demand after arming.
+# Bench-verify per servo/linkage that 1250 us really is 30 deg down; adjust
+# the DIS values (not IFO_TILT_HOVER) for linkage asymmetries.
 param set-default PWM_MAIN_MIN9  1000
 param set-default PWM_MAIN_MIN10 1000
 param set-default PWM_MAIN_MIN11 1000
@@ -197,10 +218,10 @@ param set-default PWM_MAIN_MAX9  2000
 param set-default PWM_MAIN_MAX10 2000
 param set-default PWM_MAIN_MAX11 2000
 param set-default PWM_MAIN_MAX12 2000
-param set-default PWM_MAIN_DIS9  1700
-param set-default PWM_MAIN_DIS10 1700
-param set-default PWM_MAIN_DIS11 1700
-param set-default PWM_MAIN_DIS12 1700
+param set-default PWM_MAIN_DIS9  1250
+param set-default PWM_MAIN_DIS10 1250
+param set-default PWM_MAIN_DIS11 1250
+param set-default PWM_MAIN_DIS12 1250
 
 # ============================================
 # SAFETY / SYSTEM
@@ -234,8 +255,12 @@ param set-default IFO_THR_XY_MAX 0.2
 param set-default IFO_THR_HOVER 0.5
 
 # Reduced side-EDF and tilt-servo command authority around their trims.
-param set-default IFO_EDF_GAIN 0.5
-param set-default IFO_TILT_GAIN 0.5
+# Post-allocation gains stay 1.0 (honest allocation, same as SITL): authority
+# is shaped by IFO_THR_XY_MAX and the tilt range instead. Values below 1 hide
+# plant gain from the allocator - emergency knobs only.
+param set-default IFO_EDF_GAIN 1.0
+param set-default IFO_TILT_GAIN 1.0
+param set-default IFO_EDF_TRIM 0.2
 
 # Auto/takeoff yaw mode: hold heading (mode 4)
 param set-default MPC_YAW_MODE 4
