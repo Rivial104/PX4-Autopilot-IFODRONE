@@ -239,6 +239,16 @@ param set-default CAL_MAG2_ROT 6
 param set-default BAT1_N_CELLS 6
 param set-default BAT1_V_EMPTY 3.3
 param set-default BAT1_V_CHARGED 4.2
+# Measured divider/current scaling of this Matek board (from calibrated state)
+param set-default BAT1_V_DIV 11.0046
+param set-default BAT1_A_PER_V 40.0
+
+
+# ============================================
+# DRONECAN (GPS + compass are on the CAN bus!)
+# ============================================
+param set-default UAVCAN_ENABLE 3
+param set-default UAVCAN_SUB_GPS 1
 
 # ============================================
 # SERIAL PORTS (survive param reset_all!)
@@ -257,10 +267,6 @@ param set-default RC_INPUT_PROTO 6
 # ============================================
 # RC MAPPING
 # ============================================
-# Flight modes on channel 7 (3-pos switch): low = Stabilized, mid = Altitude,
-# high = Land. A 3-pos switch lands in slots 1 / 4 / 6 of the 6-slot range;
-# slot 3 mirrors slot 4 so a mid position trimmed slightly below center still
-# selects Altitude.
 param set-default RC_MAP_FLTMODE 7
 param set-default COM_FLTMODE1 8
 param set-default COM_FLTMODE3 1
@@ -269,7 +275,6 @@ param set-default COM_FLTMODE6 11
 
 # Arm/disarm switch on channel 5 (switch, not momentary button)
 param set-default RC_MAP_ARM_SW 5
-param set-default COM_ARM_SWISBTN 0
 
 # Airmode off: roll/pitch authority comes from the tilt servos, independent of
 # motor throttle, so raising collective thrust to preserve RP authority is moot.
