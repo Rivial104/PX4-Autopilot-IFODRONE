@@ -194,10 +194,6 @@ param set-default PWM_MAIN_DIS6 1000
 param set-default PWM_MAIN_DIS7 1000
 param set-default PWM_MAIN_DIS8 1000
 
-# Motor update rate. 400 Hz works for analog ESCs.
-# For DShot: set DSHOT_CONFIG instead and leave PWM_MAIN_RATE at default.
-param set-default PWM_MAIN_RATE 400
-
 # ----- Tilt servos: S9..S12 (physical wiring as flown in lot1) -----
 #   S9  -> Tilt servo 2 back  (203)
 #   S10 -> Tilt servo 3 left  (204)
@@ -229,8 +225,7 @@ param set-default PWM_MAIN_DIS12 1250
 # ============================================
 # SAFETY / SYSTEM
 # ============================================
-param set-default COM_RC_IN_MODE 1
-param set-default FD_ESCS_EN 0
+param set-default COM_RC_IN_MODE 2
 
 # External mag (instance 2) mounted rotated: Yaw 270 (enum 6)
 param set-default CAL_MAG2_ROT 6
@@ -240,8 +235,8 @@ param set-default BAT1_N_CELLS 6
 param set-default BAT1_V_EMPTY 3.3
 param set-default BAT1_V_CHARGED 4.2
 # Measured divider/current scaling of this Matek board (from calibrated state)
-param set-default BAT1_V_DIV 11.0046
-param set-default BAT1_A_PER_V 40.0
+# param set-default BAT1_V_DIV 11.0046
+# param set-default BAT1_A_PER_V 40.0
 
 
 # ============================================
