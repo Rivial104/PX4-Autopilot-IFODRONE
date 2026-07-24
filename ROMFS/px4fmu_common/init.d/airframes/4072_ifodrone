@@ -248,15 +248,15 @@ param set-default UAVCAN_SUB_GPS 1
 # ============================================
 # SERIAL PORTS (survive param reset_all!)
 # ============================================
-# SiK telemetry radio on TEL3, GCS profile (MODE 0 = Normal, not Onboard)
-param set-default MAV_1_CONFIG 103
+# SiK telemetry radio on TEL1, GCS profile (MODE 0 = Normal, not Onboard)
+param set-default MAV_1_CONFIG 101
 param set-default MAV_1_MODE 0
 param set-default MAV_1_RADIO_CTL 1
 param set-default MAV_1_FLOW_CTRL 2
-param set-default SER_TEL3_BAUD 57600
+param set-default SER_TEL1_BAUD 57600
 
-# RC receiver on TEL1 (CRSF)
-param set-default RC_PORT_CONFIG 101
+# RC receiver on TEL3 (CRSF)
+param set-default RC_PORT_CONFIG 103
 param set-default RC_INPUT_PROTO 6
 
 # ============================================
