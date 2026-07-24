@@ -154,8 +154,8 @@ param set-default CA_SV_TL3_CT 0
 #   S6 -> Motor 3 right EDF   (104)
 #   S7 -> Motor 5 left EDF    (106)
 #   S8 -> Motor 2 front EDF   (103)
-param set-default PWM_MAIN_FUNC1 101
-param set-default PWM_MAIN_FUNC2 102
+param set-default PWM_MAIN_FUNC1 102
+param set-default PWM_MAIN_FUNC2 101
 param set-default PWM_MAIN_FUNC3 0
 param set-default PWM_MAIN_FUNC4 0
 param set-default PWM_MAIN_FUNC5 105
@@ -200,8 +200,8 @@ param set-default PWM_MAIN_DIS8 1000
 #   S11 -> Tilt servo 1 right (202)
 #   S12 -> Tilt servo 0 front (201)
 param set-default PWM_MAIN_FUNC9  203
-param set-default PWM_MAIN_FUNC10 204
-param set-default PWM_MAIN_FUNC11 202
+param set-default PWM_MAIN_FUNC10 202
+param set-default PWM_MAIN_FUNC11 204
 param set-default PWM_MAIN_FUNC12 201
 
 # Standard hobby servo range: 1000..2000 us maps linearly to -60..+60 deg
