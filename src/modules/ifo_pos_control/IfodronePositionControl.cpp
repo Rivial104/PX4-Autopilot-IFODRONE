@@ -12,10 +12,12 @@
  *   - goto_setpoint (direct position target, converted here)
  *   - the three stick-flown modes, whose setpoints are built here from the
  *     sticks rather than taken from flight_mode_manager:
- *       Stabilized: XY velocity (local NED) + throttle stick → collective thrust
- *       Altitude:   XY velocity (local NED) + climb rate, throttle centred = altitude hold
+ *       Stabilized: BODY lateral thrust damped by an accelerometer-only velocity
+ *                   estimate + throttle stick → collective thrust. No heading,
+ *                   no GPS, no compass anywhere in the loop.
+ *       Altitude:   XY velocity in local NED (pitch → north, roll → east)
+ *                   + climb rate, throttle centred = altitude hold
  *       Position:   as Altitude, plus XY position hold when the sticks are centred
- *     XY sticks are inertial (pitch → north, roll → east), not body-referenced.
  */
 
 #include "IfodronePositionControl.hpp"
@@ -209,7 +211,8 @@ void IfodronePositionControl::Run()
 			if (_vehicle_control_mode.flag_control_manual_enabled) {
 				// -------------------------------------------------------
 				// IFODRONE MANUAL MODES (sticks)
-				//   Stabilized: XY velocity (NED) + direct collective thrust
+				//   Stabilized: damped body lateral thrust + direct collective
+				//               (compass-free, GPS-free)
 				//   Altitude:   XY velocity (NED) + climb rate / altitude lock
 				//   Position:   as Altitude + XY position lock
 				// -------------------------------------------------------
@@ -222,22 +225,24 @@ void IfodronePositionControl::Run()
 					_hold_initialized = true;
 				}
 
-				// Yaw stick → integrate heading setpoint (once per cycle, before the
-				// setpoint is built: generateManualSetpoint() only reads the result).
-				// While on the ground the setpoint tracks the actual heading: the
-				// coaxial pair produces yaw differentially, so a heading setpoint the
-				// vehicle cannot follow saturates the pair and eats the lift.
+				// Yaw stick: turning is commanded as a rate and the heading setpoint
+				// simply follows the vehicle; it only locks once the stick is centred.
+				// Nothing is integrated, so a drifting or wrong heading estimate cannot
+				// build up an error — which matters here because yaw comes from the
+				// coaxial pair differentially, and a yaw error it cannot track saturates
+				// the pair and eats the collective thrust.
 				manual_control_setpoint_s yaw_stick{};
 				_manual_control_setpoint_sub.copy(&yaw_stick);
 
-				if (!_vehicle_control_mode.flag_armed || _vehicle_land_detected.landed) {
+				const float yaw_rate_sp = yaw_stick.yaw * MANUAL_YAW_RATE_MAX;
+				const bool yaw_locked = (fabsf(yaw_rate_sp) < FLT_EPSILON)
+							&& _vehicle_control_mode.flag_armed && !_vehicle_land_detected.landed;
+
+				if (!yaw_locked) {
 					_hold_yaw_angle = heading;
 
 				} else {
-					_hold_yaw_angle = wrap_pi(_hold_yaw_angle + yaw_stick.yaw * MANUAL_YAW_RATE_MAX * dt);
-
-					// Never let the setpoint run further ahead of the vehicle than it can
-					// track, otherwise the yaw error winds up and starves collective thrust.
+					// Hold, but never further ahead of the vehicle than it can track.
 					const float yaw_error = wrap_pi(_hold_yaw_angle - heading);
 
 					if (fabsf(yaw_error) > MANUAL_YAW_ERR_MAX) {
@@ -245,7 +250,12 @@ void IfodronePositionControl::Run()
 					}
 				}
 
+				// The damping estimate is meaningless on the ground and would carry a
+				// stale value into the takeoff.
+				updateManualVelocityDamping(dt, !_vehicle_control_mode.flag_armed || _vehicle_land_detected.landed);
+
 				trajectory_setpoint_s manual_sp = generateManualSetpoint(local_pos, states, false);
+				manual_sp.yawspeed = yaw_rate_sp;
 
 				// Takeoff. Stabilized commands thrust directly, so the state machine is
 				// only kept in sync there (skip_takeoff) and the stick owns the motors.
@@ -295,7 +305,9 @@ void IfodronePositionControl::Run()
 					// Estimate went bad mid-flight: keep the vehicle controllable on
 					// sticks alone (open-loop lateral thrust + collective from throttle).
 					_control.resetIntegral();
-					_control.setInputSetpoint(generateManualSetpoint(local_pos, states, true));
+					trajectory_setpoint_s degraded_sp = generateManualSetpoint(local_pos, states, true);
+					degraded_sp.yawspeed = yaw_rate_sp;
+					_control.setInputSetpoint(degraded_sp);
 					_control.update(dt);
 				}
 
@@ -308,6 +320,7 @@ void IfodronePositionControl::Run()
 				_hold_initialized = false; // reset for next manual entry
 				_alt_lock = NAN;
 				_pos_lock.setNaN();
+				_vel_damp_body.setZero();
 
 				// Update constraints
 				_vehicle_constraints_sub.update(&_vehicle_constraints);
@@ -429,6 +442,7 @@ void IfodronePositionControl::Run()
 			_hold_initialized = false;
 			_alt_lock = NAN;
 			_pos_lock.setNaN();
+			_vel_damp_body.setZero();
 		}
 
 		// --- Publish takeoff status ---
@@ -476,6 +490,35 @@ void IfodronePositionControl::publishSetpoints(const PositionControlStates &stat
 	_attitude_setpoint_pub.publish(att_sp);
 }
 
+void IfodronePositionControl::updateManualVelocityDamping(float dt, bool reset)
+{
+	vehicle_acceleration_s accel;
+	_vehicle_acceleration_sub.update(&accel);
+
+	if (reset || !_q_att_valid) {
+		_vel_damp_body.setZero();
+		return;
+	}
+
+	// Specific force → acceleration: subtracting gravity needs the attitude, but a
+	// rotation about z leaves the gravity vector unchanged, so only roll and pitch
+	// enter here. This estimate is therefore completely heading-free.
+	const Vector3f specific_force(accel.xyz);
+	const Vector3f gravity_body = _q_att.rotateVectorInverse(Vector3f(0.f, 0.f, CONSTANTS_ONE_G));
+	const Vector2f acc_body = (specific_force + gravity_body).xy();
+
+	if (!acc_body.isAllFinite()) {
+		return;
+	}
+
+	// Integrate with a washout: without an absolute reference the integral would
+	// run away on bias alone, so it is only trusted over the washout horizon. That
+	// is enough to damp gusts and rebound, and deliberately not enough to hold a
+	// position against a steady wind.
+	const float tau = math::max(_param_ifo_stb_vd_tau.get(), 0.1f);
+	_vel_damp_body = (_vel_damp_body + acc_body * dt) * math::max(1.f - dt / tau, 0.f);
+}
+
 trajectory_setpoint_s IfodronePositionControl::generateManualSetpoint(
 	const vehicle_local_position_s &local_pos, const PositionControlStates &states, bool force_open_loop)
 {
@@ -505,24 +548,24 @@ trajectory_setpoint_s IfodronePositionControl::generateManualSetpoint(
 	sp.timestamp = local_pos.timestamp_sample;
 	sp.yaw = _hold_yaw_angle;
 
-	// --- Horizontal: velocity in the inertial (local NED) frame ---------------
-	// Pitch stick → +North, roll stick → +East. The body is always level and the
-	// heading is decoupled from translation, so the sticks are NOT rotated by yaw.
-	const float stick_n = deadband(manual.pitch);
-	const float stick_e = deadband(manual.roll);
+	// --- Horizontal ------------------------------------------------------------
+	// Altitude/Position fly the earth-frame law (pitch → +North, roll → +East);
+	// Stabilized flies the body-frame law below, which needs no heading at all.
+	const float stick_x = deadband(manual.pitch);
+	const float stick_y = deadband(manual.roll);
 
-	const bool vel_xy_usable = !force_open_loop && local_pos.v_xy_valid
-				   && Vector2f(states.velocity).isAllFinite()
-				   && Vector2f(states.acceleration).isAllFinite();
+	const bool earth_frame_xy = (alt_hold || pos_hold) && !force_open_loop && local_pos.v_xy_valid
+				    && Vector2f(states.velocity).isAllFinite()
+				    && Vector2f(states.acceleration).isAllFinite();
 
-	if (vel_xy_usable) {
-		sp.velocity[0] = stick_n * _param_ifo_vel_max_xy.get();
-		sp.velocity[1] = stick_e * _param_ifo_vel_max_xy.get();
+	if (earth_frame_xy) {
+		sp.velocity[0] = stick_x * _param_ifo_vel_max_xy.get();
+		sp.velocity[1] = stick_y * _param_ifo_vel_max_xy.get();
 
 		// Position lock (Position mode only): latch once the vehicle has stopped.
 		const bool xy_pos_usable = pos_hold && local_pos.xy_valid && Vector2f(states.position).isAllFinite();
 
-		if (!xy_pos_usable || (fabsf(stick_n) > 0.f) || (fabsf(stick_e) > 0.f)) {
+		if (!xy_pos_usable || (fabsf(stick_x) > 0.f) || (fabsf(stick_y) > 0.f)) {
 			_pos_lock.setNaN();
 
 		} else if (!_pos_lock.isAllFinite() && (Vector2f(states.velocity).norm() < LOCK_VEL_MAX)) {
@@ -537,14 +580,28 @@ trajectory_setpoint_s IfodronePositionControl::generateManualSetpoint(
 		}
 
 	} else {
-		// No horizontal estimate: open-loop lateral thrust. IFO_THR_XY_MAX is a
-		// normalized thrust, converted here to the acceleration the library maps
-		// back to that thrust at hover (a = T * g / hover_thrust).
+		// Stabilized (and the degraded fallback of the assisted modes): the sticks
+		// command lateral thrust in the BODY frame, damped by a velocity estimate
+		// integrated from the accelerometer. No heading, no GPS, no compass — the
+		// only earth reference is gravity, which fixes roll/pitch but never yaw.
+		//
+		// IFO_THR_XY_MAX is a normalized thrust, converted here to the acceleration
+		// the library maps back to that thrust at hover (a = T * g / hover_thrust).
 		_pos_lock.setNaN();
 		const float acc_xy_max = _param_ifo_thr_xy_max.get() * CONSTANTS_ONE_G
 					 / math::max(_param_ifo_thr_hover.get(), 0.1f);
-		sp.acceleration[0] = stick_n * acc_xy_max;
-		sp.acceleration[1] = stick_e * acc_xy_max;
+
+		const Vector2f acc_body(stick_x * acc_xy_max - _param_ifo_stb_vd_p.get() * _vel_damp_body(0),
+					stick_y * acc_xy_max - _param_ifo_stb_vd_p.get() * _vel_damp_body(1));
+
+		// The library works in NED, publishSetpoints() rotates its output back into
+		// the body frame with the same attitude, so this rotation cancels exactly:
+		// a wrong yaw estimate cannot enter the loop, it only cancels against itself.
+		const float yaw = _q_att_valid ? Eulerf(_q_att).psi() : 0.f;
+		const float cy = cosf(yaw);
+		const float sy = sinf(yaw);
+		sp.acceleration[0] = cy * acc_body(0) - sy * acc_body(1);
+		sp.acceleration[1] = sy * acc_body(0) + cy * acc_body(1);
 	}
 
 	// --- Vertical -------------------------------------------------------------

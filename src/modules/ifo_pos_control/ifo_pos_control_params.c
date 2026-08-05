@@ -181,3 +181,39 @@ PARAM_DEFINE_FLOAT(IFO_LAND_SPEED, 0.7f);
  * @group IFODRONE Position Control
  */
 PARAM_DEFINE_FLOAT(IFO_TKO_RAMP_T, 2.0f);
+
+/**
+ * Stabilized lateral velocity damping gain
+ *
+ * Damping applied to the body-frame velocity that Stabilized integrates from the
+ * accelerometer. Higher values brake harder once the stick is released; 0
+ * disables the damping and leaves a pure open-loop lateral thrust command.
+ *
+ * This loop uses no heading, GPS or compass, so it also serves as the fallback
+ * of Altitude/Position when their estimate goes away.
+ *
+ * @unit 1/s
+ * @min 0.0
+ * @max 3.0
+ * @decimal 2
+ * @increment 0.1
+ * @group IFODRONE Position Control
+ */
+PARAM_DEFINE_FLOAT(IFO_STB_VD_P, 1.5f);
+
+/**
+ * Stabilized velocity damping washout time constant
+ *
+ * Horizon over which the accelerometer-integrated velocity is trusted. Without
+ * an absolute reference the integral would run away on sensor bias alone, so it
+ * is washed out with this time constant: the damping counteracts gusts and
+ * rebound but deliberately cannot hold position against a steady wind.
+ *
+ * @unit s
+ * @min 0.5
+ * @max 10.0
+ * @decimal 1
+ * @increment 0.5
+ * @group IFODRONE Position Control
+ */
+PARAM_DEFINE_FLOAT(IFO_STB_VD_TAU, 10.0f);

@@ -39,6 +39,7 @@
 #include <uORB/topics/parameter_update.h>
 #include <uORB/topics/takeoff_status.h>
 #include <uORB/topics/trajectory_setpoint.h>
+#include <uORB/topics/vehicle_acceleration.h>
 #include <uORB/topics/vehicle_attitude.h>
 #include <uORB/topics/vehicle_attitude_setpoint.h>
 #include <uORB/topics/vehicle_constraints.h>
@@ -87,20 +88,29 @@ private:
 	/**
 	 * Build the trajectory setpoint for manual (stick-flown) modes.
 	 *
-	 * The stick mapping is identical in all three manual modes; what differs is
-	 * how much of it is closed around the estimator:
-	 *   Stabilized: XY velocity (NED), throttle stick → collective thrust
-	 *   Altitude:   XY velocity (NED), throttle stick → climb rate + altitude lock
-	 *   Position:   as Altitude + XY position lock when the sticks are centred
+	 * Two different laws, picked by how much the mode is allowed to rely on the
+	 * estimator:
+	 *   Stabilized: BODY lateral thrust + accelerometer damping, throttle stick →
+	 *               collective thrust. Needs no heading, GPS or compass.
+	 *   Altitude:   XY velocity in local NED (pitch → north, roll → east),
+	 *               throttle stick → climb rate, centred → altitude lock.
+	 *   Position:   as Altitude + XY position lock when the sticks are centred.
 	 *
-	 * XY sticks command velocity in the INERTIAL (local NED) frame, not in body:
-	 * pitch stick → +North, roll stick → +East regardless of the heading.
-	 * Degrades axis by axis when the estimate is missing; force_open_loop drops
-	 * every axis to the estimator-free mapping (lateral thrust + collective).
-	 * The heading setpoint is integrated by the caller, this only reads it.
+	 * Altitude/Position degrade to the Stabilized law axis by axis when the
+	 * estimate is missing; force_open_loop degrades every axis at once.
+	 * The heading setpoint is maintained by the caller, this only reads it.
 	 */
 	trajectory_setpoint_s generateManualSetpoint(const vehicle_local_position_s &local_pos,
 			const PositionControlStates &states, bool force_open_loop);
+
+	/**
+	 * Update the body-frame velocity estimate used to damp the Stabilized sticks.
+	 *
+	 * Integrates the gravity-compensated accelerometer with a washout. Uses no
+	 * heading, GPS or EKF horizontal state, so it survives a dead or disturbed
+	 * compass; in exchange it only knows velocity over the washout horizon.
+	 */
+	void updateManualVelocityDamping(float dt, bool reset);
 
 	/**
 	 * Adjust setpoint for EKF resets (position/velocity jumps).
@@ -122,6 +132,7 @@ private:
 	uORB::Subscription                 _goto_setpoint_sub{ORB_ID(goto_setpoint)};
 	uORB::Subscription                 _manual_control_setpoint_sub{ORB_ID(manual_control_setpoint)};
 	uORB::Subscription                 _trajectory_setpoint_sub{ORB_ID(trajectory_setpoint)};
+	uORB::Subscription                 _vehicle_acceleration_sub{ORB_ID(vehicle_acceleration)};
 	uORB::Subscription                 _vehicle_attitude_sub{ORB_ID(vehicle_attitude)};
 	uORB::Subscription                 _vehicle_constraints_sub{ORB_ID(vehicle_constraints)};
 	uORB::Subscription                 _vehicle_control_mode_sub{ORB_ID(vehicle_control_mode)};
@@ -161,6 +172,7 @@ private:
 	// --- Manual mode state ---
 	float            _hold_yaw_angle{0.f};
 	bool             _hold_initialized{false};
+	matrix::Vector2f _vel_damp_body{0.f, 0.f};  ///< washed-out IMU velocity, Stabilized damping
 	matrix::Vector2f _pos_lock{NAN, NAN};  ///< latched XY position (Position mode, sticks centred)
 	float            _alt_lock{NAN};       ///< latched altitude   (Altitude/Position, throttle centred)
 	bool             _manual_alt_hold_prev{false};
@@ -199,7 +211,9 @@ private:
 		(ParamFloat<px4::params::IFO_TKO_SPEED>)  _param_ifo_tko_speed,
 		(ParamFloat<px4::params::IFO_LAND_SPEED>) _param_ifo_land_speed,
 		(ParamFloat<px4::params::COM_SPOOLUP_TIME>) _param_com_spoolup_time,
-		(ParamFloat<px4::params::IFO_TKO_RAMP_T>) _param_ifo_tko_ramp_t
+		(ParamFloat<px4::params::IFO_TKO_RAMP_T>) _param_ifo_tko_ramp_t,
+		(ParamFloat<px4::params::IFO_STB_VD_P>)   _param_ifo_stb_vd_p,
+		(ParamFloat<px4::params::IFO_STB_VD_TAU>) _param_ifo_stb_vd_tau
 	)
 
 	perf_counter_t _cycle_perf{perf_alloc(PC_ELAPSED, MODULE_NAME": cycle")};
