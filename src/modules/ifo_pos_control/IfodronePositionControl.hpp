@@ -5,10 +5,11 @@
  * acceleration setpoint, then converts it to body-frame thrust using the
  * current vehicle attitude.
  *
- * Setpoint source (via trajectory_setpoint topic):
- *   - Offboard: external trajectory_setpoint
- *   - Manual/Stabilize/Position: trajectory_setpoint from flight_mode_manager
+ * Setpoint source:
+ *   - Offboard/Auto: trajectory_setpoint topic
  *   - goto_setpoint: direct position target (converted to trajectory_setpoint internally)
+ *   - Stabilized/Altitude/Position: built here from the sticks, see
+ *     generateManualSetpoint() (flight_mode_manager's trajectory setpoint is ignored)
  *
  * IFODRONE specifics:
  *   - Attitude setpoint is always level (roll/pitch = 0), only yaw is commanded.
@@ -84,6 +85,24 @@ private:
 	void publishSetpoints(const PositionControlStates &states);
 
 	/**
+	 * Build the trajectory setpoint for manual (stick-flown) modes.
+	 *
+	 * The stick mapping is identical in all three manual modes; what differs is
+	 * how much of it is closed around the estimator:
+	 *   Stabilized: XY velocity (NED), throttle stick → collective thrust
+	 *   Altitude:   XY velocity (NED), throttle stick → climb rate + altitude lock
+	 *   Position:   as Altitude + XY position lock when the sticks are centred
+	 *
+	 * XY sticks command velocity in the INERTIAL (local NED) frame, not in body:
+	 * pitch stick → +North, roll stick → +East regardless of the heading.
+	 * Degrades axis by axis when the estimate is missing; force_open_loop drops
+	 * every axis to the estimator-free mapping (lateral thrust + collective).
+	 * The heading setpoint is integrated by the caller, this only reads it.
+	 */
+	trajectory_setpoint_s generateManualSetpoint(const vehicle_local_position_s &local_pos,
+			const PositionControlStates &states, bool force_open_loop);
+
+	/**
 	 * Adjust setpoint for EKF resets (position/velocity jumps).
 	 */
 	void adjustSetpointForEKFResets(const vehicle_local_position_s &local_pos, trajectory_setpoint_s &setpoint);
@@ -139,10 +158,13 @@ private:
 		.landed = true,
 	};
 
-	// --- Hold mode state ---
-	matrix::Vector2f _hold_xy{0.f, 0.f};
+	// --- Manual mode state ---
 	float            _hold_yaw_angle{0.f};
 	bool             _hold_initialized{false};
+	matrix::Vector2f _pos_lock{NAN, NAN};  ///< latched XY position (Position mode, sticks centred)
+	float            _alt_lock{NAN};       ///< latched altitude   (Altitude/Position, throttle centred)
+	bool             _manual_alt_hold_prev{false};
+	bool             _manual_pos_hold_prev{false};
 
 	// --- EKF reset counters ---
 	uint8_t _vxy_reset_counter{0};
@@ -153,6 +175,10 @@ private:
 
 	// --- Constants ---
 	static constexpr uint64_t TRAJECTORY_STREAM_TIMEOUT_US = 500_ms;
+	static constexpr float STICK_DEADBAND = 0.1f;      ///< manual stick deadband [-1, 1]
+	static constexpr float LOCK_VEL_MAX = 0.3f;        ///< latch position/altitude below this speed [m/s]
+	static constexpr float MANUAL_YAW_RATE_MAX = 1.5f; ///< yaw stick → heading rate [rad/s]
+	static constexpr float MANUAL_YAW_ERR_MAX = 0.5f;  ///< cap on heading setpoint lead [rad]
 
 	DEFINE_PARAMETERS(
 		(ParamFloat<px4::params::IFO_POS_Z_P>)   _param_ifo_pos_z_p,

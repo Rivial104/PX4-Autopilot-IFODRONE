@@ -28,5 +28,7 @@ fi
 # Internal baro
 dps310 -I start -a 118
 
-# External mag
-qmc5883l -X start -a 13
+# External mag (QMC5883L @ 0x0d on external I2C bus 1 = SCL/SDA pads).
+# Options MUST precede the 'start' verb: the I2C/SPI CLI stops parsing at the
+# first non-option, so any '-a'/'-X' placed after 'start' is silently ignored.
+qmc5883l -X -a 13 start

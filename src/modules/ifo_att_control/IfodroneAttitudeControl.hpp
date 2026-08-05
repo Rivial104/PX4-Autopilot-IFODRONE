@@ -8,9 +8,10 @@
  * IFODRONE is always kept level: roll/pitch attitude setpoint = 0.
  *   - Roll/pitch error → roll/pitch rate setpoint (P gains MC_ROLL_P / MC_PITCH_P)
  *   - Yaw error        → yaw rate setpoint        (P gain  MC_YAW_P)
- *   - thrust_body is carried through to the rate controller:
- *       Manual:    throttle stick → -Z
- *       Auto/Pos:  copied from vehicle_attitude_setpoint.thrust_body (ifo_pos_control)
+ *   - thrust_body is carried through to the rate controller: it is copied from
+ *     vehicle_attitude_setpoint.thrust_body (ifo_pos_control) in every mode,
+ *     including Stabilized, where the sticks command XY velocity. Only if that
+ *     setpoint goes stale does a manual mode fall back to throttle stick → -Z.
  *
  * The control allocator (ActuatorEffectivenessIfodrone) allocates the resulting
  * torque + thrust setpoints to all actuators (motors and tilt servos) at once.
@@ -69,9 +70,12 @@ private:
 	hrt_abstime _last_run{0};
 	float       _yaw_setpoint{NAN};
 
-	// Manual-mode mapping
+	// Manual fallback mapping (used only when ifo_pos_control is not publishing)
 	static constexpr float YAW_RATE_MAX{1.5f};     // manual yaw stick → yaw rate setpoint [rad/s]
 	static constexpr float THROTTLE_IDLE{0.05f};   // minimum throttle floor when armed
+
+	// vehicle_attitude_setpoint older than this counts as "ifo_pos_control is gone"
+	static constexpr hrt_abstime ATT_SP_TIMEOUT{200_ms};
 
 	// Rate setpoint safety clamps (the inner loop tracks these) [rad/s]
 	static constexpr float RATE_LIMIT_RP{20.0f};    // ~200 deg/s roll/pitch

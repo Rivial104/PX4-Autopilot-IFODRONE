@@ -9,8 +9,13 @@
  *
  * Supports:
  *   - Offboard mode (external trajectory_setpoint)
- *   - Manual/Position/Hold (trajectory_setpoint from flight_mode_manager)
  *   - goto_setpoint (direct position target, converted here)
+ *   - the three stick-flown modes, whose setpoints are built here from the
+ *     sticks rather than taken from flight_mode_manager:
+ *       Stabilized: XY velocity (local NED) + throttle stick → collective thrust
+ *       Altitude:   XY velocity (local NED) + climb rate, throttle centred = altitude hold
+ *       Position:   as Altitude, plus XY position hold when the sticks are centred
+ *     XY sticks are inertial (pitch → north, roll → east), not body-referenced.
  */
 
 #include "IfodronePositionControl.hpp"
@@ -188,91 +193,111 @@ void IfodronePositionControl::Run()
 			}
 		}
 
+		// Stabilized/Manual: commander leaves flag_multicopter_position_control_enabled
+		// clear, but this module still owns the horizontal loop there (sticks command
+		// XY velocity), so it has to run. Acro (no attitude stabilization) is excluded.
+		const bool manual_stabilized = _vehicle_control_mode.flag_control_manual_enabled
+					       && _vehicle_control_mode.flag_control_attitude_enabled
+					       && !_vehicle_control_mode.flag_multicopter_position_control_enabled;
+
 		// --- Run position control ---
-		if (_vehicle_control_mode.flag_multicopter_position_control_enabled
-		    && (_vehicle_control_mode.flag_control_manual_enabled
-			|| _setpoint.timestamp >= _time_position_control_enabled)) {
+		if ((_vehicle_control_mode.flag_multicopter_position_control_enabled
+		     && (_vehicle_control_mode.flag_control_manual_enabled
+			 || _setpoint.timestamp >= _time_position_control_enabled))
+		    || manual_stabilized) {
 
 			if (_vehicle_control_mode.flag_control_manual_enabled) {
 				// -------------------------------------------------------
-				// IFODRONE HOLD MODE
-				//   XY:       position hold via PID
-				//   altitude: throttle stick → vertical velocity setpoint
-				//   yaw:      yaw stick → yaw rate
+				// IFODRONE MANUAL MODES (sticks)
+				//   Stabilized: XY velocity (NED) + direct collective thrust
+				//   Altitude:   XY velocity (NED) + climb rate / altitude lock
+				//   Position:   as Altitude + XY position lock
 				// -------------------------------------------------------
-				manual_control_setpoint_s manual_sp{};
-				_manual_control_setpoint_sub.copy(&manual_sp);
+				const bool alt_hold = _vehicle_control_mode.flag_control_altitude_enabled;
 
-				// Initialise heading hold on first entry
+				const float heading = PX4_ISFINITE(local_pos.heading) ? local_pos.heading : 0.0f;
+
 				if (!_hold_initialized) {
-					_hold_yaw_angle = PX4_ISFINITE(local_pos.heading) ? local_pos.heading : 0.0f;
 					_control.resetIntegral();
 					_hold_initialized = true;
 				}
 
-				// --- Manual stick mapping → velocity setpoints ----------------------
-				//   roll  stick → body +Y velocity (right)
-				//   pitch stick → body +X velocity (forward)
-				//   throttle    → vertical velocity (centre = hold altitude)
-				//   yaw   stick → yaw rate
-				// Velocity-only: sticks centred ⇒ zero velocity (no XY position hold).
-				// NOTE sign-sensitive: if a stick drives the wrong way, flip its sign here.
-				static constexpr float STICK_DEADBAND = 0.1f;
-				auto deadband = [](float v) -> float {
-					if (fabsf(v) <= STICK_DEADBAND) { return 0.f; }
-					const float s = (v > 0.f) ? 1.f : -1.f;
-					return (v - s * STICK_DEADBAND) / (1.f - STICK_DEADBAND);
-				};
+				// Yaw stick → integrate heading setpoint (once per cycle, before the
+				// setpoint is built: generateManualSetpoint() only reads the result).
+				// While on the ground the setpoint tracks the actual heading: the
+				// coaxial pair produces yaw differentially, so a heading setpoint the
+				// vehicle cannot follow saturates the pair and eats the lift.
+				manual_control_setpoint_s yaw_stick{};
+				_manual_control_setpoint_sub.copy(&yaw_stick);
 
-				const float vx_body = deadband(manual_sp.pitch) * _param_ifo_vel_max_xy.get();
-				const float vy_body = deadband(manual_sp.roll)  * _param_ifo_vel_max_xy.get();
-
-				const float thr_db  = deadband(manual_sp.throttle);
-				const float vel_z_sp = (thr_db > 0.f) ? -thr_db * _param_ifo_vel_max_up.get()
-								      : -thr_db * _param_ifo_vel_max_dn.get();
-
-				// Yaw stick → integrate heading setpoint
-				static constexpr float YAW_RATE_MAX = 1.5f;
-				_hold_yaw_angle = wrap_pi(_hold_yaw_angle + manual_sp.yaw * YAW_RATE_MAX * dt);
-
-				// Rotate body-frame XY velocity into NED by heading
-				const float cy = cosf(_hold_yaw_angle);
-				const float sy = sinf(_hold_yaw_angle);
-				const float vx_ned = cy * vx_body - sy * vy_body;
-				const float vy_ned = sy * vx_body + cy * vy_body;
-
-				// Build trajectory setpoint: velocity-only (XY + Z), no position hold
-				trajectory_setpoint_s hold_sp = PositionControl::empty_trajectory_setpoint;
-				hold_sp.timestamp   = local_pos.timestamp_sample;
-				hold_sp.position[0] = NAN;
-				hold_sp.position[1] = NAN;
-				hold_sp.position[2] = NAN;
-				hold_sp.velocity[0] = vx_ned;
-				hold_sp.velocity[1] = vy_ned;
-				hold_sp.velocity[2] = vel_z_sp;
-				hold_sp.yaw         = _hold_yaw_angle;
-
-				// Run PID
-				_control.setVelocityLimits(
-					_param_ifo_vel_max_xy.get(),
-					_param_ifo_vel_max_up.get(),
-					_param_ifo_vel_max_dn.get());
-				_control.setThrustLimits(_param_ifo_thr_min.get(), _param_ifo_thr_max.get());
-
-				if (!_hold_initialized || _vehicle_land_detected.ground_contact) {
-					// On ground or not yet latched: push down, no integral
-					_control.resetIntegral();
-					trajectory_setpoint_s ground_sp = PositionControl::empty_trajectory_setpoint;
-					ground_sp.timestamp = local_pos.timestamp_sample;
-					Vector3f(0.f, 0.f, 100.f).copyTo(ground_sp.acceleration);
-					_control.setInputSetpoint(ground_sp);
+				if (!_vehicle_control_mode.flag_armed || _vehicle_land_detected.landed) {
+					_hold_yaw_angle = heading;
 
 				} else {
-					_control.setInputSetpoint(hold_sp);
+					_hold_yaw_angle = wrap_pi(_hold_yaw_angle + yaw_stick.yaw * MANUAL_YAW_RATE_MAX * dt);
+
+					// Never let the setpoint run further ahead of the vehicle than it can
+					// track, otherwise the yaw error winds up and starves collective thrust.
+					const float yaw_error = wrap_pi(_hold_yaw_angle - heading);
+
+					if (fabsf(yaw_error) > MANUAL_YAW_ERR_MAX) {
+						_hold_yaw_angle = wrap_pi(heading + matrix::sign(yaw_error) * MANUAL_YAW_ERR_MAX);
+					}
 				}
 
+				trajectory_setpoint_s manual_sp = generateManualSetpoint(local_pos, states, false);
+
+				// Takeoff. Stabilized commands thrust directly, so the state machine is
+				// only kept in sync there (skip_takeoff) and the stick owns the motors.
+				// With altitude assist the throttle stick requests the takeoff and the
+				// climb rate is ramped, otherwise the ground push-down below and the
+				// land detector's low-thrust ground contact would latch each other.
+				const bool want_takeoff = alt_hold && _vehicle_control_mode.flag_armed
+							  && PX4_ISFINITE(manual_sp.velocity[2]) && (manual_sp.velocity[2] < 0.f);
+				_takeoff.updateTakeoffState(_vehicle_control_mode.flag_armed, _vehicle_land_detected.landed,
+							    want_takeoff, _param_ifo_vel_max_up.get(), !alt_hold,
+							    local_pos.timestamp_sample);
+
+				const bool not_taken_off = alt_hold && (_takeoff.getTakeoffState() < TakeoffState::rampup);
+				const bool flying = !alt_hold || (_takeoff.getTakeoffState() >= TakeoffState::flight);
+
+				if (!flying) {
+					_control.setHoverThrust(_param_ifo_thr_hover.get());
+				}
+
+				const float speed_up = _takeoff.updateRamp(dt, _param_ifo_vel_max_up.get());
+				_control.setVelocityLimits(
+					_param_ifo_vel_max_xy.get(),
+					alt_hold ? math::min(speed_up, _param_ifo_vel_max_up.get()) : _param_ifo_vel_max_up.get(),
+					_param_ifo_vel_max_dn.get());
+
+				// The pilot must be able to spool up from zero on the ground: with
+				// altitude assist the floor appears once the takeoff ramp is done,
+				// in Stabilized as soon as the vehicle is off the ground.
+				const bool apply_thrust_floor = alt_hold ? flying : !_vehicle_land_detected.landed;
+				_control.setThrustLimits(apply_thrust_floor ? _param_ifo_thr_min.get() : 0.f,
+							 _param_ifo_thr_max.get());
+
+				if (not_taken_off || (flying && alt_hold && _vehicle_land_detected.ground_contact)) {
+					// On ground with altitude assist: push down, no integral
+					_control.resetIntegral();
+					manual_sp = PositionControl::empty_trajectory_setpoint;
+					manual_sp.timestamp = local_pos.timestamp_sample;
+					Vector3f(0.f, 0.f, 100.f).copyTo(manual_sp.acceleration);
+					_alt_lock = NAN;
+					_pos_lock.setNaN();
+				}
+
+				_control.setInputSetpoint(manual_sp);
 				_control.setState(states);
-				_control.update(dt);
+
+				if (!_control.update(dt)) {
+					// Estimate went bad mid-flight: keep the vehicle controllable on
+					// sticks alone (open-loop lateral thrust + collective from throttle).
+					_control.resetIntegral();
+					_control.setInputSetpoint(generateManualSetpoint(local_pos, states, true));
+					_control.update(dt);
+				}
 
 				publishSetpoints(states);
 
@@ -280,7 +305,9 @@ void IfodronePositionControl::Run()
 				// -------------------------------------------------------
 				// POSITION / OFFBOARD CONTROL (PID loop)
 				// -------------------------------------------------------
-				_hold_initialized = false; // reset for next hold entry
+				_hold_initialized = false; // reset for next manual entry
+				_alt_lock = NAN;
+				_pos_lock.setNaN();
 
 				// Update constraints
 				_vehicle_constraints_sub.update(&_vehicle_constraints);
@@ -400,6 +427,8 @@ void IfodronePositionControl::Run()
 						    false, 10.f, true, local_pos.timestamp_sample);
 			_control.resetIntegral();
 			_hold_initialized = false;
+			_alt_lock = NAN;
+			_pos_lock.setNaN();
 		}
 
 		// --- Publish takeoff status ---
@@ -445,6 +474,122 @@ void IfodronePositionControl::publishSetpoints(const PositionControlStates &stat
 	q_sp.copyTo(att_sp.q_d);
 	thr_body.copyTo(att_sp.thrust_body);
 	_attitude_setpoint_pub.publish(att_sp);
+}
+
+trajectory_setpoint_s IfodronePositionControl::generateManualSetpoint(
+	const vehicle_local_position_s &local_pos, const PositionControlStates &states, bool force_open_loop)
+{
+	manual_control_setpoint_s manual{};
+	_manual_control_setpoint_sub.copy(&manual);
+
+	auto deadband = [](float v) -> float {
+		if (fabsf(v) <= STICK_DEADBAND) { return 0.f; }
+
+		const float s = (v > 0.f) ? 1.f : -1.f;
+		return (v - s * STICK_DEADBAND) / (1.f - STICK_DEADBAND);
+	};
+
+	const bool alt_hold = _vehicle_control_mode.flag_control_altitude_enabled;
+	const bool pos_hold = _vehicle_control_mode.flag_control_position_enabled;
+
+	// Drop the latches whenever the assist level changes, so a mode switch never
+	// re-uses a stale lock from the previous mode.
+	if ((alt_hold != _manual_alt_hold_prev) || (pos_hold != _manual_pos_hold_prev)) {
+		_alt_lock = NAN;
+		_pos_lock.setNaN();
+		_manual_alt_hold_prev = alt_hold;
+		_manual_pos_hold_prev = pos_hold;
+	}
+
+	trajectory_setpoint_s sp = PositionControl::empty_trajectory_setpoint;
+	sp.timestamp = local_pos.timestamp_sample;
+	sp.yaw = _hold_yaw_angle;
+
+	// --- Horizontal: velocity in the inertial (local NED) frame ---------------
+	// Pitch stick → +North, roll stick → +East. The body is always level and the
+	// heading is decoupled from translation, so the sticks are NOT rotated by yaw.
+	const float stick_n = deadband(manual.pitch);
+	const float stick_e = deadband(manual.roll);
+
+	const bool vel_xy_usable = !force_open_loop && local_pos.v_xy_valid
+				   && Vector2f(states.velocity).isAllFinite()
+				   && Vector2f(states.acceleration).isAllFinite();
+
+	if (vel_xy_usable) {
+		sp.velocity[0] = stick_n * _param_ifo_vel_max_xy.get();
+		sp.velocity[1] = stick_e * _param_ifo_vel_max_xy.get();
+
+		// Position lock (Position mode only): latch once the vehicle has stopped.
+		const bool xy_pos_usable = pos_hold && local_pos.xy_valid && Vector2f(states.position).isAllFinite();
+
+		if (!xy_pos_usable || (fabsf(stick_n) > 0.f) || (fabsf(stick_e) > 0.f)) {
+			_pos_lock.setNaN();
+
+		} else if (!_pos_lock.isAllFinite() && (Vector2f(states.velocity).norm() < LOCK_VEL_MAX)) {
+			_pos_lock = Vector2f(states.position);
+		}
+
+		if (_pos_lock.isAllFinite()) {
+			sp.position[0] = _pos_lock(0);
+			sp.position[1] = _pos_lock(1);
+			sp.velocity[0] = NAN;
+			sp.velocity[1] = NAN;
+		}
+
+	} else {
+		// No horizontal estimate: open-loop lateral thrust. IFO_THR_XY_MAX is a
+		// normalized thrust, converted here to the acceleration the library maps
+		// back to that thrust at hover (a = T * g / hover_thrust).
+		_pos_lock.setNaN();
+		const float acc_xy_max = _param_ifo_thr_xy_max.get() * CONSTANTS_ONE_G
+					 / math::max(_param_ifo_thr_hover.get(), 0.1f);
+		sp.acceleration[0] = stick_n * acc_xy_max;
+		sp.acceleration[1] = stick_e * acc_xy_max;
+	}
+
+	// --- Vertical -------------------------------------------------------------
+	const float stick_thr = deadband(manual.throttle);
+	const bool alt_usable = alt_hold && !force_open_loop && local_pos.z_valid && local_pos.v_z_valid
+				&& PX4_ISFINITE(states.position(2)) && PX4_ISFINITE(states.velocity(2))
+				&& PX4_ISFINITE(states.acceleration(2));
+
+	if (alt_usable) {
+		// Throttle stick centred ⇒ hold altitude, deflected ⇒ climb rate.
+		if (fabsf(stick_thr) > 0.f) {
+			_alt_lock = NAN;
+			sp.velocity[2] = (stick_thr > 0.f) ? -stick_thr * _param_ifo_vel_max_up.get()
+					 : -stick_thr * _param_ifo_vel_max_dn.get();
+
+		} else {
+			if (!PX4_ISFINITE(_alt_lock) && (fabsf(states.velocity(2)) < LOCK_VEL_MAX)) {
+				_alt_lock = states.position(2);
+			}
+
+			if (PX4_ISFINITE(_alt_lock)) {
+				sp.position[2] = _alt_lock;
+
+			} else {
+				sp.velocity[2] = 0.f;  // brake first, latch once stopped
+			}
+		}
+
+	} else {
+		// Stabilized (or no altitude estimate): throttle stick → collective thrust,
+		// mapped so that mid-stick is the hover thrust (same idea as MPC_THR_CURVE
+		// "rescale to hover thrust"), otherwise the vehicle only lifts off well above
+		// centre. Inverting the library's thrust model T = a_z * hover/g - hover gives
+		// the acceleration setpoint that produces exactly the demanded thrust.
+		_alt_lock = NAN;
+		const float thr_01 = math::constrain((manual.throttle + 1.f) * 0.5f, 0.f, 1.f);
+		const float thr_min = _param_ifo_thr_min.get();
+		const float thr_max = _param_ifo_thr_max.get();
+		const float hover = math::constrain(_param_ifo_thr_hover.get(), thr_min + 0.01f, thr_max - 0.01f);
+		const float thrust = (thr_01 < 0.5f) ? (thr_min + (hover - thr_min) * (thr_01 / 0.5f))
+				     : (hover + (thr_max - hover) * ((thr_01 - 0.5f) / 0.5f));
+		sp.acceleration[2] = CONSTANTS_ONE_G * (1.f - thrust / hover);
+	}
+
+	return sp;
 }
 
 void IfodronePositionControl::adjustSetpointForEKFResets(

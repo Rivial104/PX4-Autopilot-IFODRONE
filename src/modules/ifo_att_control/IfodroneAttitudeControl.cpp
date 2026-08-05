@@ -63,12 +63,17 @@ void IfodroneAttitudeControl::Run()
 	const float pitch = euler.theta();
 	const float yaw   = euler.psi();
 
-	// ── Mode ──────────────────────────────────────────────────────────
-	// "manual" here = stabilized manual flight without position/altitude assist.
-	const bool manual_mode = _vehicle_control_mode.flag_control_manual_enabled &&
-				 !_vehicle_control_mode.flag_control_altitude_enabled &&
-				 !_vehicle_control_mode.flag_control_velocity_enabled &&
-				 !_vehicle_control_mode.flag_control_position_enabled;
+	// ── Setpoint source ───────────────────────────────────────────────
+	// ifo_pos_control owns the thrust vector in every stabilized mode, including
+	// Stabilized itself (sticks → XY velocity there). It is driven by
+	// vehicle_local_position, so it goes quiet if the estimator stops; only then
+	// does this module fall back to the estimator-free stick mapping (which is
+	// also what Acro-style modes without attitude stabilization get).
+	vehicle_attitude_setpoint_s att_sp{};
+	const bool att_sp_valid = _vehicle_attitude_setpoint_sub.copy(&att_sp) && (att_sp.timestamp != 0);
+	const bool att_sp_fresh = att_sp_valid && (hrt_absolute_time() < att_sp.timestamp + ATT_SP_TIMEOUT);
+
+	const bool manual_fallback = _vehicle_control_mode.flag_control_manual_enabled && !att_sp_fresh;
 
 	// ── Yaw setpoint + thrust source ──────────────────────────────────
 	float    yaw_rate_ff = 0.f;
@@ -76,7 +81,7 @@ void IfodroneAttitudeControl::Run()
 	float    roll_sp  = 0.f;   // always level; tracks att_sp (which publishes 0) in Auto/Position
 	float    pitch_sp = 0.f;
 
-	if (manual_mode) {
+	if (manual_fallback) {
 		// Yaw stick integrates the heading setpoint.
 		if (!PX4_ISFINITE(_yaw_setpoint)) {
 			_yaw_setpoint = yaw;
@@ -92,12 +97,11 @@ void IfodroneAttitudeControl::Run()
 		thrust_body(2) = -throttle;
 
 	} else {
-		// Auto / Position: yaw and thrust come from ifo_pos_control via vehicle_attitude_setpoint.
+		// Stabilized / Altitude / Position / Auto: yaw and the full 3D thrust vector
+		// come from ifo_pos_control via vehicle_attitude_setpoint.
 		_yaw_setpoint = NAN;
 
-		vehicle_attitude_setpoint_s att_sp{};
-
-		if (_vehicle_attitude_setpoint_sub.copy(&att_sp)) {
+		if (att_sp_valid) {
 			const Eulerf e_sp(Quatf(att_sp.q_d));
 
 			// ifo_pos_control always publishes a level attitude setpoint (roll/pitch = 0);
