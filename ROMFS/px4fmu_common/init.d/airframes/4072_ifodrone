@@ -154,14 +154,14 @@ param set-default CA_SV_TL3_CT 0
 #   S6 -> Motor 3 right EDF   (104)
 #   S7 -> Motor 5 left EDF    (106)
 #   S8 -> Motor 2 front EDF   (103)
-param set-default PWM_MAIN_FUNC1 102
-param set-default PWM_MAIN_FUNC2 101
+param set-default PWM_MAIN_FUNC1 101
+param set-default PWM_MAIN_FUNC2 102
 param set-default PWM_MAIN_FUNC3 0
 param set-default PWM_MAIN_FUNC4 0
-param set-default PWM_MAIN_FUNC5 105
+param set-default PWM_MAIN_FUNC5 103
 param set-default PWM_MAIN_FUNC6 104
 param set-default PWM_MAIN_FUNC7 106
-param set-default PWM_MAIN_FUNC8 103
+param set-default PWM_MAIN_FUNC8 105
 
 # Motor PWM range (standard 1000..2000 us; ESCs must be calibrated to this)
 param set-default PWM_MAIN_MAX1 2000
