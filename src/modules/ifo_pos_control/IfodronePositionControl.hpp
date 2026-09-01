@@ -177,6 +177,13 @@ private:
 	float            _alt_lock{NAN};       ///< latched altitude   (Altitude/Position, throttle centred)
 	bool             _manual_alt_hold_prev{false};
 	bool             _manual_pos_hold_prev{false};
+	/// Altitude assist is not just enabled but actually usable: the vertical
+	/// estimate is valid, so generateManualSetpoint() emitted a climb-rate /
+	/// altitude-lock setpoint rather than degrading to open-loop collective.
+	/// The takeoff and ground-contact gating must follow the law that actually
+	/// ran, not the mode flag, otherwise Altitude/Position deadlock on the
+	/// ground with the throttle stick disconnected.
+	bool             _manual_alt_assisted{false};
 
 	// --- EKF reset counters ---
 	uint8_t _vxy_reset_counter{0};

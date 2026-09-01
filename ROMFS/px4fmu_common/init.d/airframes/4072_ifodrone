@@ -17,13 +17,13 @@
 #   MAIN2 (S2)  -> Motor 1  (bottom main, function 102)
 #   MAIN3 (S3)  -> free
 #   MAIN4 (S4)  -> free
-#   MAIN5 (S5)  -> Motor 4  (back EDF,    function 105)
+#   MAIN5 (S5)  -> Motor 2  (front EDF,   function 103)
 #   MAIN6 (S6)  -> Motor 3  (right EDF,   function 104)
 #   MAIN7 (S7)  -> Motor 5  (left EDF,    function 106)
-#   MAIN8 (S8)  -> Motor 2  (front EDF,   function 103)
+#   MAIN8 (S8)  -> Motor 4  (back EDF,    function 105)
 #   MAIN9 (S9)  -> Tilt servo 2 (back,    function 203)
-#   MAIN10(S10) -> Tilt servo 3 (left,    function 204)
-#   MAIN11(S11) -> Tilt servo 1 (right,   function 202)
+#   MAIN10(S10) -> Tilt servo 1 (right,   function 202)
+#   MAIN11(S11) -> Tilt servo 3 (left,    function 204)
 #   MAIN12(S12) -> Tilt servo 0 (front,   function 201)
 #
 # @maintainer IFODRONE
@@ -34,6 +34,17 @@
 param set-default SYS_AUTOCONFIG 1
 param set-default CA_AIRFRAME 90
 param set-default CA_ROTOR_COUNT 6
+
+# Allocation method: pseudo-inverse with output clipping. MUST be forced.
+# The default (2 = Automatic) resolves via ActuatorEffectivenessIfodrone to
+# SEQUENTIAL_DESATURATION, whose mixYaw() ends with
+#   desaturateActuators(_actuator_sp, thrust_z, true);  // "reduce thrust only"
+# i.e. it gives yaw priority over collective thrust and actively pulls the
+# coaxial pair down to make room for a yaw demand. On IFODRONE the coax pair is
+# the ONLY source of both Fz and yaw, and the side-EDF reaction torque is
+# unmodelled (CA_ROTOR2..5_KM = 0), so a standing yaw error silently eats the
+# throttle stick's authority. SITL has always run method 0; keep them identical.
+param set-default CA_METHOD 0
 
 # ============================================
 # ROTOR GEOMETRY (must match SITL airframe)
@@ -60,7 +71,7 @@ param set-default CA_ROTOR1_CT 0.6
 
 # Side EDFs (tiltable) - tilt servo IDs 1..4.
 # SITL-validated geometry: BASE axes are HORIZONTAL (radial, AZ=0) and the
-# resting down-tilt comes from IFO_TILT_HOVER below — the allocator rotates the
+# zero-demand angle comes from IFO_TILT_HOVER below — the allocator rotates the
 # axes to the actual tilt every cycle, so do NOT bake the tilt into the axes.
 # CT 0.1 vs coax 0.6 = calibrated thrust ratio; KM 0 (EDF reaction unmodeled).
 param set-default CA_ROTOR2_PX 0.535
@@ -105,19 +116,15 @@ param set-default CA_ROTOR5_TILT 4
 
 # ============================================
 # TILT SERVO GEOMETRY
-# Full mechanical range +-60 deg (unlike SITL's +-35): the resting point is
-# tilted DOWN by IFO_TILT_HOVER, so headroom around it is asymmetric and the
-# wider range keeps enough control authority on the down side.
+# Full mechanical range +-60 deg (unlike SITL's +-35). Zero torque demand is
+# centered at normalized servo command 0, leaving symmetric control authority.
 # ============================================
 param set-default CA_SV_TL_COUNT 4
 
-# EDFs rest tilted DOWN (exhaust downward -> thrust gains a lift component).
-# Negative angle = thrust axis rotated towards -Z (up) in the allocator's
-# convention. The allocation trims to this angle with zero torque demand and
-# the effectiveness matrix is linearized around it. VERIFY the direction on
-# the bench: at disarm the ducts must visibly point down; if they point up,
-# fix the servo linkage/PWM direction, not this parameter's sign.
-param set-default IFO_TILT_HOVER -30.0
+# Start all tilt servos at normalized command 0 when arming. With the symmetric
+# -60..+60 deg geometry this is 0 deg (horizontal side-EDF thrust axes), and the
+# effectiveness matrix is linearized around the same physical position.
+param set-default IFO_TILT_HOVER 0.0
 
 param set-default CA_SV_TL0_MINA -60.0
 param set-default CA_SV_TL0_MAXA  60.0
@@ -150,10 +157,10 @@ param set-default CA_SV_TL3_CT 0
 #   S1 -> Motor 0 top main    (101)
 #   S2 -> Motor 1 bottom main (102)
 #   S3, S4 -> free
-#   S5 -> Motor 4 back EDF    (105)
+#   S5 -> Motor 2 front EDF   (103)
 #   S6 -> Motor 3 right EDF   (104)
 #   S7 -> Motor 5 left EDF    (106)
-#   S8 -> Motor 2 front EDF   (103)
+#   S8 -> Motor 4 back EDF    (105)
 param set-default PWM_MAIN_FUNC1 101
 param set-default PWM_MAIN_FUNC2 102
 param set-default PWM_MAIN_FUNC3 0
@@ -196,8 +203,8 @@ param set-default PWM_MAIN_DIS8 1000
 
 # ----- Tilt servos: S9..S12 (physical wiring as flown in lot1) -----
 #   S9  -> Tilt servo 2 back  (203)
-#   S10 -> Tilt servo 3 left  (204)
-#   S11 -> Tilt servo 1 right (202)
+#   S10 -> Tilt servo 1 right (202)
+#   S11 -> Tilt servo 3 left  (204)
 #   S12 -> Tilt servo 0 front (201)
 param set-default PWM_MAIN_FUNC9  203
 param set-default PWM_MAIN_FUNC10 202
@@ -205,22 +212,26 @@ param set-default PWM_MAIN_FUNC11 204
 param set-default PWM_MAIN_FUNC12 201
 
 # Standard hobby servo range: 1000..2000 us maps linearly to -60..+60 deg
-# (CA_SV_TL*_MINA/MAXA). Disarmed 1250 us = -30 deg = IFO_TILT_HOVER, so the
-# EDFs rest tilted down both disarmed and at zero demand after arming.
-# Bench-verify per servo/linkage that 1250 us really is 30 deg down; adjust
-# the DIS values (not IFO_TILT_HOVER) for linkage asymmetries.
+# (CA_SV_TL*_MINA/MAXA). Normalized command 0 is 1500 us and 0 deg. Keep the
+# disarmed value at the same midpoint so the arming ramp starts without a jump.
+# Bench-verify per-servo linkage at 1500 us; use output reversal for an inverted
+# direction instead of moving the common neutral away from zero.
 param set-default PWM_MAIN_MIN9  1000
 param set-default PWM_MAIN_MIN10 1000
 param set-default PWM_MAIN_MIN11 1000
 param set-default PWM_MAIN_MIN12 1000
+param set-default PWM_MAIN_CENT9  1500
+param set-default PWM_MAIN_CENT10 1500
+param set-default PWM_MAIN_CENT11 1500
+param set-default PWM_MAIN_CENT12 1500
 param set-default PWM_MAIN_MAX9  2000
 param set-default PWM_MAIN_MAX10 2000
 param set-default PWM_MAIN_MAX11 2000
 param set-default PWM_MAIN_MAX12 2000
-param set-default PWM_MAIN_DIS9  1250
-param set-default PWM_MAIN_DIS10 1250
-param set-default PWM_MAIN_DIS11 1250
-param set-default PWM_MAIN_DIS12 1250
+param set-default PWM_MAIN_DIS9  1500
+param set-default PWM_MAIN_DIS10 1500
+param set-default PWM_MAIN_DIS11 1500
+param set-default PWM_MAIN_DIS12 1500
 
 # ============================================
 # SAFETY / SYSTEM
@@ -275,7 +286,73 @@ param set-default RC_MAP_ARM_SW 5
 # motor throttle, so raising collective thrust to preserve RP authority is moot.
 param set-default MC_AIRMODE 0
 
+# ============================================
+# CONTROL TUNING (mirrors SITL 49000_gz_ifodrone)
+# Previously absent here, so the vehicle flew on stock PX4 quadcopter defaults:
+# MC_YAW_P 2.8 instead of 0.48, MC_YAWRATE_I 0.1 instead of 0.01, MC_ROLL/PITCH_P
+# 4.0 instead of 1.0. With the coax pair carrying yaw AND lift, an over-gained
+# yaw loop winds its integrator against the unmodelled EDF reaction torque and
+# rides the pair apart, which costs collective thrust. Keep in sync with SITL.
+# ============================================
+
+# Attitude P (ifo_att_control -> vehicle_rates_setpoint); body is kept level
+param set-default MC_ROLL_P 1.0
+param set-default MC_PITCH_P 1.0
+param set-default MC_YAW_P 0.48
+param set-default MC_YAW_WEIGHT 0.4
+
+# Rate PID (mc_rate_control -> torque + thrust). Allocation runs without RPY
+# normalization, so these are NOT the stock multicopter gains.
+param set-default MC_ROLLRATE_P 0.20
+param set-default MC_ROLLRATE_I 0.20
+param set-default MC_ROLLRATE_D 0.0003
+param set-default MC_ROLLRATE_K 1.0
+param set-default MC_PITCHRATE_P 0.30
+param set-default MC_PITCHRATE_I 0.20
+param set-default MC_PITCHRATE_D 0.0003
+param set-default MC_PITCHRATE_K 1.0
+param set-default MC_YAWRATE_P 0.22
+param set-default MC_YAWRATE_I 0.01
+param set-default MC_YAWRATE_D 0.0
+param set-default MC_YAWRATE_K 1.0
+param set-default MC_RR_INT_LIM 0.50
+param set-default MC_PR_INT_LIM 0.50
+param set-default MC_YR_INT_LIM 0.30
+
+# Land detector reads MPC_THR_HOVER (not IFO_THR_HOVER) for its ground-contact
+# threshold; leaving it at a stale value keeps the vehicle "landed" and, in
+# Altitude/Position, keeps the ground push-down engaged.
+param set-default MPC_THR_HOVER 0.5
+
+# Tilt servos: no slew limiting, the allocator already bounds the command.
+param set-default CA_SV0_SLEW 0.0
+param set-default CA_SV1_SLEW 0.0
+param set-default CA_SV2_SLEW 0.0
+param set-default CA_SV3_SLEW 0.0
+
+# The default roll/pitch failure detector (60 deg, 0.5 s) treats normal IFODRONE
+# behaviour as a crash: the body is held level by small tilt-servo torques, so a
+# transient body roll triggers the position-recovery state. 0 disables the check
+# (FailureDetector requires max_roll > FLT_EPSILON). ALT and battery FD stay on.
+param set-default FD_FAIL_R 0
+param set-default FD_FAIL_P 0
+
+# ============================================
+# GENTLE TRANSLATION PROFILE (mirrors SITL)
+# Every lateral force disturbs attitude (EDF thrust line offset + tilt coupling),
+# so the lateral force and its rate of change are capped hard.
+# ============================================
+param set-default IFO_VEL_MAX_XY 2.0
+param set-default IFO_VEL_XY_P 1.2
+param set-default IFO_POS_XY_P 0.6
+param set-default MPC_XY_CRUISE 2.0
+param set-default MPC_ACC_HOR 1.0
+param set-default MPC_ACC_HOR_MAX 2.0
+param set-default MPC_JERK_AUTO 1.0
+
 # IFODRONE position controller defaults
+# NOTE: SITL ends up at IFO_THR_XY_MAX 0.1 (it sets 0.2 then overrides with 0.1).
+# 0.2 is kept here deliberately for the real airframe's heavier EDFs.
 param set-default IFO_THR_XY_MAX 0.2
 param set-default IFO_THR_HOVER 0.5
 

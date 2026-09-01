@@ -216,8 +216,6 @@ void IfodronePositionControl::Run()
 				//   Altitude:   XY velocity (NED) + climb rate / altitude lock
 				//   Position:   as Altitude + XY position lock
 				// -------------------------------------------------------
-				const bool alt_hold = _vehicle_control_mode.flag_control_altitude_enabled;
-
 				const float heading = PX4_ISFINITE(local_pos.heading) ? local_pos.heading : 0.0f;
 
 				if (!_hold_initialized) {
@@ -256,6 +254,14 @@ void IfodronePositionControl::Run()
 
 				trajectory_setpoint_s manual_sp = generateManualSetpoint(local_pos, states, false);
 				manual_sp.yawspeed = yaw_rate_sp;
+
+				// Effective altitude assist, not the mode flag. Altitude/Position degrade
+				// to the Stabilized vertical law whenever the estimate is unusable, and
+				// everything below has to degrade with them: gating on the flag alone
+				// leaves want_takeoff permanently false (velocity[2] is NAN in that law),
+				// so the takeoff state machine never leaves ready_for_takeoff, the ground
+				// push-down below is applied forever and the throttle stick is dead.
+				const bool alt_hold = _manual_alt_assisted;
 
 				// Takeoff. Stabilized commands thrust directly, so the state machine is
 				// only kept in sync there (skip_takeoff) and the stick owns the motors.
@@ -609,6 +615,12 @@ trajectory_setpoint_s IfodronePositionControl::generateManualSetpoint(
 	const bool alt_usable = alt_hold && !force_open_loop && local_pos.z_valid && local_pos.v_z_valid
 				&& PX4_ISFINITE(states.position(2)) && PX4_ISFINITE(states.velocity(2))
 				&& PX4_ISFINITE(states.acceleration(2));
+
+	// The caller gates takeoff and the ground push-down on this, not on the mode
+	// flag: with altitude assist enabled but unusable the branch below emits an
+	// open-loop collective and leaves velocity[2] NAN, which can never satisfy
+	// want_takeoff.
+	_manual_alt_assisted = alt_usable;
 
 	if (alt_usable) {
 		// Throttle stick centred ⇒ hold altitude, deflected ⇒ climb rate.
