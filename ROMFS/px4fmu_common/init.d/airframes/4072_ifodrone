@@ -9,41 +9,35 @@
 # IFODRONE - Hybrid multicopter with 2 main Z-axis motors and 4 tilting side motors.
 # Hardware airframe for Matek H743-Slim V3.
 #
-# Output mapping = PHYSICAL WIRING OF THE AIRCRAFT (as flown in lot1,
-# commit f7888fe). The EDF order on S5..S8 is scrambled on purpose — it
-# matches the actual cables. Do NOT renumber to a "clean" S3..S6 layout;
-# that disconnects front/right/left EDFs (they end up on unused outputs).
-#   MAIN1 (S1)  -> Motor 0  (top main,    function 101)
-#   MAIN2 (S2)  -> Motor 1  (bottom main, function 102)
-#   MAIN3 (S3)  -> free
-#   MAIN4 (S4)  -> free
-#   MAIN5 (S5)  -> Motor 2  (front EDF,   function 103)
-#   MAIN6 (S6)  -> Motor 3  (right EDF,   function 104)
-#   MAIN7 (S7)  -> Motor 5  (left EDF,    function 106)
-#   MAIN8 (S8)  -> Motor 4  (back EDF,    function 105)
-#   MAIN9 (S9)  -> Tilt servo 2 (back,    function 203)
-#   MAIN10(S10) -> Tilt servo 1 (right,   function 202)
-#   MAIN11(S11) -> Tilt servo 3 (left,    function 204)
-#   MAIN12(S12) -> Tilt servo 0 (front,   function 201)
+# Output mapping = PHYSICAL WIRING OF THE AIRCRAFT. Rewired 2026-09-02: the side
+# EDFs now sit on S3..S6 and S7/S8 are free. This is NOT the old S5..S8 layout,
+# and it is NOT a "tidy" renumbering either - the EDF order within S3..S6 still
+# follows the cables, so verify with `actuator_test` before touching it.
+#
+# "side N" below = the arm carried by tilt servo CA_SV_TL<N> (TD = N*90 deg):
+#   side0 = front (+X)   side1 = right (+Y)   side2 = back (-X)   side3 = left (-Y)
+#
+#   out    function  allocator      QGC label   position
+#   S1  ->   101     CA_ROTOR0      Motor 1     coax top
+#   S2  ->   102     CA_ROTOR1      Motor 2     coax bottom
+#   S3  ->   106     CA_ROTOR5      Motor 6     side3  left  EDF
+#   S4  ->   104     CA_ROTOR3      Motor 4     side1  right EDF
+#   S5  ->   105     CA_ROTOR4      Motor 5     side2  back  EDF
+#   S6  ->   103     CA_ROTOR2      Motor 3     side0  front EDF
+#   S7  ->     0                                free
+#   S8  ->     0                                free
+#   S9  ->   202     CA_SV_TL1      Servo 2     tilt right
+#   S10 ->   203     CA_SV_TL2      Servo 3     tilt back
+#   S11 ->   204     CA_SV_TL3      Servo 4     tilt left
+#   S12 ->   201     CA_SV_TL0      Servo 1     tilt front
 #
 # @maintainer IFODRONE
 #
 
 . ${R}etc/init.d/rc.ifodrone_defaults
 
-param set-default SYS_AUTOCONFIG 1
 param set-default CA_AIRFRAME 90
 param set-default CA_ROTOR_COUNT 6
-
-# Allocation method: pseudo-inverse with output clipping. MUST be forced.
-# The default (2 = Automatic) resolves via ActuatorEffectivenessIfodrone to
-# SEQUENTIAL_DESATURATION, whose mixYaw() ends with
-#   desaturateActuators(_actuator_sp, thrust_z, true);  // "reduce thrust only"
-# i.e. it gives yaw priority over collective thrust and actively pulls the
-# coaxial pair down to make room for a yaw demand. On IFODRONE the coax pair is
-# the ONLY source of both Fz and yaw, and the side-EDF reaction torque is
-# unmodelled (CA_ROTOR2..5_KM = 0), so a standing yaw error silently eats the
-# throttle stick's authority. SITL has always run method 0; keep them identical.
 param set-default CA_METHOD 0
 
 # ============================================
@@ -147,75 +141,61 @@ param set-default CA_SV_TL3_TD 270
 param set-default CA_SV_TL3_CT 0
 
 # ============================================
-# PWM OUTPUT MAPPING - FMU MAIN (S1..S10)
+# PWM OUTPUT MAPPING - FMU MAIN (S1..S12)
 # Function codes:
 #   101..106 = Motor 1..6
 #   201..204 = Servo 1..4
 # ============================================
 
-# ----- Motors: PHYSICAL WIRING AS FLOWN IN LOT1 (do not "clean up"!) -----
-#   S1 -> Motor 0 top main    (101)
-#   S2 -> Motor 1 bottom main (102)
-#   S3, S4 -> free
-#   S5 -> Motor 2 front EDF   (103)
-#   S6 -> Motor 3 right EDF   (104)
-#   S7 -> Motor 5 left EDF    (106)
-#   S8 -> Motor 4 back EDF    (105)
+# ----- Motors: PHYSICAL WIRING (rewired 2026-09-02, do not "clean up"!) -----
+#   S1 -> 101 coax top        (CA_ROTOR0)
+#   S2 -> 102 coax bottom     (CA_ROTOR1)
+#   S3 -> 106 side3 left EDF  (CA_ROTOR5)
+#   S4 -> 104 side1 right EDF (CA_ROTOR3)
+#   S5 -> 105 side2 back EDF  (CA_ROTOR4)
+#   S6 -> 103 side0 front EDF (CA_ROTOR2)
+#   S7, S8 -> free
 param set-default PWM_MAIN_FUNC1 101
 param set-default PWM_MAIN_FUNC2 102
-param set-default PWM_MAIN_FUNC3 0
-param set-default PWM_MAIN_FUNC4 0
-param set-default PWM_MAIN_FUNC5 103
-param set-default PWM_MAIN_FUNC6 104
-param set-default PWM_MAIN_FUNC7 106
-param set-default PWM_MAIN_FUNC8 105
+param set-default PWM_MAIN_FUNC3 106
+param set-default PWM_MAIN_FUNC4 104
+param set-default PWM_MAIN_FUNC5 105
+param set-default PWM_MAIN_FUNC6 103
+param set-default PWM_MAIN_FUNC7 0
+param set-default PWM_MAIN_FUNC8 0
 
 # Motor PWM range (standard 1000..2000 us; ESCs must be calibrated to this)
 param set-default PWM_MAIN_MAX1 2000
 param set-default PWM_MAIN_MAX2 2000
+param set-default PWM_MAIN_MAX3 2000
+param set-default PWM_MAIN_MAX4 2000
 param set-default PWM_MAIN_MAX5 2000
 param set-default PWM_MAIN_MAX6 2000
-param set-default PWM_MAIN_MAX7 2000
-param set-default PWM_MAIN_MAX8 2000
 
-# Armed idle: 1020 us on all motors = ESC armed but props NOT spinning
-# (a small margin above the 1000 us disarm level, below the typical ESC start
-# threshold of ~1050-1080 us). Motors only spin once thrust is demanded.
-# NOTE: the side EDFs receive the allocation idle IFO_EDF_TRIM (~0.2 -> about
-# 1220 us) as soon as the vehicle is armed - that baseline is part of the
-# differential-pair control design. If a dead-still bench arm is required,
-# lower IFO_EDF_TRIM (at the cost of lateral/tilt control authority).
 param set-default PWM_MAIN_MIN1 1020
 param set-default PWM_MAIN_MIN2 1020
+param set-default PWM_MAIN_MIN3 1020
+param set-default PWM_MAIN_MIN4 1020
 param set-default PWM_MAIN_MIN5 1020
 param set-default PWM_MAIN_MIN6 1020
-param set-default PWM_MAIN_MIN7 1020
-param set-default PWM_MAIN_MIN8 1020
 
-# Disarmed state: 1000 us = zero thrust / ESC standby.
-# Do NOT use values below 1000 — some ESCs enter programming mode at <1000 us.
 param set-default PWM_MAIN_DIS1 1000
 param set-default PWM_MAIN_DIS2 1000
+param set-default PWM_MAIN_DIS3 1000
+param set-default PWM_MAIN_DIS4 1000
 param set-default PWM_MAIN_DIS5 1000
 param set-default PWM_MAIN_DIS6 1000
-param set-default PWM_MAIN_DIS7 1000
-param set-default PWM_MAIN_DIS8 1000
 
-# ----- Tilt servos: S9..S12 (physical wiring as flown in lot1) -----
-#   S9  -> Tilt servo 2 back  (203)
-#   S10 -> Tilt servo 1 right (202)
-#   S11 -> Tilt servo 3 left  (204)
-#   S12 -> Tilt servo 0 front (201)
-param set-default PWM_MAIN_FUNC9  203
-param set-default PWM_MAIN_FUNC10 202
+# ----- Tilt servos: S9..S12 (physical wiring) -----
+#   S9  -> 202 side1 right (CA_SV_TL1, TD  90)
+#   S10 -> 203 side2 back  (CA_SV_TL2, TD 180)
+#   S11 -> 204 side3 left  (CA_SV_TL3, TD 270)
+#   S12 -> 201 side0 front (CA_SV_TL0, TD   0)
+param set-default PWM_MAIN_FUNC9  202
+param set-default PWM_MAIN_FUNC10 203
 param set-default PWM_MAIN_FUNC11 204
 param set-default PWM_MAIN_FUNC12 201
 
-# Standard hobby servo range: 1000..2000 us maps linearly to -60..+60 deg
-# (CA_SV_TL*_MINA/MAXA). Normalized command 0 is 1500 us and 0 deg. Keep the
-# disarmed value at the same midpoint so the arming ramp starts without a jump.
-# Bench-verify per-servo linkage at 1500 us; use output reversal for an inverted
-# direction instead of moving the common neutral away from zero.
 param set-default PWM_MAIN_MIN9  1000
 param set-default PWM_MAIN_MIN10 1000
 param set-default PWM_MAIN_MIN11 1000
@@ -238,16 +218,6 @@ param set-default PWM_MAIN_DIS12 1500
 # ============================================
 param set-default COM_RC_IN_MODE 2
 
-# Compass rotation: NOT set here on purpose.
-# This used to be `param set-default CAL_MAG2_ROT 6` (Yaw 270 on instance 2),
-# which was a no-op: the only mag on this vehicle is the QMC5883L on I2C1 and it
-# enumerates as instance 0 (CAL_MAG0_ID = 527625), so instance 2 never existed.
-# CAL_MAG*_ROT is a calibration value - set it from the mag calibration in QGC
-# after verifying the physical mounting, and set it on CAL_MAG0_ROT. Baking a
-# guessed rotation in here would silently corrupt heading, and heading errors on
-# this airframe are expensive: yaw is produced by the coaxial pair, so a standing
-# heading error drives the pair apart and eats collective thrust.
-
 # Battery: 6S Li-Po, 3.3 V/cell empty, 4.2 V/cell charged
 param set-default BAT1_N_CELLS 6
 param set-default BAT1_V_EMPTY 3.3
@@ -268,17 +238,19 @@ param set-default GPS_1_CONFIG 201
 param set-default SER_GPS1_BAUD 0
 param set-default GPS_1_PROTOCOL 1
 
-# The compass is a QMC5883L at 0x0d on external I2C bus 1. It is started by the
-# BOARD file, not from here - see boards/matek/h743-slim/init/rc.board_sensors
-#   qmc5883l -X -a 13 start
-# (CLI options must precede 'start'; the I2C/SPI parser stops at the first
-# non-option, so '-X'/'-a' placed after it are silently ignored.)
-# It enumerates as CAL_MAG0 (device id 527625 = I2C bus 1, addr 0x0d), so the
-# rotation below belongs on CAL_MAG0_ROT, not CAL_MAG2_ROT.
+# ============================================
+# SERIAL PORTS
+# ============================================
+# These do NOT survive a parameter reset on their own. rcS triggers
+#   param reset_all SYS_AUTOSTART SYS_PARAM_VER RC* CAL_* COM_FLTMODE* \
+#                   LND_FLIGHT* TC_* COM_FLIGHT*
+# whenever SYS_AUTOCONFIG > 0 (rcS:192), and those arguments are the KEEP list.
+# So RC_* survives, but SER_*_BAUD and MAV_*_CONFIG do not. Restating every port
+# setting here is what makes the config reset-proof: the airframe script re-runs
+# on every boot, so anything declared below comes back by itself.
+# The reset is armed by rcS:255 when SYS_PARAM_VER != PARAM_DEFAULTS_VER; it
+# then sets SYS_AUTOCONFIG 1, saves and reboots.
 
-# ============================================
-# SERIAL PORTS (survive param reset_all!)
-# ============================================
 # SiK telemetry radio on TEL1, GCS profile (MODE 0 = Normal, not Onboard)
 param set-default MAV_1_CONFIG 101
 param set-default MAV_1_MODE 0
@@ -286,9 +258,10 @@ param set-default MAV_1_RADIO_CTL 1
 param set-default MAV_1_FLOW_CTRL 2
 param set-default SER_TEL1_BAUD 57600
 
-# RC receiver on TEL3 (CRSF)
-param set-default RC_PORT_CONFIG 103
-param set-default RC_INPUT_PROTO 6
+
+param set-default RC_CRSF_PRT_CFG 103
+param set-default SER_TEL3_BAUD 460800
+param set-default MAV_0_CONFIG 0
 
 # ============================================
 # RC MAPPING
@@ -305,15 +278,6 @@ param set-default RC_MAP_ARM_SW 5
 # Airmode off: roll/pitch authority comes from the tilt servos, independent of
 # motor throttle, so raising collective thrust to preserve RP authority is moot.
 param set-default MC_AIRMODE 0
-
-# ============================================
-# CONTROL TUNING (mirrors SITL 49000_gz_ifodrone)
-# Previously absent here, so the vehicle flew on stock PX4 quadcopter defaults:
-# MC_YAW_P 2.8 instead of 0.48, MC_YAWRATE_I 0.1 instead of 0.01, MC_ROLL/PITCH_P
-# 4.0 instead of 1.0. With the coax pair carrying yaw AND lift, an over-gained
-# yaw loop winds its integrator against the unmodelled EDF reaction torque and
-# rides the pair apart, which costs collective thrust. Keep in sync with SITL.
-# ============================================
 
 # Attitude P (ifo_att_control -> vehicle_rates_setpoint); body is kept level
 param set-default MC_ROLL_P 1.0
@@ -349,13 +313,6 @@ param set-default CA_SV0_SLEW 0.0
 param set-default CA_SV1_SLEW 0.0
 param set-default CA_SV2_SLEW 0.0
 param set-default CA_SV3_SLEW 0.0
-
-# The default roll/pitch failure detector (60 deg, 0.5 s) treats normal IFODRONE
-# behaviour as a crash: the body is held level by small tilt-servo torques, so a
-# transient body roll triggers the position-recovery state. 0 disables the check
-# (FailureDetector requires max_roll > FLT_EPSILON). ALT and battery FD stay on.
-param set-default FD_FAIL_R 0
-param set-default FD_FAIL_P 0
 
 # ============================================
 # GENTLE TRANSLATION PROFILE (mirrors SITL)
