@@ -238,6 +238,11 @@ param set-default GPS_1_CONFIG 201
 param set-default SER_GPS1_BAUD 0
 param set-default GPS_1_PROTOCOL 1
 
+param set-default SYS_HAS_MAG 1
+param set-default EKF2_MAG_TYPE 0
+param set-default EKF2_MAG_CHECK 1
+param set-default SENS_MAG_MODE 1
+
 # ============================================
 # SERIAL PORTS
 # ============================================

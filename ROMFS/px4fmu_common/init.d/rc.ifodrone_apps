@@ -9,6 +9,28 @@
 # Single publisher per topic, identical chain in manual and offboard/mission.
 #
 
+#
+# Compass retry.
+#
+# rc.board_sensors starts the QMC5883L at rcS:349, long before this file
+# (rcS:485 -> rc.vehicle_setup). A failed probe there is SILENT: nothing
+# advertises sensor_mag and the only symptom is commander's
+# "Preflight Fail: Compass Sensor 0 missing" (magnetometerCheck.cpp, !exists).
+# `status` returns 0 when running, -1 otherwise (I2CSPIDriverBase::module_status),
+# so this is a no-op on a healthy boot.
+# Options MUST precede 'start' - the I2C/SPI CLI stops parsing at the first
+# non-option, so '-X'/'-a' placed after it are silently ignored.
+#
+if ! qmc5883l status
+then
+	echo "IFODRONE: compass not up after board sensors, retrying"
+
+	if ! qmc5883l -X -a 13 start
+	then
+		qmc5883l -I -a 13 start
+	fi
+fi
+
 control_allocator start
 
 #
