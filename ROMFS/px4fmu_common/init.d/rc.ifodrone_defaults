@@ -8,7 +8,12 @@
 # Use custom vehicle type to avoid rc.mc_apps being loaded
 set VEHICLE_TYPE ifodrone
 
-param set-default SYS_AUTOSTART 49000
+# NOTE: deliberately no `param set-default SYS_AUTOSTART`. 49000 used to be set
+# here, but it is a posix/SITL-only airframe that does not exist in the NuttX
+# ROMFS. Combined with SYS_AUTOCONFIG 1 (set by 4072_ifodrone) it made the
+# config self-destruct: a reset-to-defaults moved SYS_AUTOSTART to 49000, the
+# airframe script then never ran again and the vehicle flew on whatever stale
+# parameters happened to be saved. Observed on the real Matek board 2026-09-01.
 
 # MAV_TYPE_QUADROTOR 2 (closest match for QGC compatibility)
 param set-default MAV_TYPE 2

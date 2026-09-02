@@ -238,8 +238,15 @@ param set-default PWM_MAIN_DIS12 1500
 # ============================================
 param set-default COM_RC_IN_MODE 2
 
-# External mag (instance 2) mounted rotated: Yaw 270 (enum 6)
-param set-default CAL_MAG2_ROT 6
+# Compass rotation: NOT set here on purpose.
+# This used to be `param set-default CAL_MAG2_ROT 6` (Yaw 270 on instance 2),
+# which was a no-op: the only mag on this vehicle is the QMC5883L on I2C1 and it
+# enumerates as instance 0 (CAL_MAG0_ID = 527625), so instance 2 never existed.
+# CAL_MAG*_ROT is a calibration value - set it from the mag calibration in QGC
+# after verifying the physical mounting, and set it on CAL_MAG0_ROT. Baking a
+# guessed rotation in here would silently corrupt heading, and heading errors on
+# this airframe are expensive: yaw is produced by the coaxial pair, so a standing
+# heading error drives the pair apart and eats collective thrust.
 
 # Battery: 6S Li-Po, 3.3 V/cell empty, 4.2 V/cell charged
 param set-default BAT1_N_CELLS 6
@@ -251,10 +258,23 @@ param set-default BAT1_V_CHARGED 4.2
 
 
 # ============================================
-# DRONECAN (GPS + compass are on the CAN bus!)
+# GPS + COMPASS (NOT on CAN - DroneCAN is not used on this vehicle)
 # ============================================
-param set-default UAVCAN_ENABLE 3
-param set-default UAVCAN_SUB_GPS 1
+# GPS on the dedicated GPS1 UART (TX2/RX2 pads), baud auto-negotiated.
+# Values verified against a working board, log 2026-09-01.
+param set-default UAVCAN_ENABLE 0
+param set-default UAVCAN_SUB_GPS 0
+param set-default GPS_1_CONFIG 201
+param set-default SER_GPS1_BAUD 0
+param set-default GPS_1_PROTOCOL 1
+
+# The compass is a QMC5883L at 0x0d on external I2C bus 1. It is started by the
+# BOARD file, not from here - see boards/matek/h743-slim/init/rc.board_sensors
+#   qmc5883l -X -a 13 start
+# (CLI options must precede 'start'; the I2C/SPI parser stops at the first
+# non-option, so '-X'/'-a' placed after it are silently ignored.)
+# It enumerates as CAL_MAG0 (device id 527625 = I2C bus 1, addr 0x0d), so the
+# rotation below belongs on CAL_MAG0_ROT, not CAL_MAG2_ROT.
 
 # ============================================
 # SERIAL PORTS (survive param reset_all!)
