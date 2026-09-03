@@ -24,27 +24,72 @@
 # The QMC5883L is EXTERNAL I2C only on this board (external bus 1, addr 0x0d /
 # 13 decimal) - boards/matek/h743-slim/src/i2c.cpp defines exactly bus 1
 # (external) and bus 2 (internal), and nothing is wired to the internal bus for
-# this sensor. Retried up to 3 times, 50 ms apart: a single missed transaction
-# right after power-up (bus/device not settled yet, other high-current startup
-# activity on the same rail) is a known real-world QMC5883L failure mode and is
-# NOT the same thing as the sensor being genuinely absent - one retry can land
-# in the same narrow window and miss again.
+# this sensor. CONFIRMED on the bench 2026-09-02: `qmc5883l -X -a 13 start`
+# typed at the console after boot brings the compass straight up - same chip,
+# same address the whole time. So this is NOT a wrong chip/address (see the
+# QMC5883P fallback below, kept only as a last resort) - it is purely a boot
+# timing race: whatever the bus/device needs to settle (power rail still
+# stabilizing, other high-current startup activity) had not finished within the
+# first ~150 ms this retry used to allow. Widened to 5 attempts with a growing
+# delay (100/200/400/800/1600 ms, ~3.1 s total) to comfortably clear that
+# window; still trivial next to the multi-second sensor calibration/EKF startup
+# that follows.
 #
 if ! qmc5883l status
 then
 	echo "IFODRONE: compass not up after board sensors, retrying"
-	usleep 50000
+	usleep 100000
 
 	if ! qmc5883l -X -a 13 start
 	then
-		usleep 50000
+		usleep 200000
 
 		if ! qmc5883l -X -a 13 start
 		then
-			usleep 50000
-			qmc5883l -X -a 13 start
+			usleep 400000
+
+			if ! qmc5883l -X -a 13 start
+			then
+				usleep 800000
+
+				if ! qmc5883l -X -a 13 start
+				then
+					usleep 1600000
+					qmc5883l -X -a 13 start
+				fi
+			fi
 		fi
 	fi
+fi
+
+# QMC5883P fallback: a bench i2cdetect can ACK at 0x0d while the qmc5883l
+# driver still reports the sensor missing, because several "QMC5883L
+# compatible" GPS+compass modules actually carry the newer QMC5883P chip - same
+# family name, different register map and WHOAMI, so qmc5883l's probe()
+# rejects it even though the address answers. QMC5883P's own default address is
+# 0x2c (44 decimal), external bus 1, same as qmc5883l otherwise. Harmless no-op
+# if the L variant above already came up (status check first).
+if ! qmc5883l status
+then
+	if ! qmc5883p status
+	then
+		qmc5883p -X -a 44 start
+	fi
+fi
+
+#
+# CRSF receiver on the board's dedicated RC pads (RC_SERIAL_PORT = /dev/ttyS4,
+# boards/matek/h743-slim/src/board_config.h). This is NOT reachable through
+# RC_CRSF_PRT_CFG - that param's choices are only Disabled/GPS1/TEL1..4, and
+# ttyS4 has none of those labels in default.px4board. TEL3 carries a MAVLink
+# telemetry backpack instead (MAV_0_CONFIG in the airframe) and must stay free
+# for it - do not point RC_CRSF_PRT_CFG at TEL3, it will fight the backpack for
+# the port. `status` before `start` keeps this a no-op if something else
+# already brought the driver up.
+#
+if ! crsf_rc status
+then
+	crsf_rc start -d /dev/ttyS4
 fi
 
 control_allocator start
