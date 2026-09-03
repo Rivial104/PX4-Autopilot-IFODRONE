@@ -8,54 +8,28 @@
 #
 # Single publisher per topic, identical chain in manual and offboard/mission.
 #
-
-#
-# Compass retry.
-#
-# rc.board_sensors starts the QMC5883L at rcS:349, long before this file
-# (rcS:485 -> rc.vehicle_setup). A failed probe there is SILENT: nothing
-# advertises sensor_mag and the only symptom is commander's
-# "Preflight Fail: Compass Sensor 0 missing" (magnetometerCheck.cpp, !exists).
-# `status` returns 0 when running, -1 otherwise (I2CSPIDriverBase::module_status),
-# so this is a no-op on a healthy boot.
-# Options MUST precede 'start' - the I2C/SPI CLI stops parsing at the first
-# non-option, so '-X'/'-a' placed after it are silently ignored.
-#
-# The QMC5883L is EXTERNAL I2C only on this board (external bus 1, addr 0x0d /
-# 13 decimal) - boards/matek/h743-slim/src/i2c.cpp defines exactly bus 1
-# (external) and bus 2 (internal), and nothing is wired to the internal bus for
-# this sensor. CONFIRMED on the bench 2026-09-02: `qmc5883l -X -a 13 start`
-# typed at the console after boot brings the compass straight up - same chip,
-# same address the whole time. So this is NOT a wrong chip/address (see the
-# QMC5883P fallback below, kept only as a last resort) - it is purely a boot
-# timing race: whatever the bus/device needs to settle (power rail still
-# stabilizing, other high-current startup activity) had not finished within the
-# first ~150 ms this retry used to allow. Widened to 5 attempts with a growing
-# delay (100/200/400/800/1600 ms, ~3.1 s total) to comfortably clear that
-# window; still trivial next to the multi-second sensor calibration/EKF startup
-# that follows.
 #
 if ! qmc5883l status
 then
 	echo "IFODRONE: compass not up after board sensors, retrying"
 	usleep 100000
 
-	if ! qmc5883l -X -a 13 start
+	if ! qmc5883l -X -a 13 -f 100000 start
 	then
 		usleep 200000
 
-		if ! qmc5883l -X -a 13 start
+		if ! qmc5883l -X -a 13 -f 100000 start
 		then
 			usleep 400000
 
-			if ! qmc5883l -X -a 13 start
+			if ! qmc5883l -X -a 13 -f 100000 start
 			then
 				usleep 800000
 
-				if ! qmc5883l -X -a 13 start
+				if ! qmc5883l -X -a 13 -f 100000 start
 				then
 					usleep 1600000
-					qmc5883l -X -a 13 start
+					qmc5883l -X -a 13 -f 100000 start
 				fi
 			fi
 		fi
