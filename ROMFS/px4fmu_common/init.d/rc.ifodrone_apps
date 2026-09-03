@@ -21,13 +21,29 @@
 # Options MUST precede 'start' - the I2C/SPI CLI stops parsing at the first
 # non-option, so '-X'/'-a' placed after it are silently ignored.
 #
+# The QMC5883L is EXTERNAL I2C only on this board (external bus 1, addr 0x0d /
+# 13 decimal) - boards/matek/h743-slim/src/i2c.cpp defines exactly bus 1
+# (external) and bus 2 (internal), and nothing is wired to the internal bus for
+# this sensor. Retried up to 3 times, 50 ms apart: a single missed transaction
+# right after power-up (bus/device not settled yet, other high-current startup
+# activity on the same rail) is a known real-world QMC5883L failure mode and is
+# NOT the same thing as the sensor being genuinely absent - one retry can land
+# in the same narrow window and miss again.
+#
 if ! qmc5883l status
 then
 	echo "IFODRONE: compass not up after board sensors, retrying"
+	usleep 50000
 
 	if ! qmc5883l -X -a 13 start
 	then
-		qmc5883l -I -a 13 start
+		usleep 50000
+
+		if ! qmc5883l -X -a 13 start
+		then
+			usleep 50000
+			qmc5883l -X -a 13 start
+		fi
 	fi
 fi
 

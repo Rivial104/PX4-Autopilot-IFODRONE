@@ -263,22 +263,81 @@ param set-default MAV_1_RADIO_CTL 1
 param set-default MAV_1_FLOW_CTRL 2
 param set-default SER_TEL1_BAUD 57600
 
-
-param set-default RC_CRSF_PRT_CFG 103
+# TEL3 is NOT the RC receiver - it carries a MAVLink telemetry backpack.
+# (An earlier session pass wrongly assumed the CRSF receiver lived on TEL3 and
+# forced RC_CRSF_PRT_CFG=103 here, which stole the port from the backpack link.
+# That param is REMOVED on purpose - do not re-add a TELx value for it.)
+# Values below match the working board (log 2026-09-01).
 param set-default SER_TEL3_BAUD 460800
-param set-default MAV_0_CONFIG 0
+param set-default MAV_0_CONFIG 103
+param set-default MAV_0_MODE 0
+param set-default MAV_0_FLOW_CTRL 2
+param set-default MAV_0_RADIO_CTL 1
+param set-default MAV_0_FORWARD 1
+param set-default MAV_0_RATE 9600
+
+# CRSF receiver: the board's DEDICATED RC pads, not a TELx port. board_config.h
+# defines RC_SERIAL_PORT "/dev/ttyS4" for this reason, but that device has no
+# GPS1/TEL1..4 label in default.px4board, so RC_CRSF_PRT_CFG (whose choices are
+# only Disabled/GPS1/TEL1..4) cannot select it - there is no param path to this
+# port. crsf_rc is started directly on it from rc.ifodrone_apps instead.
 
 # ============================================
 # RC MAPPING
 # ============================================
+# Stick mapping. These were MISSING here, and their PX4 defaults are all 0 =
+# unassigned (RC_CHAN_CNT defaults to 0 too), so after a full parameter reset
+# the radio came back completely dead - no roll/pitch/yaw/throttle at all.
+param set-default RC_CHAN_CNT 16
+param set-default RC_MAP_ROLL 1
+param set-default RC_MAP_PITCH 2
+param set-default RC_MAP_THROTTLE 3
+param set-default RC_MAP_YAW 4
+
 param set-default RC_MAP_FLTMODE 7
 param set-default COM_FLTMODE1 8
 param set-default COM_FLTMODE3 1
 param set-default COM_FLTMODE4 1
 param set-default COM_FLTMODE6 11
 
-# Arm/disarm switch on channel 5 (switch, not momentary button)
+# Arm/disarm switch on channel 5 (switch, not momentary button).
+# COM_ARM_SWISBTN and MAN_ARM_GESTURE do NOT match the reset keep-list
+# (SYS_AUTOSTART SYS_PARAM_VER RC* CAL_* COM_FLTMODE* LND_FLIGHT* TC_* COM_FLIGHT*),
+# so they revert on a reset - MAN_ARM_GESTURE to 1, which re-enables the stick
+# arming gesture this vehicle does not use.
 param set-default RC_MAP_ARM_SW 5
+param set-default COM_ARM_SWISBTN 0
+param set-default MAN_ARM_GESTURE 0
+
+# RC calibration fallback, captured from a working board (log 2026-09-01).
+# Normally calibration lives only in saved parameters; declaring it here as a
+# DEFAULT means a wipe no longer grounds the aircraft, while a real calibration
+# in QGC still wins (it does `param set`, which takes precedence over defaults).
+# Re-run the QGC calibration whenever the transmitter or receiver changes.
+param set-default RC1_MIN 989
+param set-default RC1_TRIM 1500
+param set-default RC1_MAX 2012
+param set-default RC2_MIN 989
+param set-default RC2_TRIM 1500
+param set-default RC2_MAX 2012
+param set-default RC3_MIN 994
+param set-default RC3_TRIM 994
+param set-default RC3_MAX 2012
+param set-default RC4_MIN 989
+param set-default RC4_TRIM 1500
+param set-default RC4_MAX 2010
+param set-default RC5_MIN 999
+param set-default RC5_TRIM 1499
+param set-default RC5_MAX 2000
+param set-default RC6_MIN 999
+param set-default RC6_TRIM 1499
+param set-default RC6_MAX 2000
+param set-default RC7_MIN 999
+param set-default RC7_TRIM 1499
+param set-default RC7_MAX 2000
+param set-default RC8_MIN 999
+param set-default RC8_TRIM 1499
+param set-default RC8_MAX 2000
 
 # Airmode off: roll/pitch authority comes from the tilt servos, independent of
 # motor throttle, so raising collective thrust to preserve RP authority is moot.
@@ -345,6 +404,12 @@ param set-default IFO_THR_HOVER 0.5
 param set-default IFO_EDF_GAIN 1.0
 param set-default IFO_TILT_GAIN 1.0
 param set-default IFO_EDF_TRIM 0.2
+# IFO_TILT_HOVER is set ONCE, above in TILT SERVO GEOMETRY (0.0). A second
+# `param set-default IFO_TILT_HOVER -45.0` briefly reappeared here - since
+# set-default overwrites whichever value is currently the default, the LATER
+# line in the script wins at boot, so this would have silently reinstated the
+# stale -45 deg hardware value the 2026-09-01 fix specifically removed. Do not
+# set this parameter a second time anywhere in this file.
 
 # Auto/takeoff yaw mode: hold heading (mode 4)
 param set-default MPC_YAW_MODE 4
