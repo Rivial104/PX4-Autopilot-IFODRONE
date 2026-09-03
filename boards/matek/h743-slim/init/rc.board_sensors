@@ -28,4 +28,5 @@ fi
 # Internal baro
 dps310 -I start -a 118
 
-qmc5883l -X -a 13 -f 100000 start
+# External mag
+qmc5883l -X start -a 13

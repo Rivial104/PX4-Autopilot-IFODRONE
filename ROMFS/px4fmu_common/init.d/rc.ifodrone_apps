@@ -9,49 +9,6 @@
 # Single publisher per topic, identical chain in manual and offboard/mission.
 #
 #
-if ! qmc5883l status
-then
-	echo "IFODRONE: compass not up after board sensors, retrying"
-	usleep 100000
-
-	if ! qmc5883l -X -a 13 -f 100000 start
-	then
-		usleep 200000
-
-		if ! qmc5883l -X -a 13 -f 100000 start
-		then
-			usleep 400000
-
-			if ! qmc5883l -X -a 13 -f 100000 start
-			then
-				usleep 800000
-
-				if ! qmc5883l -X -a 13 -f 100000 start
-				then
-					usleep 1600000
-					qmc5883l -X -a 13 -f 100000 start
-				fi
-			fi
-		fi
-	fi
-fi
-
-# QMC5883P fallback: a bench i2cdetect can ACK at 0x0d while the qmc5883l
-# driver still reports the sensor missing, because several "QMC5883L
-# compatible" GPS+compass modules actually carry the newer QMC5883P chip - same
-# family name, different register map and WHOAMI, so qmc5883l's probe()
-# rejects it even though the address answers. QMC5883P's own default address is
-# 0x2c (44 decimal), external bus 1, same as qmc5883l otherwise. Harmless no-op
-# if the L variant above already came up (status check first).
-if ! qmc5883l status
-then
-	if ! qmc5883p status
-	then
-		qmc5883p -X -a 44 start
-	fi
-fi
-
-#
 # CRSF receiver on the board's dedicated RC pads (RC_SERIAL_PORT = /dev/ttyS4,
 # boards/matek/h743-slim/src/board_config.h). This is NOT reachable through
 # RC_CRSF_PRT_CFG - that param's choices are only Disabled/GPS1/TEL1..4, and
