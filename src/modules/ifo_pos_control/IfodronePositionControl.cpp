@@ -523,6 +523,13 @@ void IfodronePositionControl::updateManualVelocityDamping(float dt, bool reset)
 	// position against a steady wind.
 	const float tau = math::max(_param_ifo_stb_vd_tau.get(), 0.1f);
 	_vel_damp_body = (_vel_damp_body + acc_body * dt) * math::max(1.f - dt / tau, 0.f);
+
+	const float vel_damp_max = math::max(_param_ifo_vel_max_xy.get(), 0.1f);
+	const float vel_damp_norm = _vel_damp_body.norm();
+
+	if (vel_damp_norm > vel_damp_max) {
+		_vel_damp_body *= vel_damp_max / vel_damp_norm;
+	}
 }
 
 trajectory_setpoint_s IfodronePositionControl::generateManualSetpoint(

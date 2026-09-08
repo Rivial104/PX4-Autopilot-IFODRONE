@@ -366,6 +366,7 @@ param set-default MC_YAWRATE_K 1.0
 param set-default MC_RR_INT_LIM 0.50
 param set-default MC_PR_INT_LIM 0.50
 param set-default MC_YR_INT_LIM 0.30
+param set-default IMU_GYRO_DNF_EN 2
 
 # Land detector reads MPC_THR_HOVER (not IFO_THR_HOVER) for its ground-contact
 # threshold; leaving it at a stale value keeps the vehicle "landed" and, in
@@ -396,6 +397,21 @@ param set-default MPC_JERK_AUTO 1.0
 # 0.2 is kept here deliberately for the real airframe's heavier EDFs.
 param set-default IFO_THR_XY_MAX 0.2
 param set-default IFO_THR_HOVER 0.5
+
+# Stabilized lateral-damping washout horizon. The module default is 10 s, which
+# is far too long here: the estimate is an integrated accelerometer, so against a
+# constant bias a it settles at a*tau and the damping demand becomes
+# IFO_STB_VD_P * a * tau. At 1.5 / 10 s a sustained bias of only
+#   3.92 / (1.5 * 10) = 0.26 m/s^2
+# demands the entire lateral authority (IFO_THR_XY_MAX * g / IFO_THR_HOVER
+# = 3.92 m/s^2) with the sticks centred.
+# Measured 2026-09-08 (log_0, 08-09): spooling up the EDFs clipped the
+# accelerometer 5139 times, the biased specific force integrated into this
+# estimate and pinned thrust_sp X at 0.190 against the 0.2 cap, saturating the
+# EDFs (front 1.00, back and right 0.00). At 2 s the bias needed to do that rises
+# to 1.31 m/s^2, a 5x margin. Short-term damping (gusts, rebound) is unaffected;
+# the estimate was never meant to hold position anyway.
+param set-default IFO_STB_VD_TAU 2.0
 
 # Reduced side-EDF and tilt-servo command authority around their trims.
 # Post-allocation gains stay 1.0 (honest allocation, same as SITL): authority
