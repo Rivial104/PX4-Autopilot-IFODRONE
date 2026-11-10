@@ -208,6 +208,9 @@ PARAM_DEFINE_FLOAT(IFO_STB_VD_P, 1.5f);
  * an absolute reference the integral would run away on sensor bias alone, so it
  * is washed out with this time constant: the damping counteracts gusts and
  * rebound but deliberately cannot hold position against a steady wind.
+ * Against a constant accelerometer bias a the estimate settles at a * tau, so
+ * the damping demand is IFO_STB_VD_P * a * tau: keep tau short (2 s needs a
+ * 1.3 m/s^2 bias to demand the full lateral authority, 10 s only 0.26 m/s^2).
  *
  * @unit s
  * @min 0.5
@@ -216,4 +219,4 @@ PARAM_DEFINE_FLOAT(IFO_STB_VD_P, 1.5f);
  * @increment 0.5
  * @group IFODRONE Position Control
  */
-PARAM_DEFINE_FLOAT(IFO_STB_VD_TAU, 10.0f);
+PARAM_DEFINE_FLOAT(IFO_STB_VD_TAU, 2.0f);

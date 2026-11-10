@@ -510,7 +510,8 @@
     </joint>
 
     <link name='rotor_3'>
-      <pose>0 -0.535 0.045 -1.57 0 0</pose>
+      <!-- roll +90 deg: prop +Z points outward (FRD +Y, right), matching CA_ROTOR3 axis -->
+      <pose>0 -0.535 0.045 1.57 0 0</pose>
       <inertial>
         <pose>0 0 0 0 0 0</pose>
         <mass>0.005</mass>
@@ -744,7 +745,8 @@
     </joint>
 
     <link name='rotor_5'>
-      <pose>0 0.535 0.045 1.57 0 0</pose>
+      <!-- roll -90 deg: prop +Z points outward (FRD -Y, left), matching CA_ROTOR5 axis -->
+      <pose>0 0.535 0.045 -1.57 0 0</pose>
       <inertial>
         <mass>0.005</mass>
         <inertia>
@@ -803,6 +805,7 @@
       <timeConstantUp>0.0125</timeConstantUp>
       <timeConstantDown>0.025</timeConstantDown>
       <maxRotVelocity>1500</maxRotVelocity>
+      <!-- hover at ~0.5 cmd: 2*k*(100+0.5*900)^2 ~= 22.8 N (2.32 kg) -->
       <motorConstant>3.8e-05</motorConstant>
       <momentConstant>0.06</momentConstant>
       <commandSubTopic>command/motor_speed</commandSubTopic>
@@ -841,8 +844,8 @@
       <timeConstantUp>0.0125</timeConstantUp>
       <timeConstantDown>0.025</timeConstantDown>
       <maxRotVelocity>1500</maxRotVelocity>
-      <motorConstant>1e-05</motorConstant>
-      <momentConstant>0.06</momentConstant>
+      <motorConstant>6e-06</motorConstant>
+      <momentConstant>0.0</momentConstant>
       <commandSubTopic>command/motor_speed</commandSubTopic>
       <motorNumber>2</motorNumber>
       <rotorDragCoefficient>0.0000806428</rotorDragCoefficient>
@@ -860,8 +863,8 @@
       <timeConstantUp>0.0125</timeConstantUp>
       <timeConstantDown>0.025</timeConstantDown>
       <maxRotVelocity>1500</maxRotVelocity>
-      <motorConstant>1e-05</motorConstant>
-      <momentConstant>0.06</momentConstant>
+      <motorConstant>6e-06</motorConstant>
+      <momentConstant>0.0</momentConstant>
       <commandSubTopic>command/motor_speed</commandSubTopic>
       <motorNumber>3</motorNumber>
       <rotorDragCoefficient>0.0000806428</rotorDragCoefficient>
@@ -879,8 +882,8 @@
       <timeConstantUp>0.0125</timeConstantUp>
       <timeConstantDown>0.025</timeConstantDown>
       <maxRotVelocity>1500</maxRotVelocity>
-      <motorConstant>1e-05</motorConstant>
-      <momentConstant>0.06</momentConstant>
+      <motorConstant>6e-06</motorConstant>
+      <momentConstant>0.0</momentConstant>
       <commandSubTopic>command/motor_speed</commandSubTopic>
       <motorNumber>4</motorNumber>
       <rotorDragCoefficient>0.0000806428</rotorDragCoefficient>
@@ -898,8 +901,8 @@
       <timeConstantUp>0.0125</timeConstantUp>
       <timeConstantDown>0.025</timeConstantDown>
       <maxRotVelocity>1500</maxRotVelocity>
-      <motorConstant>1e-05</motorConstant>
-      <momentConstant>0.06</momentConstant>
+      <motorConstant>6e-06</motorConstant>
+      <momentConstant>0.0</momentConstant>
       <commandSubTopic>command/motor_speed</commandSubTopic>
       <motorNumber>5</motorNumber>
       <rotorDragCoefficient>0.0000806428</rotorDragCoefficient>
@@ -915,9 +918,9 @@
             name="gz::sim::systems::JointPositionController">
       <joint_name>motor_2_joint</joint_name>
       <sub_topic>servo_0</sub_topic>
-      <p_gain>10</p_gain>
+      <p_gain>40</p_gain>
       <i_gain>0</i_gain>
-      <d_gain>0</d_gain>
+      <d_gain>0.5</d_gain>
       <i_max>0.0</i_max>
       <i_min>0.0</i_min>
       <cmd_max>2</cmd_max>
@@ -930,9 +933,9 @@
             name="gz::sim::systems::JointPositionController">
       <joint_name>motor_3_joint</joint_name>
       <sub_topic>servo_1</sub_topic>
-      <p_gain>10</p_gain>
+      <p_gain>40</p_gain>
       <i_gain>0</i_gain>
-      <d_gain>0</d_gain>
+      <d_gain>0.5</d_gain>
       <i_max>0.0</i_max>
       <i_min>0.0</i_min>
       <cmd_max>2</cmd_max>
@@ -945,9 +948,9 @@
             name="gz::sim::systems::JointPositionController">
       <joint_name>motor_4_joint</joint_name>
       <sub_topic>servo_2</sub_topic>
-      <p_gain>10</p_gain>
+      <p_gain>40</p_gain>
       <i_gain>0</i_gain>
-      <d_gain>0</d_gain>
+      <d_gain>0.5</d_gain>
       <i_max>0.0</i_max>
       <i_min>0.0</i_min>
       <cmd_max>2</cmd_max>
@@ -960,15 +963,14 @@
             name="gz::sim::systems::JointPositionController">
       <joint_name>motor_5_joint</joint_name>
       <sub_topic>servo_3</sub_topic>
-      <p_gain>10</p_gain>
+      <p_gain>40</p_gain>
       <i_gain>0</i_gain>
-      <d_gain>0</d_gain>
+      <d_gain>0.5</d_gain>
       <i_max>0.0</i_max>
       <i_min>0.0</i_min>
       <cmd_max>2</cmd_max>
       <cmd_min>-2</cmd_min>
       <err_max>0.2</err_max>
     </plugin>
-
   </model>
 </sdf>

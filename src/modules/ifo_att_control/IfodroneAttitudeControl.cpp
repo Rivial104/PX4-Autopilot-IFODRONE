@@ -65,7 +65,7 @@ void IfodroneAttitudeControl::Run()
 
 	// ── Setpoint source ───────────────────────────────────────────────
 	// ifo_pos_control owns the thrust vector in every stabilized mode, including
-	// Stabilized itself (sticks → XY velocity there). It is driven by
+	// Stabilized itself (sticks → body lateral thrust there). It is driven by
 	// vehicle_local_position, so it goes quiet if the estimator stops; only then
 	// does this module fall back to the estimator-free stick mapping (which is
 	// also what Acro-style modes without attitude stabilization get).
@@ -120,6 +120,22 @@ void IfodroneAttitudeControl::Run()
 			thrust_body(0) = att_sp.thrust_body[0];
 			thrust_body(1) = att_sp.thrust_body[1];
 			thrust_body(2) = att_sp.thrust_body[2];
+
+			// Stale setpoint outside the manual modes (ifo_pos_control stopped, e.g.
+			// the local position estimate is gone in an auto/failsafe mode): a held
+			// lateral thrust is a constant sideways acceleration with nothing left
+			// to close the loop, so drop it and keep only the collective.
+			if (!att_sp_fresh) {
+				thrust_body(0) = 0.f;
+				thrust_body(1) = 0.f;
+			}
+		}
+
+		// NaN guard: a non-finite component must never reach mc_rate_control
+		for (int i = 0; i < 3; ++i) {
+			if (!PX4_ISFINITE(thrust_body(i))) {
+				thrust_body(i) = 0.f;
+			}
 		}
 
 		if (!PX4_ISFINITE(_yaw_setpoint)) {

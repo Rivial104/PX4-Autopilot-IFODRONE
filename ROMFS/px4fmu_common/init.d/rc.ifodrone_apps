@@ -6,18 +6,7 @@
 #   mc_rate_control : rate PID            → vehicle_torque_setpoint + vehicle_thrust_setpoint
 #   control_allocator: torque/thrust      → actuator_motors + actuator_servos (tilts)
 #
-# Single publisher per topic, identical chain in manual and offboard/mission.
-#
-#
-# CRSF receiver on the board's dedicated RC pads (RC_SERIAL_PORT = /dev/ttyS4,
-# boards/matek/h743-slim/src/board_config.h). This is NOT reachable through
-# RC_CRSF_PRT_CFG - that param's choices are only Disabled/GPS1/TEL1..4, and
-# ttyS4 has none of those labels in default.px4board. TEL3 carries a MAVLink
-# telemetry backpack instead (MAV_0_CONFIG in the airframe) and must stay free
-# for it - do not point RC_CRSF_PRT_CFG at TEL3, it will fight the backpack for
-# the port. `status` before `start` keeps this a no-op if something else
-# already brought the driver up.
-#
+
 if ! crsf_rc status
 then
 	crsf_rc start -d /dev/ttyS4
@@ -25,33 +14,14 @@ fi
 
 control_allocator start
 
-#
-# Start IfoDrone Position Controller (trajectory_setpoint -> vehicle_attitude_setpoint)
-#
 ifo_pos_control start
 
-#
-# Start IfoDrone Attitude Controller (attitude P -> vehicle_rates_setpoint)
-#
 ifo_att_control start
 
-#
-# Start Rate Controller (rate PID -> vehicle_torque_setpoint + vehicle_thrust_setpoint)
-#
 mc_rate_control start
 
-
-#
-# Start Hover Thrust Estimator (needed for thrust estimation)
-#
 mc_hover_thrust_estimator start
 
-#
-# Start Flight Mode Manager (required for mission/auto modes)
-#
 flight_mode_manager start
 
-#
-# Start Land Detector
-#
 land_detector start multicopter

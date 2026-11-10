@@ -102,6 +102,27 @@ parameters:
             max: 1.0
             default: 1.0
 
+        IFO_CA_LIN_TAU:
+            description:
+                short: IFODRONE allocation linearization time constant
+                long: |
+                  The IFODRONE effectiveness matrix depends on the actuator operating
+                  point (EDF axes rotated by the tilt angles, tilt-servo columns scaled
+                  by EDF thrust). That operating point is the clipped allocation
+                  result, low-pass filtered with this time constant. 0 uses the raw
+                  previous allocation, which forms an algebraic loop between
+                  consecutive allocation cycles: the servo setpoints alternate from
+                  cycle to cycle and, at large hover tilt angles, settle into a
+                  full-range limit cycle. Keep it on the order of the servo / EDF
+                  response time.
+            type: float
+            decimal: 3
+            unit: s
+            min: 0.0
+            max: 1.0
+            increment: 0.01
+            default: 0.05
+
         # Motor parameters
         CA_R_REV:
             description:

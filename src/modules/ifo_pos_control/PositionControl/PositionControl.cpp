@@ -177,6 +177,11 @@ void PositionControl::_velocityControl(const float dt)
 		thrust_max_xy = sqrtf(thrust_max_xy_squared);
 	}
 
+	// Absolute horizontal limit (IFODRONE side-EDF authority)
+	if (_lim_thr_xy_max > 0.f) {
+		thrust_max_xy = math::min(thrust_max_xy, _lim_thr_xy_max);
+	}
+
 	// Saturate thrust in horizontal direction
 	if (thrust_sp_xy_norm > thrust_max_xy) {
 		_thr_sp.xy() = thrust_sp_xy / thrust_sp_xy_norm * thrust_max_xy;

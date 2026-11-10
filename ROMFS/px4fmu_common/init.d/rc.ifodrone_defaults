@@ -1,19 +1,14 @@
 #!/bin/sh
 #
-# IFODRONE default parameters.
+# IFODRONE default parameters, shared by 4072_ifodrone (real) and 49000_gz_ifodrone
+# (SITL). Replaces rc.mc_defaults, which is NOT loaded for VEHICLE_TYPE ifodrone.
 #
 # NOTE: Script variables are declared/initialized/unset in the rcS script.
+# NOTE: deliberately no SYS_AUTOSTART / SYS_AUTOCONFIG here -- look at IFODRONE-params.md
 #
 
 # Use custom vehicle type to avoid rc.mc_apps being loaded
 set VEHICLE_TYPE ifodrone
-
-# NOTE: deliberately no `param set-default SYS_AUTOSTART`. 49000 used to be set
-# here, but it is a posix/SITL-only airframe that does not exist in the NuttX
-# ROMFS. Combined with SYS_AUTOCONFIG 1 (set by 4072_ifodrone) it made the
-# config self-destruct: a reset-to-defaults moved SYS_AUTOSTART to 49000, the
-# airframe script then never ran again and the vehicle flew on whatever stale
-# parameters happened to be saved. Observed on the real Matek board 2026-09-01.
 
 # MAV_TYPE_QUADROTOR 2 (closest match for QGC compatibility)
 param set-default MAV_TYPE 2
@@ -27,4 +22,3 @@ param set-default NAV_ACC_RAD 2
 
 param set-default RTL_RETURN_ALT 30
 param set-default RTL_DESCEND_ALT 10
-

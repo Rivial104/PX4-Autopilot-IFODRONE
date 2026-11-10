@@ -129,9 +129,11 @@ public:
 	static matrix::Vector3f tiltedAxis(float tilt_angle, float tilt_direction);
 
 	/**
-	 * Hinge axis for a rotor with a horizontal base thrust axis, matching the
-	 * IFODRONE SDF joint axis convention (base +X → hinge +Y, base +Y → hinge +X,
-	 * base −X → hinge −Y, base −Y → hinge −X). Single source of the tilt sign
+	 * Hinge axis (FRD) for a rotor with a horizontal base thrust axis, matching
+	 * the IFODRONE SDF joint axes converted from gz ENU to FRD (Y flips):
+	 * base +X → hinge (0,−1,0), base +Y → (1,0,0), base −X → (0,1,0),
+	 * base −Y → (−1,0,0); a positive command tilts the thrust axis towards +Z
+	 * (downwards). The SDF itself lists +Y/+X/−Y/−X in ENU. Single source of the tilt sign
 	 * convention: used both to rotate rotor axes and to build tilt-servo
 	 * effectiveness columns (d axis / d angle = hinge × axis).
 	 */

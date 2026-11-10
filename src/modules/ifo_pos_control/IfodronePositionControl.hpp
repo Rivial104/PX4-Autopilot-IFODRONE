@@ -39,6 +39,7 @@
 #include <uORB/topics/parameter_update.h>
 #include <uORB/topics/takeoff_status.h>
 #include <uORB/topics/trajectory_setpoint.h>
+#include <uORB/topics/sensor_combined.h>
 #include <uORB/topics/vehicle_acceleration.h>
 #include <uORB/topics/vehicle_attitude.h>
 #include <uORB/topics/vehicle_attitude_setpoint.h>
@@ -133,6 +134,7 @@ private:
 	uORB::Subscription                 _manual_control_setpoint_sub{ORB_ID(manual_control_setpoint)};
 	uORB::Subscription                 _trajectory_setpoint_sub{ORB_ID(trajectory_setpoint)};
 	uORB::Subscription                 _vehicle_acceleration_sub{ORB_ID(vehicle_acceleration)};
+	uORB::Subscription                 _sensor_combined_sub{ORB_ID(sensor_combined)};
 	uORB::Subscription                 _vehicle_attitude_sub{ORB_ID(vehicle_attitude)};
 	uORB::Subscription                 _vehicle_constraints_sub{ORB_ID(vehicle_constraints)};
 	uORB::Subscription                 _vehicle_control_mode_sub{ORB_ID(vehicle_control_mode)};
@@ -173,6 +175,7 @@ private:
 	float            _hold_yaw_angle{0.f};
 	bool             _hold_initialized{false};
 	matrix::Vector2f _vel_damp_body{0.f, 0.f};  ///< washed-out IMU velocity, Stabilized damping
+	hrt_abstime      _accel_clip_last{0};       ///< last accelerometer clipping seen on the primary IMU
 	matrix::Vector2f _pos_lock{NAN, NAN};  ///< latched XY position (Position mode, sticks centred)
 	float            _alt_lock{NAN};       ///< latched altitude   (Altitude/Position, throttle centred)
 	bool             _manual_alt_hold_prev{false};
@@ -198,6 +201,7 @@ private:
 	static constexpr float LOCK_VEL_MAX = 0.3f;        ///< latch position/altitude below this speed [m/s]
 	static constexpr float MANUAL_YAW_RATE_MAX = 1.5f; ///< yaw stick → heading rate [rad/s]
 	static constexpr float MANUAL_YAW_ERR_MAX = 0.5f;  ///< cap on heading setpoint lead [rad]
+	static constexpr hrt_abstime ACCEL_CLIP_HOLDOFF = 500_ms; ///< no damping integration this long after clipping
 
 	DEFINE_PARAMETERS(
 		(ParamFloat<px4::params::IFO_POS_Z_P>)   _param_ifo_pos_z_p,

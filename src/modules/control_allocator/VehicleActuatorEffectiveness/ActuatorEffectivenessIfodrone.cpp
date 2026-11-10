@@ -14,6 +14,9 @@
  *                   thrust (tilt authority ∝ EDF thrust). Force rows are zero
  *                   so Fz demand is never allocated to collective tilt.
  *
+ * Linearization point: the clipped allocation result, low-pass filtered with
+ * IFO_CA_LIN_TAU (see updateSetpoint()).
+ *
  * Trims: the side EDFs idle at IFO_EDF_TRIM (opposing pairs allocate
  * differentially around it), and the tilt servos rest at IFO_TILT_HOVER
  * degrees, so zero demand returns all actuators to the hover operating point
@@ -63,25 +66,14 @@ ActuatorEffectivenessIfodrone::getEffectivenessMatrix(Configuration &configurati
 
 	// Before the first allocation there is no setpoint yet: linearize around the
 	// hover operating point (EDFs at trim, tilts at the hover angle).
-	if (!_last_actuator_sp_valid) {
-		_last_actuator_sp.setZero();
-
-		for (int i = 0; i < num_rotors; ++i) {
-			if (_mc_motors.geometry().rotors[i].tilt_index >= 0) {
-				_last_actuator_sp(i) = edf_trim;
-			}
-		}
-
-		for (int i = 0; i < _tilts.count(); ++i) {
-			_last_actuator_sp(_first_tilt_idx + i) = tiltTrim(i, hover_angle_rad);
-		}
-
-		_last_actuator_sp_valid = true;
+	if (!_lin_point_valid) {
+		_lin_point = hoverOperatingPoint(num_rotors);
+		_lin_point_valid = true;
 	}
 
 	// Rotate the side-EDF axes to the current tilt angles, then add the motor
 	// columns (3D force + torque at the current operating point)
-	_mc_motors.updateAxisFromTiltSetpoints(_tilts, _last_actuator_sp, _first_tilt_idx);
+	_mc_motors.updateAxisFromTiltSetpoints(_tilts, _lin_point, _first_tilt_idx);
 	const bool motors_ok = _mc_motors.addActuators(configuration);
 
 	// Side EDFs are unidirectional. Trim sets the shared idle baseline for each
@@ -118,13 +110,19 @@ ActuatorEffectivenessIfodrone::getEffectivenessMatrix(Configuration &configurati
 			const auto &rotor = _mc_motors.geometry().rotors[rotor_idx];
 			const Vector3f hinge = ActuatorEffectivenessRotors::hingeAxisForBase(_mc_motors.baseAxis(rotor_idx));
 			const float dangle_dcmd = (_tilts.config(i).max_angle - _tilts.config(i).min_angle) / 2.f;
-			const float edf_thrust = math::max(_last_actuator_sp(rotor_idx), edf_trim);
+			// _lin_point is clipped to [0, 1], so the column scale stays within
+			// [1, 1/edf_trim] times its trim value
+			const float edf_thrust = math::max(_lin_point(rotor_idx), edf_trim);
 
 			const Vector3f dthrust = hinge.cross(rotor.axis) * (rotor.thrust_coef * edf_thrust * dangle_dcmd);
 			dtorque = rotor.position.cross(dthrust);
 
+			// Floor the reference thrust: with IFO_EDF_TRIM = 0 the reference would
+			// vanish, the rows would stay in raw CT units and the weak-authority
+			// check in ControlAllocator would zero roll/pitch entirely.
 			torque_ref = math::max(torque_ref,
-					       rotor.position.norm() * rotor.thrust_coef * edf_trim * fabsf(dangle_dcmd));
+					       rotor.position.norm() * rotor.thrust_coef * math::max(edf_trim, EDF_TRIM_REF_MIN)
+					       * fabsf(dangle_dcmd));
 		}
 
 		const int actuator_idx = configuration.addActuator(ActuatorType::SERVOS, dtorque, Vector3f{});
@@ -154,7 +152,7 @@ ActuatorEffectivenessIfodrone::getEffectivenessMatrix(Configuration &configurati
 
 void ActuatorEffectivenessIfodrone::updateSetpoint(const matrix::Vector<float, NUM_AXES> &/*control_sp*/,
 		int /*matrix_index*/, ActuatorVector &actuator_sp,
-		const ActuatorVector &/*actuator_min*/, const ActuatorVector &/*actuator_max*/)
+		const ActuatorVector &actuator_min, const ActuatorVector &actuator_max)
 {
 	const float hover_angle_rad = math::radians(_param_ifo_tilt_hover.get());
 	const float edf_trim = math::constrain(_param_ifo_edf_trim.get(), 0.f, 0.9f);
@@ -178,7 +176,69 @@ void ActuatorEffectivenessIfodrone::updateSetpoint(const matrix::Vector<float, N
 		actuator_sp(actuator_idx) = trim + tilt_gain * (actuator_sp(actuator_idx) - trim);
 	}
 
-	// Cache the command actually sent: next cycle's state-dependent matrix must
-	// be linearized at the reduced EDF thrust and tilt angles.
-	_last_actuator_sp = actuator_sp;
+	// Next cycle's state-dependent matrix is linearized around the operating
+	// point the actuators are actually driven to: the command after the gains,
+	// clipped to the actuator range (an unclipped EDF command of e.g. 1.7 would
+	// otherwise scale the servo columns beyond any physical thrust).
+	//
+	// The point is low-pass filtered with IFO_CA_LIN_TAU. Using the raw last
+	// setpoint makes allocation k depend algebraically on allocation k-1; the
+	// iteration u_k = trim + pinv(B(u_k-1))·c has a negative eigenvalue (~-0.5 at
+	// 0 deg hover tilt, ~-0.8 at -30 deg, below -1 at -45 deg), i.e. every change
+	// of the demand rings at half the allocation rate and at large hover tilt the
+	// servos settle into a full-range limit cycle (seen in the 2026-09-03 real
+	// flights as bimodal servo setpoints). Servos and EDFs cannot follow the
+	// operating point faster than their own dynamics anyway.
+	const hrt_abstime now = hrt_absolute_time();
+	const float tau = math::max(_param_ifo_ca_lin_tau.get(), 0.f);
+	float alpha = 1.f;
+
+	if (_lin_point_last_update != 0 && tau > FLT_EPSILON) {
+		const float dt = math::constrain((now - _lin_point_last_update) * 1e-6f, 0.0002f, 0.02f);
+		alpha = dt / (tau + dt);
+	}
+
+	_lin_point_last_update = now;
+
+	if (!_lin_point_valid) {
+		_lin_point = hoverOperatingPoint(num_rotors);
+		_lin_point_valid = true;
+	}
+
+	const int num_actuators = _first_tilt_idx + _tilts.count();
+
+	for (int i = 0; i < num_actuators && i < NUM_ACTUATORS; ++i) {
+		const float sp = actuator_sp(i);
+
+		// A non-finite setpoint must not poison the operating point for good
+		if (!PX4_ISFINITE(sp)) {
+			continue;
+		}
+
+		const float sp_clipped = (actuator_min(i) < actuator_max(i)) ? math::constrain(sp, actuator_min(i), actuator_max(i)) : sp;
+		_lin_point(i) += alpha * (sp_clipped - _lin_point(i));
+	}
+}
+
+ActuatorEffectiveness::ActuatorVector ActuatorEffectivenessIfodrone::hoverOperatingPoint(int num_rotors) const
+{
+	const float hover_angle_rad = math::radians(_param_ifo_tilt_hover.get());
+	const float edf_trim = math::constrain(_param_ifo_edf_trim.get(), 0.f, 0.9f);
+	ActuatorVector point{};
+
+	for (int i = 0; i < num_rotors && i < NUM_ACTUATORS; ++i) {
+		if (_mc_motors.geometry().rotors[i].tilt_index >= 0) {
+			point(i) = edf_trim;
+		}
+	}
+
+	for (int i = 0; i < _tilts.count(); ++i) {
+		const int idx = num_rotors + i;
+
+		if (idx < NUM_ACTUATORS) {
+			point(idx) = tiltTrim(i, hover_angle_rad);
+		}
+	}
+
+	return point;
 }

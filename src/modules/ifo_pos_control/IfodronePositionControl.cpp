@@ -73,6 +73,9 @@ void IfodronePositionControl::parameters_update(bool force)
 		_control.setHoverThrust(_param_ifo_thr_hover.get());
 		_control.setThrustLimits(_param_ifo_thr_min.get(), _param_ifo_thr_max.get());
 		_control.setHorizontalThrustMargin(_param_ifo_thr_xy_max.get());
+		// Same cap as constrainIfodroneBodyThrust() in publishSetpoints(), applied
+		// inside the library so the XY velocity anti-windup sees it.
+		_control.setHorizontalThrustLimit(math::max(_param_ifo_thr_xy_max.get(), 1e-3f));
 		_control.setTiltLimit(M_PI_2_F); // no tilt limit: IFODRONE is always level
 
 		_takeoff.setSpoolupTime(_param_com_spoolup_time.get());
@@ -282,6 +285,12 @@ void IfodronePositionControl::Run()
 				}
 
 				const float speed_up = _takeoff.updateRamp(dt, _param_ifo_vel_max_up.get());
+
+				// Same takeoff-ramp windup as in the auto modes (see there)
+				if (alt_hold && (_takeoff.getTakeoffState() == TakeoffState::rampup)) {
+					_control.resetIntegralZ();
+				}
+
 				_control.setVelocityLimits(
 					_param_ifo_vel_max_xy.get(),
 					alt_hold ? math::min(speed_up, _param_ifo_vel_max_up.get()) : _param_ifo_vel_max_up.get(),
@@ -380,6 +389,15 @@ void IfodronePositionControl::Run()
 					_setpoint.acceleration[2] = NAN;
 				}
 
+				// The ramp starts the climb-rate limit at -g/IFO_VEL_Z_P (zero thrust)
+				// while the vehicle still sits on the ground, so the Z integrator would
+				// wind up downwards for the whole ramp (~-1.8 m/s^2 at P 1 / I 0.2) and
+				// then take ~P/I = 5 s to unwind: liftoff at 0.3 m/s instead of the
+				// commanded climb rate (SITL 10.11). The ramp only shapes the thrust.
+				if (_takeoff.getTakeoffState() == TakeoffState::rampup) {
+					_control.resetIntegralZ();
+				}
+
 				if (not_taken_off || flying_but_ground_contact) {
 					// On ground: zero everything, push down
 					_setpoint = PositionControl::empty_trajectory_setpoint;
@@ -476,7 +494,20 @@ void IfodronePositionControl::publishSetpoints(const PositionControlStates &stat
 	const Vector3f thr_ned(local_pos_sp.thrust);
 
 	const float yaw = PX4_ISFINITE(states.yaw) ? states.yaw : 0.f;
-	const float yaw_sp = PX4_ISFINITE(local_pos_sp.yaw) ? local_pos_sp.yaw : yaw;
+	float yaw_sp = PX4_ISFINITE(local_pos_sp.yaw) ? local_pos_sp.yaw : yaw;
+
+	// Yaw comes only from the coaxial pair, differentially, and that pair also
+	// carries the whole collective: a large heading error saturates it and halves
+	// the lift. The manual modes already cap the heading lead; apply the same cap
+	// to every source (offboard / goto / auto can step the heading setpoint).
+	if (PX4_ISFINITE(states.yaw)) {
+		const float yaw_lead = wrap_pi(yaw_sp - yaw);
+
+		if (fabsf(yaw_lead) > MANUAL_YAW_ERR_MAX) {
+			yaw_sp = wrap_pi(yaw + matrix::sign(yaw_lead) * MANUAL_YAW_ERR_MAX);
+		}
+	}
+
 	const float yawspeed_sp = PX4_ISFINITE(local_pos_sp.yawspeed) ? local_pos_sp.yawspeed : 0.f;
 
 	// Rotate NED→body with the full current attitude, but only publish a
@@ -517,12 +548,27 @@ void IfodronePositionControl::updateManualVelocityDamping(float dt, bool reset)
 		return;
 	}
 
+	// A clipped accelerometer reports a biased specific force (EDF vibration
+	// clipped thousands of samples per flight on the real airframe, 2026-09-08),
+	// and that bias integrates straight into a lateral thrust demand with the
+	// sticks centred. Clipped data is therefore not integrated at all; the
+	// estimate only washes out until the IMU has been clean for a while. Any axis
+	// counts: Z clipping also corrupts the gravity compensation once tilted.
+	sensor_combined_s sensor_combined;
+
+	if (_sensor_combined_sub.update(&sensor_combined) && (sensor_combined.accelerometer_clipping != 0)) {
+		_accel_clip_last = sensor_combined.timestamp;
+	}
+
+	const bool accel_clipping = (_accel_clip_last != 0) && (hrt_elapsed_time(&_accel_clip_last) < ACCEL_CLIP_HOLDOFF);
+	const Vector2f acc_integrated = accel_clipping ? Vector2f{} : acc_body;
+
 	// Integrate with a washout: without an absolute reference the integral would
 	// run away on bias alone, so it is only trusted over the washout horizon. That
 	// is enough to damp gusts and rebound, and deliberately not enough to hold a
 	// position against a steady wind.
 	const float tau = math::max(_param_ifo_stb_vd_tau.get(), 0.1f);
-	_vel_damp_body = (_vel_damp_body + acc_body * dt) * math::max(1.f - dt / tau, 0.f);
+	_vel_damp_body = (_vel_damp_body + acc_integrated * dt) * math::max(1.f - dt / tau, 0.f);
 
 	const float vel_damp_max = math::max(_param_ifo_vel_max_xy.get(), 0.1f);
 	const float vel_damp_norm = _vel_damp_body.norm();

@@ -484,6 +484,13 @@ void
 ControlAllocator::update_effectiveness_matrix_if_needed(EffectivenessUpdateReason reason)
 {
 	ActuatorEffectiveness::Configuration config{};
+	// IFODRONE: the matrix is state dependent and is rebuilt on every allocation.
+	// Side effect (relied upon by the IFODRONE thrust calibration, do not "fix"
+	// without recalibrating IFO_THR_HOVER / CA_ROTOR*_CT): the CONFIGURATION_UPDATE
+	// request for a new thrust normalization scale is always overwritten by the
+	// following NO_EXTERNAL_UPDATE before the pseudo-inverse is recomputed, so the
+	// scale stays 1 and vehicle_thrust_setpoint is in raw CT units
+	// (coax command = |Fz| / (2 * CA_ROTOR0_CT) without side-EDF share).
 	const bool high_rate_no_external_updates = (_effectiveness_source_id == EffectivenessSource::IFODRONE);
 
 	if (reason == EffectivenessUpdateReason::NO_EXTERNAL_UPDATE

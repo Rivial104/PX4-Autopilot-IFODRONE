@@ -82,6 +82,16 @@ public:
 	void setHorizontalThrustMargin(const float margin);
 
 	/**
+	 * Set the absolute limit of the horizontal thrust magnitude.
+	 * IFODRONE: the side EDFs can only produce IFO_THR_XY_MAX of horizontal thrust.
+	 * Saturating here (and not only downstream in the body frame) lets the
+	 * horizontal tracking anti-windup see the real limit, so the XY velocity
+	 * integrator does not wind up against a saturation it cannot observe.
+	 * @param limit maximum horizontal thrust magnitude [0, 1], <= 0 disables it
+	 */
+	void setHorizontalThrustLimit(const float limit) { _lim_thr_xy_max = limit; }
+
+	/**
 	 * Set the maximum tilt angle in radians the output attitude is allowed to have
 	 * @param tilt angle in radians from level orientation
 	 */
@@ -130,6 +140,7 @@ public:
 	 */
 	void resetIntegral() { _vel_int.setZero(); }
 	void resetIntegralXY() { _vel_int.xy() = matrix::Vector2f(); }
+	void resetIntegralZ() { _vel_int(2) = 0.f; }
 
 	/**
 	 * If set, the tilt setpoint is computed by assuming no vertical acceleration
@@ -181,6 +192,7 @@ private:
 	float _lim_thr_min{}; ///< Minimum collective thrust allowed as output [-1,0] e.g. -0.9
 	float _lim_thr_max{}; ///< Maximum collective thrust allowed as output [-1,0] e.g. -0.1
 	float _lim_thr_xy_margin{}; ///< Margin to keep for horizontal control when saturating prioritized vertical thrust
+	float _lim_thr_xy_max{-1.f}; ///< Absolute horizontal thrust limit, <= 0: only limited by _lim_thr_max
 	float _lim_tilt{}; ///< Maximum tilt from level the output attitude is allowed to have
 
 	float _hover_thrust{}; ///< Thrust [HOVER_THRUST_MIN, HOVER_THRUST_MAX] with which the vehicle hovers not accelerating down or up with level orientation
