@@ -1,16 +1,12 @@
-/**
- * @file PositionControl.hpp
- *
- * A cascaded position controller for position/velocity control only.
- */
-
 #pragma once
 
 #include <lib/mathlib/mathlib.h>
 #include <matrix/matrix/math.hpp>
 #include <uORB/topics/trajectory_setpoint.h>
-#include <uORB/topics/vehicle_attitude_setpoint.h>
 #include <uORB/topics/vehicle_local_position_setpoint.h>
+
+namespace ifodrone
+{
 
 struct PositionControlStates {
 	matrix::Vector3f position;
@@ -19,197 +15,59 @@ struct PositionControlStates {
 	float yaw;
 };
 
-/**
- * 	Core Position-Control for IfoDrone Airframe.
- * 	This class contains P-controller for position and
- * 	PID-controller for velocity.
- * 	Inputs:
- * 		vehicle position/velocity/yaw
- * 		desired set-point position/velocity/thrust/yaw/yaw-speed
- * 		constraints that are stricter than global limits
- * 	Output
- * 		thrust vector and a yaw-setpoint
- *
- * 	If there is a position and a velocity set-point present, then
- * 	the velocity set-point is used as feed-forward. If feed-forward is
- * 	active, then the velocity component of the P-controller output has
- * 	priority over the feed-forward component.
- *
- * 	A setpoint that is NAN is considered as not set.
- * 	If there is a position/velocity- and thrust-setpoint present, then
- *  the thrust-setpoint is ommitted and recomputed from position-velocity-PID-loop.
- */
+// P position + PID velocity with acceleration feedforward. NaN disables a setpoint.
 class PositionControl
 {
 public:
-
-	PositionControl() = default;
-	~PositionControl() = default;
-
-	/**
-	 * Set the position control gains
-	 * @param P 3D vector of proportional gains for x,y,z axis
-	 */
 	void setPositionGains(const matrix::Vector3f &P) { _gain_pos_p = P; }
-
-	/**
-	 * Set the velocity control gains
-	 * @param P 3D vector of proportional gains for x,y,z axis
-	 * @param I 3D vector of integral gains
-	 * @param D 3D vector of derivative gains
-	 */
 	void setVelocityGains(const matrix::Vector3f &P, const matrix::Vector3f &I, const matrix::Vector3f &D);
+	void setVelocityLimits(float vel_horizontal, float vel_up, float vel_down);
+	void setThrustLimits(float min, float max);
+	void setHorizontalThrustLimit(float limit) { _lim_thr_xy_max = math::max(limit, 0.f); }
+	void setHoverThrust(float hover_thrust) { _hover_thrust = math::constrain(hover_thrust, 0.05f, 0.9f); }
 
-	/**
-	 * Set the maximum velocity to execute with feed forward and position control
-	 * @param vel_horizontal horizontal velocity limit
-	 * @param vel_up upwards velocity limit
-	 * @param vel_down downwards velocity limit
-	 */
-	void setVelocityLimits(const float vel_horizontal, const float vel_up, float vel_down);
-
-	/**
-	 * Set the minimum and maximum collective normalized thrust [0,1] that can be output by the controller
-	 * @param min minimum thrust e.g. 0.1 or 0
-	 * @param max maximum thrust e.g. 0.9 or 1
-	 */
-	void setThrustLimits(const float min, const float max);
-
-	/**
-	 * Set margin that is kept for horizontal control when prioritizing vertical thrust
-	 * @param margin of normalized thrust that is kept for horizontal control e.g. 0.3
-	 */
-	void setHorizontalThrustMargin(const float margin);
-
-	/**
-	 * Set the absolute limit of the horizontal thrust magnitude.
-	 * IFODRONE: the side EDFs can only produce IFO_THR_XY_MAX of horizontal thrust.
-	 * Saturating here (and not only downstream in the body frame) lets the
-	 * horizontal tracking anti-windup see the real limit, so the XY velocity
-	 * integrator does not wind up against a saturation it cannot observe.
-	 * @param limit maximum horizontal thrust magnitude [0, 1], <= 0 disables it
-	 */
-	void setHorizontalThrustLimit(const float limit) { _lim_thr_xy_max = limit; }
-
-	/**
-	 * Set the maximum tilt angle in radians the output attitude is allowed to have
-	 * @param tilt angle in radians from level orientation
-	 */
-	void setTiltLimit(const float tilt) { _lim_tilt = tilt; }
-
-	/**
-	 * Set the normalized hover thrust
-	 * @param hover_thrust [HOVER_THRUST_MIN, HOVER_THRUST_MAX] with which the vehicle hovers not accelerating down or up with level orientation
-	 */
-	void setHoverThrust(const float hover_thrust) { _hover_thrust = math::constrain(hover_thrust, HOVER_THRUST_MIN, HOVER_THRUST_MAX); }
-
-	/**
-	 * Update the hover thrust without immediately affecting the output
-	 * by adjusting the integrator. This prevents propagating the dynamics
-	 * of the hover thrust signal directly to the output of the controller.
-	 */
-	void updateHoverThrust(const float hover_thrust_new);
-
-	/**
-	 * Pass the current vehicle state to the controller
-	 * @param PositionControlStates structure
-	 */
 	void setState(const PositionControlStates &states);
-
-	/**
-	 * Pass the desired setpoints
-	 * Note: NAN value means no feed forward/leave state uncontrolled if there's no higher order setpoint.
-	 * @param setpoint setpoints including feed-forwards to execute in update()
-	 */
 	void setInputSetpoint(const trajectory_setpoint_s &setpoint);
+	bool update(float dt);
+	void getLocalPositionSetpoint(vehicle_local_position_setpoint_s &local_position_setpoint) const;
 
-	/**
-	 * Apply P-position and PID-velocity controller that updates the member
-	 * thrust, yaw- and yawspeed-setpoints.
-	 * @see _thr_sp
-	 * @see _yaw_sp
-	 * @see _yawspeed_sp
-	 * @param dt time in seconds since last iteration
-	 * @return true if update succeeded and output setpoint is executable, false if not
-	 */
-	bool update(const float dt);
-
-	/**
-	 * Set the integral term in xy to 0.
-	 * @see _vel_int
-	 */
 	void resetIntegral() { _vel_int.setZero(); }
 	void resetIntegralXY() { _vel_int.xy() = matrix::Vector2f(); }
 	void resetIntegralZ() { _vel_int(2) = 0.f; }
 
-	/**
-	 * If set, the tilt setpoint is computed by assuming no vertical acceleration
-	 */
-	void decoupleHorizontalAndVecticalAcceleration(bool val) { _decouple_horizontal_and_vertical_acceleration = val; }
-
-	/**
-	 * Get the controllers output local position setpoint
-	 * These setpoints are the ones which were executed on including PID output and feed-forward.
-	 * The acceleration or thrust setpoints can be used for attitude control.
-	 * @param local_position_setpoint reference to struct to fill up
-	 */
-	void getLocalPositionSetpoint(vehicle_local_position_setpoint_s &local_position_setpoint) const;
-
-	/**
-	 * Get the controllers output attitude setpoint
-	 * This attitude setpoint was generated from the resulting acceleration setpoint after position and velocity control.
-	 * It needs to be executed by the attitude controller to achieve velocity and position tracking.
-	 * @param attitude_setpoint reference to struct to fill up
-	 */
-	void getAttitudeSetpoint(vehicle_attitude_setpoint_s &attitude_setpoint) const;
-
-	/**
-	 * All setpoints are set to NAN (uncontrolled). Timestampt zero.
-	 */
 	static const trajectory_setpoint_s empty_trajectory_setpoint;
 
 private:
-	// The range limits of the hover thrust configuration/estimate
-	static constexpr float HOVER_THRUST_MIN = 0.05f;
-	static constexpr float HOVER_THRUST_MAX = 0.9f;
-
 	bool _inputValid();
+	void _positionControl();
+	void _velocityControl(float dt);
+	void _accelerationControl();
 
-	void _positionControl(); ///< Position proportional control
-	void _velocityControl(const float dt); ///< Velocity PID control
-	void _accelerationControl(); ///< Acceleration setpoint processing
+	matrix::Vector3f _gain_pos_p;
+	matrix::Vector3f _gain_vel_p;
+	matrix::Vector3f _gain_vel_i;
+	matrix::Vector3f _gain_vel_d;
 
-	// Gains
-	matrix::Vector3f _gain_pos_p; ///< Position control proportional gain
-	matrix::Vector3f _gain_vel_p; ///< Velocity control proportional gain
-	matrix::Vector3f _gain_vel_i; ///< Velocity control integral gain
-	matrix::Vector3f _gain_vel_d; ///< Velocity control derivative gain
+	float _lim_vel_horizontal{};
+	float _lim_vel_up{};
+	float _lim_vel_down{};
+	float _lim_thr_min{};
+	float _lim_thr_max{};
+	float _lim_thr_xy_max{};
+	float _hover_thrust{};
 
-	// Limits
-	float _lim_vel_horizontal{}; ///< Horizontal velocity limit with feed forward and position control
-	float _lim_vel_up{}; ///< Upwards velocity limit with feed forward and position control
-	float _lim_vel_down{}; ///< Downwards velocity limit with feed forward and position control
-	float _lim_thr_min{}; ///< Minimum collective thrust allowed as output [-1,0] e.g. -0.9
-	float _lim_thr_max{}; ///< Maximum collective thrust allowed as output [-1,0] e.g. -0.1
-	float _lim_thr_xy_margin{}; ///< Margin to keep for horizontal control when saturating prioritized vertical thrust
-	float _lim_thr_xy_max{-1.f}; ///< Absolute horizontal thrust limit, <= 0: only limited by _lim_thr_max
-	float _lim_tilt{}; ///< Maximum tilt from level the output attitude is allowed to have
+	matrix::Vector3f _pos;
+	matrix::Vector3f _vel;
+	matrix::Vector3f _vel_dot;
+	matrix::Vector3f _vel_int;
+	float _yaw{};
 
-	float _hover_thrust{}; ///< Thrust [HOVER_THRUST_MIN, HOVER_THRUST_MAX] with which the vehicle hovers not accelerating down or up with level orientation
-	bool _decouple_horizontal_and_vertical_acceleration{true}; ///< Ignore vertical acceleration setpoint to remove its effect on the tilt setpoint
-
-	// States
-	matrix::Vector3f _pos; /**< current position */
-	matrix::Vector3f _vel; /**< current velocity */
-	matrix::Vector3f _vel_dot; /**< velocity derivative (replacement for acceleration estimate) */
-	matrix::Vector3f _vel_int; /**< integral term of the velocity controller */
-	float _yaw{}; /**< current heading */
-
-	// Setpoints
-	matrix::Vector3f _pos_sp; /**< desired position */
-	matrix::Vector3f _vel_sp; /**< desired velocity */
-	matrix::Vector3f _acc_sp; /**< desired acceleration */
-	matrix::Vector3f _thr_sp; /**< desired thrust */
-	float _yaw_sp{}; /**< desired heading */
-	float _yawspeed_sp{}; /** desired yaw-speed */
+	matrix::Vector3f _pos_sp;
+	matrix::Vector3f _vel_sp;
+	matrix::Vector3f _acc_sp;
+	matrix::Vector3f _thr_sp;
+	float _yaw_sp{};
+	float _yawspeed_sp{};
 };
+
+} // namespace ifodrone

@@ -1,23 +1,3 @@
-/**
- * IFODRONE Position Controller
- *
- * Uses the PositionControl library (P-position + PID-velocity) to compute an
- * acceleration setpoint, then converts it to body-frame thrust using the
- * current vehicle attitude.
- *
- * Setpoint source:
- *   - Offboard/Auto: trajectory_setpoint topic
- *   - goto_setpoint: direct position target (converted to trajectory_setpoint internally)
- *   - Stabilized/Altitude/Position: built here from the sticks, see
- *     generateManualSetpoint() (flight_mode_manager's trajectory setpoint is ignored)
- *
- * IFODRONE specifics:
- *   - Attitude setpoint is always level (roll/pitch = 0), only yaw is commanded.
- *   - The full 3D thrust setpoint from the PositionControl library is rotated
- *     into the body frame, constrained to the unidirectional-coax/side-EDF
- *     envelope, and published in vehicle_attitude_setpoint.thrust_body.
- */
-
 #pragma once
 
 #include "PositionControl/PositionControl.hpp"
@@ -46,10 +26,8 @@
 #include <uORB/topics/vehicle_constraints.h>
 #include <uORB/topics/vehicle_control_mode.h>
 #include <uORB/topics/vehicle_land_detected.h>
-#include <uORB/topics/vehicle_local_position.h>
 #include <uORB/topics/vehicle_local_position_setpoint.h>
 #include <uORB/topics/vehicle_local_position.h>
-#include <uORB/topics/vehicle_thrust_setpoint.h>
 
 using namespace time_literals;
 
@@ -79,55 +57,20 @@ private:
 
 	void parameters_update(bool force);
 
-	/**
-	 * Publish the PositionControl library outputs: vehicle_local_position_setpoint
-	 * and a level (roll/pitch = 0) vehicle_attitude_setpoint carrying the
-	 * actuator-feasible body-frame thrust setpoint.
-	 */
-	void publishSetpoints(const PositionControlStates &states);
+	void publishSetpoints(const ifodrone::PositionControlStates &states);
 
-	/**
-	 * Build the trajectory setpoint for manual (stick-flown) modes.
-	 *
-	 * Two different laws, picked by how much the mode is allowed to rely on the
-	 * estimator:
-	 *   Stabilized: BODY lateral thrust + accelerometer damping, throttle stick →
-	 *               collective thrust. Needs no heading, GPS or compass.
-	 *   Altitude:   XY velocity in local NED (pitch → north, roll → east),
-	 *               throttle stick → climb rate, centred → altitude lock.
-	 *   Position:   as Altitude + XY position lock when the sticks are centred.
-	 *
-	 * Altitude/Position degrade to the Stabilized law axis by axis when the
-	 * estimate is missing; force_open_loop degrades every axis at once.
-	 * The heading setpoint is maintained by the caller, this only reads it.
-	 */
 	trajectory_setpoint_s generateManualSetpoint(const vehicle_local_position_s &local_pos,
-			const PositionControlStates &states, bool force_open_loop);
+			const ifodrone::PositionControlStates &states, bool force_open_loop);
 
-	/**
-	 * Update the body-frame velocity estimate used to damp the Stabilized sticks.
-	 *
-	 * Integrates the gravity-compensated accelerometer with a washout. Uses no
-	 * heading, GPS or EKF horizontal state, so it survives a dead or disturbed
-	 * compass; in exchange it only knows velocity over the washout horizon.
-	 */
 	void updateManualVelocityDamping(float dt, bool reset);
 
-	/**
-	 * Adjust setpoint for EKF resets (position/velocity jumps).
-	 */
 	void adjustSetpointForEKFResets(const vehicle_local_position_s &local_pos, trajectory_setpoint_s &setpoint);
 
-	/**
-	 * Generate a failsafe setpoint (stop or descend).
-	 */
-	trajectory_setpoint_s generateFailsafeSetpoint(const hrt_abstime &now, const PositionControlStates &states);
+	trajectory_setpoint_s generateFailsafeSetpoint(const hrt_abstime &now, const ifodrone::PositionControlStates &states);
 
-	// --- Core position control ---
-	PositionControl _control;
-	TakeoffHandling _takeoff;
+	ifodrone::PositionControl _control;
+	ifodrone::TakeoffHandling _takeoff;
 
-	// --- Subscriptions ---
 	uORB::SubscriptionInterval         _parameter_update_sub{ORB_ID(parameter_update), 1_s};
 	uORB::SubscriptionCallbackWorkItem _local_pos_sub{this, ORB_ID(vehicle_local_position)};
 	uORB::Subscription                 _goto_setpoint_sub{ORB_ID(goto_setpoint)};
@@ -140,20 +83,16 @@ private:
 	uORB::Subscription                 _vehicle_control_mode_sub{ORB_ID(vehicle_control_mode)};
 	uORB::Subscription                 _vehicle_land_detected_sub{ORB_ID(vehicle_land_detected)};
 
-	// --- Publications ---
 	uORB::Publication<vehicle_local_position_setpoint_s> _local_pos_sp_pub{ORB_ID(vehicle_local_position_setpoint)};
 	uORB::Publication<vehicle_attitude_setpoint_s>       _attitude_setpoint_pub{ORB_ID(vehicle_attitude_setpoint)};
 	uORB::PublicationData<takeoff_status_s>              _takeoff_status_pub{ORB_ID(takeoff_status)};
 
-	// --- Timing ---
 	hrt_abstime _time_stamp_last_loop{0};
 	hrt_abstime _time_position_control_enabled{0};
 
-	// --- Cached state ---
 	matrix::Quatf          _q_att{};   ///< current attitude (NED→body thrust rotation)
 	bool                   _q_att_valid{false};
-	trajectory_setpoint_s  _setpoint{PositionControl::empty_trajectory_setpoint};
-	trajectory_setpoint_s  _last_valid_setpoint{PositionControl::empty_trajectory_setpoint};
+	trajectory_setpoint_s  _setpoint{ifodrone::PositionControl::empty_trajectory_setpoint};
 	vehicle_control_mode_s _vehicle_control_mode{};
 
 	vehicle_constraints_s _vehicle_constraints {
@@ -171,7 +110,6 @@ private:
 		.landed = true,
 	};
 
-	// --- Manual mode state ---
 	float            _hold_yaw_angle{0.f};
 	bool             _hold_initialized{false};
 	matrix::Vector2f _vel_damp_body{0.f, 0.f};  ///< washed-out IMU velocity, Stabilized damping
@@ -180,22 +118,14 @@ private:
 	float            _alt_lock{NAN};       ///< latched altitude   (Altitude/Position, throttle centred)
 	bool             _manual_alt_hold_prev{false};
 	bool             _manual_pos_hold_prev{false};
-	/// Altitude assist is not just enabled but actually usable: the vertical
-	/// estimate is valid, so generateManualSetpoint() emitted a climb-rate /
-	/// altitude-lock setpoint rather than degrading to open-loop collective.
-	/// The takeoff and ground-contact gating must follow the law that actually
-	/// ran, not the mode flag, otherwise Altitude/Position deadlock on the
-	/// ground with the throttle stick disconnected.
 	bool             _manual_alt_assisted{false};
 
-	// --- EKF reset counters ---
 	uint8_t _vxy_reset_counter{0};
 	uint8_t _vz_reset_counter{0};
 	uint8_t _xy_reset_counter{0};
 	uint8_t _z_reset_counter{0};
 	uint8_t _heading_reset_counter{0};
 
-	// --- Constants ---
 	static constexpr uint64_t TRAJECTORY_STREAM_TIMEOUT_US = 500_ms;
 	static constexpr float STICK_DEADBAND = 0.1f;      ///< manual stick deadband [-1, 1]
 	static constexpr float LOCK_VEL_MAX = 0.3f;        ///< latch position/altitude below this speed [m/s]
@@ -219,7 +149,6 @@ private:
 		(ParamFloat<px4::params::IFO_VEL_MAX_XY>) _param_ifo_vel_max_xy,
 		(ParamFloat<px4::params::IFO_VEL_MAX_UP>) _param_ifo_vel_max_up,
 		(ParamFloat<px4::params::IFO_VEL_MAX_DN>) _param_ifo_vel_max_dn,
-		(ParamFloat<px4::params::IFO_TKO_SPEED>)  _param_ifo_tko_speed,
 		(ParamFloat<px4::params::IFO_LAND_SPEED>) _param_ifo_land_speed,
 		(ParamFloat<px4::params::COM_SPOOLUP_TIME>) _param_com_spoolup_time,
 		(ParamFloat<px4::params::IFO_TKO_RAMP_T>) _param_ifo_tko_ramp_t,

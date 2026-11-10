@@ -39,6 +39,9 @@
 #include <mathlib/mathlib.h>
 #include <lib/geo/geo.h>
 
+namespace ifodrone
+{
+
 void TakeoffHandling::generateInitialRampValue(float velocity_p_gain)
 {
 	velocity_p_gain = math::max(velocity_p_gain, 0.01f);
@@ -46,7 +49,7 @@ void TakeoffHandling::generateInitialRampValue(float velocity_p_gain)
 }
 
 void TakeoffHandling::updateTakeoffState(const bool armed, const bool landed, const bool want_takeoff,
-		const float takeoff_desired_vz, const bool skip_takeoff, const hrt_abstime &now_us)
+		const bool skip_takeoff, const hrt_abstime &now_us)
 {
 	_spoolup_time_hysteresis.set_state_and_update(armed, now_us);
 
@@ -132,3 +135,5 @@ float TakeoffHandling::updateRamp(const float dt, const float takeoff_desired_vz
 
 	return upwards_velocity_limit;
 }
+
+} // namespace ifodrone

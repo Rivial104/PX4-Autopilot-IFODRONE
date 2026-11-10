@@ -45,6 +45,9 @@
 
 using namespace time_literals;
 
+namespace ifodrone
+{
+
 enum class TakeoffState {
 	disarmed = takeoff_status_s::TAKEOFF_STATE_DISARMED,
 	spoolup = takeoff_status_s::TAKEOFF_STATE_SPOOLUP,
@@ -66,7 +69,6 @@ public:
 	/**
 	 * Calculate a vertical velocity to initialize the takeoff ramp
 	 * that when passed to the velocity controller results in a zero throttle setpoint.
-	 * @param hover_thrust normalized thrsut value with which the vehicle hovers
 	 * @param velocity_p_gain proportional gain of the velocity controller to calculate the thrust
 	 */
 	void generateInitialRampValue(const float velocity_p_gain);
@@ -76,7 +78,7 @@ public:
 	 * Has to be called also when not flying altitude controlled to skip the takeoff and not do it in flight when switching mode.
 	 */
 	void updateTakeoffState(const bool armed, const bool landed, const bool want_takeoff,
-				const float takeoff_desired_vz, const bool skip_takeoff, const hrt_abstime &now_us);
+				const bool skip_takeoff, const hrt_abstime &now_us);
 
 	/**
 	 * Update and return the velocity constraint ramp value during takeoff.
@@ -99,3 +101,5 @@ private:
 	float _takeoff_ramp_vz_init{0.f}; ///< verticval velocity resulting in zero thrust
 	float _takeoff_ramp_progress{0.f}; ///< asecnding from 0 to 1
 };
+
+} // namespace ifodrone

@@ -1,5 +1,6 @@
 #include "IfodroneAttitudeControl.hpp"
 
+#include <float.h>
 #include <drivers/drv_hrt.h>
 #include <mathlib/math/Limits.hpp>
 #include <mathlib/math/Functions.hpp>
@@ -11,6 +12,7 @@ IfodroneAttitudeControl::IfodroneAttitudeControl() :
 	WorkItem(MODULE_NAME, px4::wq_configurations::nav_and_controllers),
 	_loop_perf(perf_alloc(PC_ELAPSED, MODULE_NAME": cycle"))
 {
+	parameters_update();
 }
 
 IfodroneAttitudeControl::~IfodroneAttitudeControl()
@@ -28,6 +30,16 @@ bool IfodroneAttitudeControl::init()
 	return true;
 }
 
+void IfodroneAttitudeControl::parameters_update()
+{
+	updateParams();
+	_attitude_control.setProportionalGain(Vector3f(_param_mc_roll_p.get(), _param_mc_pitch_p.get(),
+					      _param_mc_yaw_p.get()), 1.f);
+	_attitude_control.setRateLimit(Vector3f(math::radians(_param_mc_rollrate_max.get()),
+						math::radians(_param_mc_pitchrate_max.get()),
+						math::radians(_param_mc_yawrate_max.get())));
+}
+
 void IfodroneAttitudeControl::Run()
 {
 	if (should_exit()) {
@@ -41,7 +53,7 @@ void IfodroneAttitudeControl::Run()
 	if (_parameter_update_sub.updated()) {
 		parameter_update_s param_update;
 		_parameter_update_sub.copy(&param_update);
-		updateParams();
+		parameters_update();
 	}
 
 	vehicle_attitude_s att;
@@ -53,114 +65,88 @@ void IfodroneAttitudeControl::Run()
 
 	const float dt = math::constrain(((att.timestamp_sample - _last_run) * 1e-6f), 0.0002f, 0.02f);
 	_last_run = att.timestamp_sample;
-
 	_vehicle_control_mode_sub.update(&_vehicle_control_mode);
-	_manual_control_setpoint_sub.update(&_manual_control_setpoint);
 
-	// ── Current attitude ──────────────────────────────────────────────
-	const Eulerf euler(Quatf(att.q));
-	const float roll  = euler.phi();
-	const float pitch = euler.theta();
-	const float yaw   = euler.psi();
+	if (!_vehicle_control_mode.flag_control_attitude_enabled) {
+		_yaw_setpoint = NAN;
+		_thrust_z = 0.f;
+		perf_end(_loop_perf);
+		return;
+	}
 
-	// ── Setpoint source ───────────────────────────────────────────────
-	// ifo_pos_control owns the thrust vector in every stabilized mode, including
-	// Stabilized itself (sticks → body lateral thrust there). It is driven by
-	// vehicle_local_position, so it goes quiet if the estimator stops; only then
-	// does this module fall back to the estimator-free stick mapping (which is
-	// also what Acro-style modes without attitude stabilization get).
+	const Quatf q(att.q);
+	const float yaw = Eulerf(q).psi();
+	const hrt_abstime now = hrt_absolute_time();
 	vehicle_attitude_setpoint_s att_sp{};
-	const bool att_sp_valid = _vehicle_attitude_setpoint_sub.copy(&att_sp) && (att_sp.timestamp != 0);
-	const bool att_sp_fresh = att_sp_valid && (hrt_absolute_time() < att_sp.timestamp + ATT_SP_TIMEOUT);
-
+	const bool att_sp_valid = _vehicle_attitude_setpoint_sub.copy(&att_sp) && att_sp.timestamp != 0;
+	const bool att_sp_fresh = att_sp_valid && now < att_sp.timestamp + ATT_SP_TIMEOUT;
 	const bool manual_fallback = _vehicle_control_mode.flag_control_manual_enabled && !att_sp_fresh;
 
-	// ── Yaw setpoint + thrust source ──────────────────────────────────
-	float    yaw_rate_ff = 0.f;
-	Vector3f thrust_body{0.f, 0.f, 0.f};
-	float    roll_sp  = 0.f;   // always level; tracks att_sp (which publishes 0) in Auto/Position
-	float    pitch_sp = 0.f;
+	float yaw_rate_ff = 0.f;
+	Vector3f thrust_body{};
+	Quatf q_sp(Eulerf(0.f, 0.f, yaw));
 
 	if (manual_fallback) {
-		// Yaw stick integrates the heading setpoint.
-		if (!PX4_ISFINITE(_yaw_setpoint)) {
+		// Hold the last collective until commander handles a lost manual input.
+		thrust_body(2) = _thrust_z;
+		manual_control_setpoint_s manual{};
+		const bool manual_valid = _manual_control_setpoint_sub.copy(&manual) && manual.valid
+					  && now < manual.timestamp + 500_ms
+					  && PX4_ISFINITE(manual.yaw) && PX4_ISFINITE(manual.throttle);
+
+		if (!manual_valid || !PX4_ISFINITE(_yaw_setpoint) || !_vehicle_control_mode.flag_armed) {
 			_yaw_setpoint = yaw;
 		}
 
-		const float yaw_stick_rate = _manual_control_setpoint.yaw * YAW_RATE_MAX;
-		_yaw_setpoint = wrap_pi(_yaw_setpoint + yaw_stick_rate * dt);
-		yaw_rate_ff   = yaw_stick_rate;
+		if (manual_valid) {
+			yaw_rate_ff = math::constrain(manual.yaw, -1.f, 1.f) * YAW_RATE_MAX;
+			_yaw_setpoint = wrap_pi(_yaw_setpoint + yaw_rate_ff * dt);
+			const float throttle = math::constrain((manual.throttle + 1.f) * 0.5f, 0.f, 1.f);
+			thrust_body(2) = -(THROTTLE_IDLE + throttle * (1.f - THROTTLE_IDLE));
+		}
 
-		// Throttle stick → vertical thrust (level body: XY thrust = 0).
-		const float throttle_raw = (_manual_control_setpoint.throttle + 1.f) * 0.5f;
-		const float throttle     = THROTTLE_IDLE + throttle_raw * (1.f - THROTTLE_IDLE);
-		thrust_body(2) = -throttle;
+		q_sp = Quatf(Eulerf(0.f, 0.f, _yaw_setpoint));
 
 	} else {
-		// Stabilized / Altitude / Position / Auto: yaw and the full 3D thrust vector
-		// come from ifo_pos_control via vehicle_attitude_setpoint.
 		_yaw_setpoint = NAN;
 
 		if (att_sp_valid) {
-			const Eulerf e_sp(Quatf(att_sp.q_d));
+			const Quatf requested(att_sp.q_d);
 
-			// ifo_pos_control always publishes a level attitude setpoint (roll/pitch = 0);
-			// translation is realized by the thrust setpoint via the control allocator.
-			if (PX4_ISFINITE(e_sp.phi()))   { roll_sp  = e_sp.phi(); }
-			if (PX4_ISFINITE(e_sp.theta())) { pitch_sp = e_sp.theta(); }
-
-			if (PX4_ISFINITE(e_sp.psi())) {
-				_yaw_setpoint = e_sp.psi();
+			if (requested.isAllFinite() && requested.norm_squared() > FLT_EPSILON) {
+				q_sp = requested;
 			}
 
-			if (PX4_ISFINITE(att_sp.yaw_sp_move_rate)) {
-				yaw_rate_ff = att_sp.yaw_sp_move_rate;
+			thrust_body = Vector3f(att_sp.thrust_body);
+
+			if (att_sp_fresh) {
+				yaw_rate_ff = PX4_ISFINITE(att_sp.yaw_sp_move_rate) ? att_sp.yaw_sp_move_rate : 0.f;
+
+			} else {
+				// Without feedback, stop lateral acceleration and yaw feedforward.
+				thrust_body.xy() = Vector2f();
 			}
-
-			thrust_body(0) = att_sp.thrust_body[0];
-			thrust_body(1) = att_sp.thrust_body[1];
-			thrust_body(2) = att_sp.thrust_body[2];
-
-			// Stale setpoint outside the manual modes (ifo_pos_control stopped, e.g.
-			// the local position estimate is gone in an auto/failsafe mode): a held
-			// lateral thrust is a constant sideways acceleration with nothing left
-			// to close the loop, so drop it and keep only the collective.
-			if (!att_sp_fresh) {
-				thrust_body(0) = 0.f;
-				thrust_body(1) = 0.f;
-			}
-		}
-
-		// NaN guard: a non-finite component must never reach mc_rate_control
-		for (int i = 0; i < 3; ++i) {
-			if (!PX4_ISFINITE(thrust_body(i))) {
-				thrust_body(i) = 0.f;
-			}
-		}
-
-		if (!PX4_ISFINITE(_yaw_setpoint)) {
-			_yaw_setpoint = yaw;
 		}
 	}
 
-	// Final feasibility guard at the allocator boundary. The fixed coaxial pair
-	// cannot produce body +Z; never forward that component even if another
-	// attitude-setpoint publisher bypasses ifo_pos_control.
-	thrust_body(2) = math::min(thrust_body(2), 0.f);
+	for (int i = 0; i < 3; ++i) {
+		if (!PX4_ISFINITE(thrust_body(i))) {
+			thrust_body(i) = 0.f;
+		}
+	}
 
-	// ── Attitude error → rate setpoint (P controller) ─────────────────
-	// The IFODRONE body is kept level: roll/pitch setpoint is 0 in all modes.
-	const float roll_error  = roll_sp  - roll;
-	const float pitch_error = pitch_sp - pitch;
-	const float yaw_error   = wrap_pi(_yaw_setpoint - yaw);
+	// The fixed coaxial pair cannot produce body +Z thrust.
+	thrust_body(2) = math::min(thrust_body(2), 0.f);
+	_thrust_z = _vehicle_control_mode.flag_armed ? thrust_body(2) : 0.f;
+	_attitude_control.setAttitudeSetpoint(q_sp, yaw_rate_ff);
+	const Vector3f rates = _attitude_control.update(q);
 
 	vehicle_rates_setpoint_s rates_sp{};
-	rates_sp.roll  = math::constrain(_param_mc_roll_p.get()  * roll_error,  -RATE_LIMIT_RP,  RATE_LIMIT_RP);
-	rates_sp.pitch = math::constrain(_param_mc_pitch_p.get() * pitch_error, -RATE_LIMIT_RP,  RATE_LIMIT_RP);
-	rates_sp.yaw   = math::constrain(_param_mc_yaw_p.get()   * yaw_error + yaw_rate_ff,
-					 -RATE_LIMIT_YAW, RATE_LIMIT_YAW);
+	rates_sp.roll = rates(0);
+	rates_sp.pitch = rates(1);
+	rates_sp.yaw = rates(2);
 	thrust_body.copyTo(rates_sp.thrust_body);
-	rates_sp.timestamp = hrt_absolute_time();
+	rates_sp.timestamp = now;
 	_vehicle_rates_setpoint_pub.publish(rates_sp);
 
 	perf_end(_loop_perf);
@@ -177,6 +163,7 @@ int IfodroneAttitudeControl::task_spawn(int argc, char *argv[])
 		if (instance->init()) {
 			return PX4_OK;
 		}
+
 	} else {
 		PX4_ERR("alloc failed");
 	}
@@ -198,7 +185,7 @@ int IfodroneAttitudeControl::print_usage(const char *reason)
 ### Description
 IFODRONE outer-loop attitude controller.
 
-P controller: roll/pitch/yaw attitude error → body rate setpoint.
+Quaternion attitude controller producing body rate setpoints.
 Publishes vehicle_rates_setpoint (with thrust_body) for mc_rate_control,
 which runs the inner-loop rate PID at gyro rate.
 )DESCR_STR");

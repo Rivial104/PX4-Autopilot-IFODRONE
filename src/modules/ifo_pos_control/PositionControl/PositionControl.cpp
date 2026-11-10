@@ -37,12 +37,14 @@
 
 #include "PositionControl.hpp"
 #include "ControlMath.hpp"
-#include <float.h>
 #include <mathlib/mathlib.h>
 #include <px4_platform_common/defines.h>
 #include <geo/geo.h>
 
 using namespace matrix;
+
+namespace ifodrone
+{
 
 const trajectory_setpoint_s PositionControl::empty_trajectory_setpoint = {0, {NAN, NAN, NAN}, {NAN, NAN, NAN}, {NAN, NAN, NAN}, {NAN, NAN, NAN}, NAN, NAN};
 
@@ -62,30 +64,8 @@ void PositionControl::setVelocityLimits(const float vel_horizontal, const float 
 
 void PositionControl::setThrustLimits(const float min, const float max)
 {
-	// make sure there's always enough thrust vector length to infer the attitude
-	_lim_thr_min = math::max(min, 10e-4f);
-	_lim_thr_max = max;
-}
-
-void PositionControl::setHorizontalThrustMargin(const float margin)
-{
-	_lim_thr_xy_margin = margin;
-}
-
-void PositionControl::updateHoverThrust(const float hover_thrust_new)
-{
-	// Given that the equation for thrust is T = a_sp * Th / g - Th
-	// with a_sp = desired acceleration, Th = hover thrust and g = gravity constant,
-	// we want to find the acceleration that needs to be added to the integrator in order obtain
-	// the same thrust after replacing the current hover thrust by the new one.
-	// T' = T => a_sp' * Th' / g - Th' = a_sp * Th / g - Th
-	// so a_sp' = (a_sp - g) * Th / Th' + g
-	// we can then add a_sp' - a_sp to the current integrator to absorb the effect of changing Th by Th'
-	const float previous_hover_thrust = _hover_thrust;
-	setHoverThrust(hover_thrust_new);
-
-	_vel_int(2) += (_acc_sp(2) - CONSTANTS_ONE_G) * previous_hover_thrust / _hover_thrust
-		       + CONSTANTS_ONE_G - _acc_sp(2);
+	_lim_thr_max = math::max(max, 0.f);
+	_lim_thr_min = math::constrain(min, 0.f, _lim_thr_max);
 }
 
 void PositionControl::setState(const PositionControlStates &states)
@@ -114,7 +94,7 @@ bool PositionControl::update(const float dt)
 		_velocityControl(dt);
 
 		_yawspeed_sp = PX4_ISFINITE(_yawspeed_sp) ? _yawspeed_sp : 0.f;
-		_yaw_sp = PX4_ISFINITE(_yaw_sp) ? _yaw_sp : _yaw; // TODO: better way to disable yaw control
+		_yaw_sp = PX4_ISFINITE(_yaw_sp) ? _yaw_sp : _yaw;
 	}
 
 	// There has to be a valid output acceleration and thrust setpoint otherwise something went wrong
@@ -151,53 +131,48 @@ void PositionControl::_velocityControl(const float dt)
 
 	_accelerationControl();
 
-	// Integrator anti-windup in vertical direction
-	if ((_thr_sp(2) >= -_lim_thr_min && vel_error(2) >= 0.f) ||
-	    (_thr_sp(2) <= -_lim_thr_max && vel_error(2) <= 0.f)) {
-		vel_error(2) = 0.f;
-	}
-
 	// Prioritize vertical control while keeping a horizontal margin
 	const Vector2f thrust_sp_xy(_thr_sp);
 	const float thrust_sp_xy_norm = thrust_sp_xy.norm();
 	const float thrust_max_squared = math::sq(_lim_thr_max);
 
 	// Determine how much vertical thrust is left keeping horizontal margin
-	const float allocated_horizontal_thrust = math::min(thrust_sp_xy_norm, _lim_thr_xy_margin);
-	const float thrust_z_max_squared = thrust_max_squared - math::sq(allocated_horizontal_thrust);
+	const float allocated_horizontal_thrust = math::min(thrust_sp_xy_norm, math::min(_lim_thr_xy_max, _lim_thr_max));
+	const float thrust_z_max = sqrtf(math::max(thrust_max_squared - math::sq(allocated_horizontal_thrust), 0.f));
 
 	// Saturate maximal vertical thrust
-	_thr_sp(2) = math::max(_thr_sp(2), -sqrtf(thrust_z_max_squared));
+	_thr_sp(2) = math::max(_thr_sp(2), -thrust_z_max);
+
+	if ((_thr_sp(2) >= -_lim_thr_min && vel_error(2) >= 0.f) ||
+	    (_thr_sp(2) <= -thrust_z_max && vel_error(2) <= 0.f)) {
+		vel_error(2) = 0.f;
+	}
 
 	// Determine how much horizontal thrust is left after prioritizing vertical control
 	const float thrust_max_xy_squared = thrust_max_squared - math::sq(_thr_sp(2));
-	float thrust_max_xy = 0.f;
-
-	if (thrust_max_xy_squared > 0.f) {
-		thrust_max_xy = sqrtf(thrust_max_xy_squared);
-	}
-
-	// Absolute horizontal limit (IFODRONE side-EDF authority)
-	if (_lim_thr_xy_max > 0.f) {
-		thrust_max_xy = math::min(thrust_max_xy, _lim_thr_xy_max);
-	}
+	const float thrust_max_xy = math::min(sqrtf(math::max(thrust_max_xy_squared, 0.f)), _lim_thr_xy_max);
+	const bool horizontal_saturated = thrust_sp_xy_norm > thrust_max_xy;
 
 	// Saturate thrust in horizontal direction
-	if (thrust_sp_xy_norm > thrust_max_xy) {
+	if (horizontal_saturated) {
 		_thr_sp.xy() = thrust_sp_xy / thrust_sp_xy_norm * thrust_max_xy;
 	}
 
-	// Use tracking Anti-Windup for horizontal direction: during saturation, the integrator is used to unsaturate the output
-	// see Anti-Reset Windup for PID controllers, L.Rundqwist, 1990
-	const Vector2f acc_sp_xy_produced = Vector2f(_thr_sp) * (CONSTANTS_ONE_G / _hover_thrust);
+	// Tracking anti-windup; with P disabled, only block integration into saturation.
+	if (horizontal_saturated) {
+		const Vector2f acc_sp_xy_produced = Vector2f(_thr_sp) * (CONSTANTS_ONE_G / _hover_thrust);
+		const Vector2f unproduced_acceleration = _acc_sp.xy() - acc_sp_xy_produced;
 
-	// The produced acceleration can be greater or smaller than the desired acceleration due to the saturations and the actual vertical thrust (computed independently).
-	// The ARW loop needs to run if the signal is saturated only.
-	if (_acc_sp.xy().norm_squared() > acc_sp_xy_produced.norm_squared()) {
-		const float arw_gain = 2.f / _gain_vel_p(0);
-		const Vector2f acc_sp_xy = _acc_sp.xy();
+		if (_gain_vel_p(0) > 0.f) {
+			vel_error.xy() -= (2.f / _gain_vel_p(0)) * unproduced_acceleration;
 
-		vel_error.xy() = Vector2f(vel_error) - arw_gain * (acc_sp_xy - acc_sp_xy_produced);
+		} else {
+			for (int i = 0; i < 2; ++i) {
+				if (vel_error(i) * unproduced_acceleration(i) > 0.f) {
+					vel_error(i) = 0.f;
+				}
+			}
+		}
 	}
 
 	// Make sure integral doesn't get NAN
@@ -208,22 +183,9 @@ void PositionControl::_velocityControl(const float dt)
 
 void PositionControl::_accelerationControl()
 {
-	// Assume standard acceleration due to gravity in vertical direction for attitude generation
-	float z_specific_force = -CONSTANTS_ONE_G;
-
-	if (!_decouple_horizontal_and_vertical_acceleration) {
-		// Include vertical acceleration setpoint for better horizontal acceleration tracking
-		z_specific_force += _acc_sp(2);
-	}
-
-	Vector3f body_z = Vector3f(-_acc_sp(0), -_acc_sp(1), -z_specific_force).normalized();
-	ControlMath::limitTilt(body_z, Vector3f(0, 0, 1), _lim_tilt);
-	// Convert to thrust assuming hover thrust produces standard gravity
-	const float thrust_ned_z = _acc_sp(2) * (_hover_thrust / CONSTANTS_ONE_G) - _hover_thrust;
-	// Project thrust to planned body attitude
-	const float cos_ned_body = (Vector3f(0, 0, 1).dot(body_z));
-	const float collective_thrust = math::min(thrust_ned_z / cos_ned_body, -_lim_thr_min);
-	_thr_sp = body_z * collective_thrust;
+	// Independent force axes: horizontal thrust does not depend on climb acceleration.
+	_thr_sp = _acc_sp * (_hover_thrust / CONSTANTS_ONE_G);
+	_thr_sp(2) = math::min(_thr_sp(2) - _hover_thrust, -_lim_thr_min);
 }
 
 bool PositionControl::_inputValid()
@@ -246,7 +208,7 @@ bool PositionControl::_inputValid()
 			valid = valid && PX4_ISFINITE(_pos(i));
 		}
 
-		if (PX4_ISFINITE(_vel_sp(i))) {
+		if (PX4_ISFINITE(_pos_sp(i)) || PX4_ISFINITE(_vel_sp(i))) {
 			valid = valid && PX4_ISFINITE(_vel(i)) && PX4_ISFINITE(_vel_dot(i));
 		}
 	}
@@ -268,8 +230,4 @@ void PositionControl::getLocalPositionSetpoint(vehicle_local_position_setpoint_s
 	_thr_sp.copyTo(local_position_setpoint.thrust);
 }
 
-void PositionControl::getAttitudeSetpoint(vehicle_attitude_setpoint_s &attitude_setpoint) const
-{
-	ControlMath::thrustToAttitude(_thr_sp, _yaw_sp, attitude_setpoint);
-	attitude_setpoint.yaw_sp_move_rate = _yawspeed_sp;
-}
+} // namespace ifodrone
