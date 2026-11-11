@@ -175,8 +175,10 @@ protected:
 		}
 	}
 
-	// Runs updateSetpoint() on an instance whose matrix was already computed; returns the booster setpoint
-	static float boosterSp(ActuatorEffectivenessIfodrone &ifo, float sp0, float sp1, float sp_boost_in = 0.f)
+	struct SpResult { float coax0, coax1, booster; };
+
+	// Runs updateSetpoint() on an instance whose matrix was already computed; returns coax + booster setpoints
+	static SpResult runSp(ActuatorEffectivenessIfodrone &ifo, float sp0, float sp1, float sp_boost_in = 0.f)
 	{
 		ActuatorVector sp{}, min{}, max{};
 		defaultLimits(min, max);
@@ -189,23 +191,31 @@ protected:
 		sp(1) = sp1;
 		sp(BOOSTER) = sp_boost_in;
 		ifo.updateSetpoint(Vector<float, NUM_AXES> {}, 0, sp, min, max);
+		return {sp(0), sp(1), sp(BOOSTER)};
+	}
 
-		// Coax setpoints themselves must not be touched
-		if (std::isnan(sp0)) {
-			EXPECT_TRUE(std::isnan(sp(0)));
+	// Booster setpoint only (coax rewritten by the thrust-priority desaturation is not checked here)
+	static float boosterSp(ActuatorEffectivenessIfodrone &ifo, float sp0, float sp1, float sp_boost_in = 0.f)
+	{
+		return runSp(ifo, sp0, sp1, sp_boost_in).booster;
+	}
 
-		} else {
-			EXPECT_FLOAT_EQ(sp(0), sp0);
-		}
+	// Booster disabled: coax setpoints must pass through untouched
+	static float boosterSpUntouchedCoax(ActuatorEffectivenessIfodrone &ifo, float sp0, float sp1, float sp_boost_in)
+	{
+		const SpResult r = runSp(ifo, sp0, sp1, sp_boost_in);
+		EXPECT_FLOAT_EQ(r.coax0, sp0);
+		EXPECT_FLOAT_EQ(r.coax1, sp1);
+		return r.booster;
+	}
 
-		if (std::isnan(sp1)) {
-			EXPECT_TRUE(std::isnan(sp(1)));
-
-		} else {
-			EXPECT_FLOAT_EQ(sp(1), sp1);
-		}
-
-		return sp(BOOSTER);
+	static void expectCoax(ActuatorEffectivenessIfodrone &ifo, float sp0, float sp1,
+			       float e0, float e1, float eb)
+	{
+		const SpResult r = runSp(ifo, sp0, sp1);
+		EXPECT_NEAR(r.coax0, e0, TOL) << "in (" << sp0 << ", " << sp1 << ")";
+		EXPECT_NEAR(r.coax1, e1, TOL) << "in (" << sp0 << ", " << sp1 << ")";
+		EXPECT_NEAR(r.booster, eb, TOL) << "in (" << sp0 << ", " << sp1 << ")";
 	}
 };
 
@@ -304,28 +314,50 @@ TEST_F(ActuatorEffectivenessIfodroneTest, BoosterSetpointFollowsCoaxMean)
 	ActuatorEffectivenessIfodrone ifo(nullptr);
 	computeMatrix(ifo);
 
-	EXPECT_NEAR(boosterSp(ifo, 0.3f, 0.1f), 0.4f, TOL);
-	EXPECT_NEAR(boosterSp(ifo, 0.f, 0.f), 0.f, TOL);
-	// 2 * 0.7 = 1.4 -> clipped to booster max 1
-	EXPECT_NEAR(boosterSp(ifo, 0.8f, 0.6f), 1.f, TOL);
-	// Coax clipped before averaging: (1.0 + 0.0) / 2 * 2 = 1.0, not (1.5 + 0.0)
-	EXPECT_NEAR(boosterSp(ifo, 1.5f, 0.f), 1.f, TOL);
-	// Negative coax clipped to 0: (0.2 + 0) / 2 * 2 = 0.2
-	EXPECT_NEAR(boosterSp(ifo, 0.2f, -0.6f), 0.2f, TOL);
-	// Non-finite coax setpoint is treated as 0
-	EXPECT_NEAR(boosterSp(ifo, NAN, 0.3f), 0.3f, TOL);
+	expectCoax(ifo, 0.3f, 0.1f, 0.3f, 0.1f, 0.4f);
+	expectCoax(ifo, 0.f, 0.f, 0.f, 0.f, 0.f);
+	// 2 * 0.7 = 1.4 -> booster clipped to 1
+	expectCoax(ifo, 0.8f, 0.6f, 0.8f, 0.6f, 1.f);
+	// m 0.75, d 0.75 -> d limited to 1 - m = 0.25 -> coax (1.0, 0.5); booster 1.5 -> 1
+	expectCoax(ifo, 1.5f, 0.f, 1.f, 0.5f, 1.f);
+	// m -0.2 -> 0, d limited to 0 -> coax (0, 0), booster 0
+	expectCoax(ifo, 0.2f, -0.6f, 0.f, 0.f, 0.f);
+	// Non-finite coax setpoint is treated as 0: m 0.15, d -0.15 -> (0, 0.3)
+	expectCoax(ifo, NAN, 0.3f, 0.f, 0.3f, 0.3f);
 }
 
-TEST_F(ActuatorEffectivenessIfodroneTest, BoosterSetpointClipBeforeMeanRatio1)
+TEST_F(ActuatorEffectivenessIfodroneTest, CoaxDesaturationKeepsMeanRatio1)
 {
 	setF("IFO_BST_RATIO", 1.f);
 	setI("IFO_BST_ROTOR", BOOSTER);
 	ActuatorEffectivenessIfodrone ifo(nullptr);
 	computeMatrix(ifo);
 
-	// mean(clip(1.5)=1, 0.2) = 0.6 (unclipped mean would be 0.85)
-	EXPECT_NEAR(boosterSp(ifo, 1.5f, 0.2f), 0.6f, TOL);
-	EXPECT_NEAR(boosterSp(ifo, 0.5f, 0.3f), 0.4f, TOL);
+	// m 0.85, d 0.65 -> limited to 0.15 -> coax (1.0, 0.7), booster = m = 0.85
+	expectCoax(ifo, 1.5f, 0.2f, 1.f, 0.7f, 0.85f);
+	expectCoax(ifo, 0.5f, 0.3f, 0.5f, 0.3f, 0.4f);
+}
+
+TEST_F(ActuatorEffectivenessIfodroneTest, YawSaturationDoesNotRaiseBooster)
+{
+	setF("IFO_BST_RATIO", 2.f);
+	setI("IFO_BST_ROTOR", BOOSTER);
+	ActuatorEffectivenessIfodrone ifo(nullptr);
+	computeMatrix(ifo);
+
+	const float m = 0.22f;
+	const float ds[] = {0.1f, 0.22f, 0.4f, 0.6f};
+
+	for (float d : ds) {
+		const SpResult r = runSp(ifo, m + d, m - d);
+		EXPECT_NEAR(r.booster, 0.44f, TOL) << "d " << d;
+		EXPECT_NEAR(0.5f * (r.coax0 + r.coax1), m, TOL) << "d " << d;
+		EXPECT_GE(r.coax0, -TOL) << "d " << d;
+		EXPECT_LE(r.coax0, 1.f + TOL) << "d " << d;
+		EXPECT_GE(r.coax1, -TOL) << "d " << d;
+		EXPECT_LE(r.coax1, 1.f + TOL) << "d " << d;
+		EXPECT_NEAR(0.5f * std::fabs(r.coax0 - r.coax1), std::min(d, m), TOL) << "d " << d;
+	}
 }
 
 TEST_F(ActuatorEffectivenessIfodroneTest, PureYawDoesNotChangeBooster)
@@ -356,7 +388,7 @@ TEST_F(ActuatorEffectivenessIfodroneTest, InvalidIndexDisablesBooster)
 		expectMatricesEqual(m, off, "invalid index");
 
 		// Booster setpoint passes through untouched
-		EXPECT_NEAR(boosterSp(ifo, 0.3f, 0.1f, 0.77f), 0.77f, TOL);
+		EXPECT_NEAR(boosterSpUntouchedCoax(ifo, 0.3f, 0.1f, 0.77f), 0.77f, TOL);
 	}
 }
 
@@ -365,5 +397,5 @@ TEST_F(ActuatorEffectivenessIfodroneTest, DisabledDoesNotTouchBoosterSetpoint)
 	setI("IFO_BST_ROTOR", -1);
 	ActuatorEffectivenessIfodrone ifo(nullptr);
 	computeMatrix(ifo);
-	EXPECT_NEAR(boosterSp(ifo, 0.8f, 0.6f, 0.123f), 0.123f, TOL);
+	EXPECT_NEAR(boosterSpUntouchedCoax(ifo, 0.8f, 0.6f, 0.123f), 0.123f, TOL);
 }

@@ -242,17 +242,27 @@ void ActuatorEffectivenessIfodrone::updateSetpoint(const matrix::Vector<float, N
 		actuator_sp(actuator_idx) = trim + tilt_gain * (actuator_sp(actuator_idx) - trim);
 	}
 
-	// Booster follows the coax mean actually driven (clipped like the outputs will be), so the
-	// folded coax columns of the next matrix match the physical thrust
+	// Booster: thrust-priority desaturation of the coax pair, then the booster follows the coax mean.
 	if (_booster_idx >= 0 && _booster_idx < NUM_ACTUATORS) {
-		auto clipped = [&](int i) {
-			const float sp = PX4_ISFINITE(actuator_sp(i)) ? actuator_sp(i) : 0.f;
+		auto finite = [&](int i) { return PX4_ISFINITE(actuator_sp(i)) ? actuator_sp(i) : 0.f; };
+		auto clipped = [&](int i, float sp) {
 			return (actuator_min(i) < actuator_max(i)) ? math::constrain(sp, actuator_min(i), actuator_max(i)) : sp;
 		};
 
-		const float coax_mean = 0.5f * (clipped(COAX_TOP) + clipped(COAX_BOTTOM));
-		actuator_sp(_booster_idx) = boosterRatio() * coax_mean;
-		actuator_sp(_booster_idx) = clipped(_booster_idx);
+		const float coax_min = math::max(actuator_min(COAX_TOP), actuator_min(COAX_BOTTOM));
+		const float coax_max = math::min(actuator_max(COAX_TOP), actuator_max(COAX_BOTTOM));
+		float coax_mean = 0.5f * (finite(COAX_TOP) + finite(COAX_BOTTOM));
+		float coax_diff = 0.5f * (finite(COAX_TOP) - finite(COAX_BOTTOM));
+
+		if (coax_min < coax_max) {
+			coax_mean = math::constrain(coax_mean, coax_min, coax_max);
+			const float diff_max = math::min(coax_mean - coax_min, coax_max - coax_mean);
+			coax_diff = math::constrain(coax_diff, -diff_max, diff_max);
+		}
+
+		actuator_sp(COAX_TOP) = coax_mean + coax_diff;
+		actuator_sp(COAX_BOTTOM) = coax_mean - coax_diff;
+		actuator_sp(_booster_idx) = clipped(_booster_idx, boosterRatio() * coax_mean);
 	}
 
 	// Next cycle's matrix is linearized around the command actually driven (after gains, clipped to the
