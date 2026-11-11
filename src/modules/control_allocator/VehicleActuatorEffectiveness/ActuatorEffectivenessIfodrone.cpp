@@ -28,6 +28,8 @@
 #include <px4_platform_common/log.h>
 #include <lib/mathlib/mathlib.h>
 
+#include <inttypes.h>
+
 using namespace matrix;
 
 ActuatorEffectivenessIfodrone::ActuatorEffectivenessIfodrone(ModuleParams *parent)
@@ -85,6 +87,37 @@ void ActuatorEffectivenessIfodrone::ensureLinPoint(int num_rotors)
 	}
 }
 
+int ActuatorEffectivenessIfodrone::boosterIndex(int num_rotors)
+{
+	const int32_t param = _param_ifo_bst_rotor.get();
+
+	if (param < 0) {
+		return -1;
+	}
+
+	// The booster is slaved to the coax pair: it must exist, must not be one of the coax motors
+	// and must not carry a tilt servo (its column is folded into the fixed coax columns)
+	const bool valid = (num_rotors > COAX_BOTTOM + 1) && (param > COAX_BOTTOM) && (param < num_rotors)
+			   && (_mc_motors.geometry().rotors[param].tilt_index < 0);
+
+	if (!valid) {
+		if (_booster_warned_param != param) {
+			PX4_WARN("IFO_BST_ROTOR %" PRId32 " invalid (needs untilted rotor 2..%d), booster disabled",
+				 param, num_rotors - 1);
+			_booster_warned_param = param;
+		}
+
+		return -1;
+	}
+
+	return param;
+}
+
+float ActuatorEffectivenessIfodrone::boosterRatio() const
+{
+	return math::constrain(_param_ifo_bst_ratio.get(), 0.f, 10.f);
+}
+
 bool
 ActuatorEffectivenessIfodrone::getEffectivenessMatrix(Configuration &configuration,
 		EffectivenessUpdateReason /*external_update*/)
@@ -104,7 +137,31 @@ ActuatorEffectivenessIfodrone::getEffectivenessMatrix(Configuration &configurati
 	// Rotate the side-EDF axes to the current tilt angles, then add the motor
 	// columns (3D force + torque at the current operating point)
 	_mc_motors.updateAxisFromTiltSetpoints(_tilts, _lin_point, _first_tilt_idx);
+	const int motor_start_idx = configuration.num_actuators_matrix[configuration.selected_matrix];
 	const bool motors_ok = _mc_motors.addActuators(configuration);
+
+	// Vertical booster: slaved to the coax mean, u_boost = g * (u_top + u_bottom) / 2 (updateSetpoint()).
+	// Its wrench therefore enters through the coax columns, g/2 of it per coax motor, and its own
+	// column is zeroed so the pseudo-inverse never allocates it. B * u stays the physical wrench, so
+	// the allocator status (unallocated thrust/torque) remains correct. The whole column is folded,
+	// not only Fz: a booster offset from the centroid or a non-zero KM is then attributed correctly.
+	_booster_idx = motors_ok ? boosterIndex(num_rotors) : -1;
+
+	if (_booster_idx >= 0) {
+		auto &matrix = configuration.effectiveness_matrices[configuration.selected_matrix];
+		const int col_boost = motor_start_idx + _booster_idx;
+		const float half_ratio = 0.5f * boosterRatio();
+
+		for (int axis = 0; axis < NUM_AXES; ++axis) {
+			const float boost = matrix(axis, col_boost);
+			matrix(axis, motor_start_idx + COAX_TOP) += half_ratio * boost;
+			matrix(axis, motor_start_idx + COAX_BOTTOM) += half_ratio * boost;
+			matrix(axis, col_boost) = 0.f;
+		}
+
+		// Booster index is used as an actuator index in updateSetpoint()
+		_booster_idx = col_boost;
+	}
 
 	// Side EDFs are unidirectional: trim is the shared idle baseline, allocation is differential around it
 	for (int i = 0; i < num_rotors; ++i) {
@@ -183,6 +240,19 @@ void ActuatorEffectivenessIfodrone::updateSetpoint(const matrix::Vector<float, N
 		const int actuator_idx = _first_tilt_idx + i;
 		const float trim = tiltTrim(i, hover_angle_rad);
 		actuator_sp(actuator_idx) = trim + tilt_gain * (actuator_sp(actuator_idx) - trim);
+	}
+
+	// Booster follows the coax mean actually driven (clipped like the outputs will be), so the
+	// folded coax columns of the next matrix match the physical thrust
+	if (_booster_idx >= 0 && _booster_idx < NUM_ACTUATORS) {
+		auto clipped = [&](int i) {
+			const float sp = PX4_ISFINITE(actuator_sp(i)) ? actuator_sp(i) : 0.f;
+			return (actuator_min(i) < actuator_max(i)) ? math::constrain(sp, actuator_min(i), actuator_max(i)) : sp;
+		};
+
+		const float coax_mean = 0.5f * (clipped(COAX_TOP) + clipped(COAX_BOTTOM));
+		actuator_sp(_booster_idx) = boosterRatio() * coax_mean;
+		actuator_sp(_booster_idx) = clipped(_booster_idx);
 	}
 
 	// Next cycle's matrix is linearized around the command actually driven (after gains, clipped to the

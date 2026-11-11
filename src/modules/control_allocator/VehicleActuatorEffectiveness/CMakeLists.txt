@@ -46,3 +46,4 @@ target_link_libraries(VehicleActuatorEffectiveness
 
 px4_add_functional_gtest(SRC ActuatorEffectivenessHelicopterTest.cpp LINKLIBS VehicleActuatorEffectiveness)
 px4_add_functional_gtest(SRC ActuatorEffectivenessRotorsTest.cpp LINKLIBS VehicleActuatorEffectiveness)
+px4_add_functional_gtest(SRC ActuatorEffectivenessIfodroneTest.cpp LINKLIBS VehicleActuatorEffectiveness)

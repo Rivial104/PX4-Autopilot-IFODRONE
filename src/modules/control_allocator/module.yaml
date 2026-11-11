@@ -123,6 +123,37 @@ parameters:
             increment: 0.01
             default: 0.05
 
+        IFO_BST_ROTOR:
+            description:
+                short: IFODRONE booster rotor index
+                long: |
+                  Index of the CA rotor (CA_ROTORn) that is the vertical EDF booster: four
+                  upward EDFs driven by one PWM output. The booster is not allocated by the
+                  pseudo-inverse; it follows the mean command of the coaxial pair (rotors 0
+                  and 1) scaled by IFO_BST_RATIO, and its thrust is added to the Fz column
+                  of the coaxial motors. Must be a rotor without tilt servo and not 0/1.
+                  -1 disables the booster (allocation identical to the configuration
+                  without booster).
+            type: int32
+            min: -1
+            max: 11
+            default: -1
+
+        IFO_BST_RATIO:
+            description:
+                short: IFODRONE booster command ratio
+                long: |
+                  Booster command = IFO_BST_RATIO * mean(coax motor 0, coax motor 1),
+                  clipped to [0, 1]. Sets the Fz share between booster and coaxial pair:
+                  a higher ratio moves more thrust to the booster but lowers the coax
+                  operating point, and with it the yaw authority (yaw comes only from the
+                  coax differential, limited by the coax mean command).
+            type: float
+            decimal: 2
+            min: 0.0
+            max: 10.0
+            default: 1.0
+
         # Motor parameters
         CA_R_REV:
             description:
