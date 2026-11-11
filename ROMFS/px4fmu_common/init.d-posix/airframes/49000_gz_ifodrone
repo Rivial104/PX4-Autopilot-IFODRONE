@@ -2,7 +2,7 @@
 #
 # @name IfoDrone Airframe
 #
-# @description IfoDrone - Hybrid multicopter with 2 main Z-axis motors and 4 tilting side motors
+# @description IfoDrone - Hybrid multicopter with 2 main Z-axis motors, 4 tilting side motors and a 4x EDF vertical booster
 #
 # Parameter reference (why each value is what it is): IFODRONE-params.md
 #
@@ -13,6 +13,7 @@
 #   EC4    ->    104     CA_ROTOR3      side1 right EDF
 #   EC5    ->    105     CA_ROTOR4      side2 back  EDF
 #   EC6    ->    106     CA_ROTOR5      side3 left  EDF
+#   EC7    ->    107     CA_ROTOR6      booster: 4x EDF up (one signal, gz motorNumber 6)
 #   SV1    ->    201     CA_SV_TL0      tilt front
 #   SV2    ->    202     CA_SV_TL1      tilt right
 #   SV3    ->    203     CA_SV_TL2      tilt back
@@ -35,13 +36,21 @@ param set-default SYS_AUTOSTART 49000
 # CONTROL ALLOCATION
 # ============================================
 param set-default CA_AIRFRAME 90
-param set-default CA_ROTOR_COUNT 6
+param set-default CA_ROTOR_COUNT 7
 
 # must be set 0 for proper yaw control
 param set-default CA_METHOD 0
 # same as previous param -- look at IFODRONE-params.md
 param set-default MC_AIRMODE 0
 
+# ============================================
+# FZ UNIT SCALE s = 0.72 (booster, 2026-11-11) -- look at IFODRONE-params.md
+# Fz is in raw CT units (normalization scale 1). With the booster the hover
+# thrust in the old units was ~0.89 (> IFO_THR_MAX, HTE clamps at 0.9), so ALL
+# CT were scaled by s (coax 0.6->0.432, side 0.1->0.072, booster 1.4->1.008),
+# coax KM by 1/s (0.4->0.556: yaw row KM*CT unchanged) and IFO_THR_* by s.
+# Lower bound s >= 0.65: side CT*s*cos(35 deg) must stay > 0.05, otherwise the
+# allocator zeroes the Fx/Fy rows (weak-row threshold).
 # ============================================
 # ROTOR GEOMETRY (FRD; must match real 4072_ifodrone)
 # ============================================
@@ -53,8 +62,8 @@ param set-default CA_ROTOR0_PZ -0.1
 param set-default CA_ROTOR0_AX 0.0
 param set-default CA_ROTOR0_AY 0.0
 param set-default CA_ROTOR0_AZ -1.0
-param set-default CA_ROTOR0_KM 0.4
-param set-default CA_ROTOR0_CT 0.6
+param set-default CA_ROTOR0_KM 0.556
+param set-default CA_ROTOR0_CT 0.432
 
 param set-default CA_ROTOR1_PX 0.0
 param set-default CA_ROTOR1_PY 0.0
@@ -62,8 +71,8 @@ param set-default CA_ROTOR1_PZ 0.1
 param set-default CA_ROTOR1_AX 0.0
 param set-default CA_ROTOR1_AY 0.0
 param set-default CA_ROTOR1_AZ -1.0
-param set-default CA_ROTOR1_KM -0.4
-param set-default CA_ROTOR1_CT 0.6
+param set-default CA_ROTOR1_KM -0.556
+param set-default CA_ROTOR1_CT 0.432
 
 # Side EDFs (tiltable)
 param set-default CA_ROTOR2_PX 0.535
@@ -73,7 +82,7 @@ param set-default CA_ROTOR2_AX 1.0
 param set-default CA_ROTOR2_AY 0.0
 param set-default CA_ROTOR2_AZ 0.0
 param set-default CA_ROTOR2_KM 0
-param set-default CA_ROTOR2_CT 0.1
+param set-default CA_ROTOR2_CT 0.072
 param set-default CA_ROTOR2_TILT 1
 
 param set-default CA_ROTOR3_PX 0.0
@@ -83,7 +92,7 @@ param set-default CA_ROTOR3_AX 0.0
 param set-default CA_ROTOR3_AY 1.0
 param set-default CA_ROTOR3_AZ 0.0
 param set-default CA_ROTOR3_KM 0
-param set-default CA_ROTOR3_CT 0.1
+param set-default CA_ROTOR3_CT 0.072
 param set-default CA_ROTOR3_TILT 2
 
 param set-default CA_ROTOR4_PX -0.535
@@ -93,7 +102,7 @@ param set-default CA_ROTOR4_AX -1.0
 param set-default CA_ROTOR4_AY 0.0
 param set-default CA_ROTOR4_AZ 0.0
 param set-default CA_ROTOR4_KM 0
-param set-default CA_ROTOR4_CT 0.1
+param set-default CA_ROTOR4_CT 0.072
 param set-default CA_ROTOR4_TILT 3
 
 param set-default CA_ROTOR5_PX 0.0
@@ -103,8 +112,21 @@ param set-default CA_ROTOR5_AX 0.0
 param set-default CA_ROTOR5_AY -1.0
 param set-default CA_ROTOR5_AZ 0.0
 param set-default CA_ROTOR5_KM 0
-param set-default CA_ROTOR5_CT 0.1
+param set-default CA_ROTOR5_CT 0.072
 param set-default CA_ROTOR5_TILT 4
+
+# Vertical booster: 4x QX-Motor 64 mm EDF in X configuration (r = 0.605 m), one PWM signal.
+# Modelled as ONE rotor at the centroid; slaved to the coax mean (IFO_BST_*), never allocated itself.
+# CT = secant N/u of the 4 EDFs at the hover operating point in coax CT units.
+param set-default CA_ROTOR6_PX 0.0
+param set-default CA_ROTOR6_PY 0.0
+param set-default CA_ROTOR6_PZ 0.045
+param set-default CA_ROTOR6_AX 0.0
+param set-default CA_ROTOR6_AY 0.0
+param set-default CA_ROTOR6_AZ -1.0
+param set-default CA_ROTOR6_KM 0
+param set-default CA_ROTOR6_CT 1.008
+param set-default CA_ROTOR6_TILT 0
 
 # ============================================
 # TILT SERVO GEOMETRY
@@ -145,6 +167,10 @@ param set-default IFO_EDF_TRIM 0.7
 param set-default IFO_EDF_GAIN 1.0
 param set-default IFO_TILT_GAIN 1.0
 
+# Booster = CA_ROTOR6, command = IFO_BST_RATIO * coax mean (higher ratio: more Fz on booster, less yaw headroom)
+param set-default IFO_BST_ROTOR 6
+param set-default IFO_BST_RATIO 2.0
+
 # ============================================
 # GZ OUTPUTS
 # ============================================
@@ -156,6 +182,8 @@ param set-default SIM_GZ_EC_FUNC3 103
 param set-default SIM_GZ_EC_FUNC4 104
 param set-default SIM_GZ_EC_FUNC5 105
 param set-default SIM_GZ_EC_FUNC6 106
+# EC7 = booster: omega = 125 + 875*cmd fits the QX-64 thrust curve (model.sdf motorConstant 2.325e-05)
+param set-default SIM_GZ_EC_FUNC7 107
 
 param set-default SIM_GZ_EC_MIN1 100
 param set-default SIM_GZ_EC_MIN2 100
@@ -163,6 +191,7 @@ param set-default SIM_GZ_EC_MIN3 350
 param set-default SIM_GZ_EC_MIN4 350
 param set-default SIM_GZ_EC_MIN5 350
 param set-default SIM_GZ_EC_MIN6 350
+param set-default SIM_GZ_EC_MIN7 125
 
 param set-default SIM_GZ_EC_MAX1 1000
 param set-default SIM_GZ_EC_MAX2 1000
@@ -170,6 +199,7 @@ param set-default SIM_GZ_EC_MAX3 1000
 param set-default SIM_GZ_EC_MAX4 1000
 param set-default SIM_GZ_EC_MAX5 1000
 param set-default SIM_GZ_EC_MAX6 1000
+param set-default SIM_GZ_EC_MAX7 1000
 
 # Tilt servos
 param set-default SIM_GZ_SV_FUNC1 201
@@ -226,10 +256,12 @@ param set-default MC_YR_INT_LIM 0.30
 # ============================================
 # POSITION / MANUAL CONTROL (ifo_pos_control) + THRUST REFERENCES
 # ============================================
-param set-default IFO_THR_HOVER 0.6
-param set-default MPC_THR_HOVER 0.6
+param set-default IFO_THR_HOVER 0.64
+param set-default MPC_THR_HOVER 0.64
 
-param set-default IFO_THR_XY_MAX 0.1
+param set-default IFO_THR_XY_MAX 0.072
+param set-default IFO_THR_MAX 1.0
+param set-default IFO_THR_MIN 0.09
 
 param set-default IFO_STB_VD_TAU 2.0
 
