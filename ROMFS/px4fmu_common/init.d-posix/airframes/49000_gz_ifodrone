@@ -141,7 +141,6 @@ param set-default CA_SV3_SLEW 0.0
 # ============================================
 param set-default IFO_TILT_HOVER 0.0
 param set-default IFO_CA_LIN_TAU 0.05
-# real runs 0.2 -- look at IFODRONE-params.md before porting rate gains
 param set-default IFO_EDF_TRIM 0.7
 param set-default IFO_EDF_GAIN 1.0
 param set-default IFO_TILT_GAIN 1.0

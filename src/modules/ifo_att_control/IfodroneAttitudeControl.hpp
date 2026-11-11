@@ -67,6 +67,7 @@ private:
 	static constexpr float YAW_RATE_MAX{1.5f}; // rad/s
 	static constexpr float THROTTLE_IDLE{0.05f};
 	static constexpr hrt_abstime ATT_SP_TIMEOUT{200_ms};
+	static constexpr hrt_abstime MAUAL_SP_TIMEOUT{500_ms};
 
 	DEFINE_PARAMETERS(
 		(ParamFloat<px4::params::MC_ROLL_P>)  _param_mc_roll_p,

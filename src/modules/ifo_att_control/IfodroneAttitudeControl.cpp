@@ -82,7 +82,7 @@ void IfodroneAttitudeControl::update()
 
 	vehicle_attitude_setpoint_s att_sp{};
 	const bool att_sp_valid = _vehicle_attitude_setpoint_sub.copy(&att_sp) && att_sp.timestamp != 0;
-	const bool att_sp_fresh = att_sp_valid && now < att_sp.timestamp + ATT_SP_TIMEOUT;
+	const bool att_sp_fresh = att_sp_valid && (now < att_sp.timestamp + ATT_SP_TIMEOUT);
 
 	Setpoint sp;
 
@@ -151,7 +151,7 @@ IfodroneAttitudeControl::Setpoint IfodroneAttitudeControl::manualSetpoint(float 
 
 	manual_control_setpoint_s manual{};
 	const bool manual_valid = _manual_control_setpoint_sub.copy(&manual) && manual.valid
-				  && now < manual.timestamp + 500_ms
+				  && now < manual.timestamp + MAUAL_SP_TIMEOUT
 				  && PX4_ISFINITE(manual.yaw) && PX4_ISFINITE(manual.throttle);
 
 	if (!manual_valid || !PX4_ISFINITE(_yaw_setpoint) || !_vehicle_control_mode.flag_armed) {

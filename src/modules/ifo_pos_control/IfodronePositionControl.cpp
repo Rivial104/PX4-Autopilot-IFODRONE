@@ -150,9 +150,13 @@ void IfodronePositionControl::updateSubscriptions()
 
 PositionControlStates IfodronePositionControl::buildStates(const vehicle_local_position_s &lp)
 {
+	const auto valid_or_nan = [](bool xy_valid, bool z_valid, float x, float y, float z) {
+		return Vector3f(xy_valid ? x : NAN, xy_valid ? y : NAN, z_valid ? z : NAN);
+	};
+
 	PositionControlStates states{};
-	states.position = Vector3f(lp.xy_valid ? lp.x : NAN, lp.xy_valid ? lp.y : NAN, lp.z_valid ? lp.z : NAN);
-	states.velocity = Vector3f(lp.v_xy_valid ? lp.vx : NAN, lp.v_xy_valid ? lp.vy : NAN, lp.v_z_valid ? lp.vz : NAN);
+	states.position = valid_or_nan(lp.xy_valid, lp.z_valid, lp.x, lp.y, lp.z);
+	states.velocity = valid_or_nan(lp.v_xy_valid, lp.v_z_valid, lp.vx, lp.vy, lp.vz);
 	states.acceleration = Vector3f(lp.ax, lp.ay, lp.az);
 	states.yaw = lp.heading;
 	return states;
@@ -233,7 +237,6 @@ float IfodronePositionControl::updateManualYaw(float heading)
 		return yaw_rate_sp;
 	}
 
-	// Never lead the vehicle by more than it can track (would saturate the coax pair).
 	const float yaw_error = wrap_pi(_hold_yaw_angle - heading);
 
 	if (fabsf(yaw_error) > MANUAL_YAW_ERR_MAX) {
@@ -317,10 +320,12 @@ bool IfodronePositionControl::runAuto(const vehicle_local_position_s &local_pos,
 
 	if (_vehicle_control_mode.flag_control_offboard_enabled) {
 		const bool sp_fresh = _vehicle_control_mode.flag_armed && (local_pos.timestamp_sample < _setpoint.timestamp + 1_s);
-		_vehicle_constraints.want_takeoff = sp_fresh
-						    && ((PX4_ISFINITE(_setpoint.position[2]) && _setpoint.position[2] < states.position(2))
-							|| (PX4_ISFINITE(_setpoint.velocity[2]) && _setpoint.velocity[2] < 0.f)
-							|| (PX4_ISFINITE(_setpoint.acceleration[2]) && _setpoint.acceleration[2] < 0.f));
+		_vehicle_constraints.want_takeoff =
+		sp_fresh && ((PX4_ISFINITE(_setpoint.position[2])
+		&& _setpoint.position[2] < states.position(2)) || (PX4_ISFINITE(_setpoint.velocity[2])
+		&& _setpoint.velocity[2] < 0.f) || (PX4_ISFINITE(_setpoint.acceleration[2])
+		&& _setpoint.acceleration[2] < 0.f));
+
 		_vehicle_constraints.speed_up = _param_ifo_vel_max_up.get();
 		_vehicle_constraints.speed_down = _param_ifo_vel_max_dn.get();
 	}
