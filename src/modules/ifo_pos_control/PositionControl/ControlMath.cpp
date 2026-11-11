@@ -50,35 +50,30 @@ namespace ControlMath
 Vector2f constrainXY(const Vector2f &v0, const Vector2f &v1, const float &max)
 {
 	if (Vector2f(v0 + v1).norm() <= max) {
-		// vector does not exceed maximum magnitude
 		return v0 + v1;
-
-	} else if (v0.length() >= max) {
-		// the magnitude along v0, which has priority, already exceeds maximum.
-		return v0.normalized() * max;
-
-	} else {
-		// Intersect v0 + s * unit(v1) with the velocity limit circle.
-		Vector2f u1 = v1.normalized();
-		float m = u1.dot(v0);
-		float c = v0.dot(v0) - max * max;
-		float s = -m + sqrtf(m * m - c);
-		return v0 + u1 * s;
 	}
+
+	// v0 has priority and alone exceeds the limit.
+	if (v0.length() >= max) {
+		return v0.normalized() * max;
+	}
+
+	// Intersect v0 + s * unit(v1) with the limit circle.
+	const Vector2f u1 = v1.normalized();
+	const float m = u1.dot(v0);
+	const float c = v0.dot(v0) - max * max;
+	const float s = -m + sqrtf(m * m - c);
+	return v0 + u1 * s;
 }
 
 void addIfNotNan(float &setpoint, const float addition)
 {
-	if (PX4_ISFINITE(setpoint) && PX4_ISFINITE(addition)) {
-		// No NAN, add to the setpoint
-		setpoint += addition;
-
-	} else if (!PX4_ISFINITE(setpoint)) {
-		// Setpoint NAN, take addition
+	if (!PX4_ISFINITE(setpoint)) {
 		setpoint = addition;
-	}
 
-	// Addition is NAN or both are NAN, nothing to do
+	} else if (PX4_ISFINITE(addition)) {
+		setpoint += addition;
+	}
 }
 
 void addIfNotNanVector3f(Vector3f &setpoint, const Vector3f &addition)
@@ -90,27 +85,21 @@ void addIfNotNanVector3f(Vector3f &setpoint, const Vector3f &addition)
 
 void setZeroIfNanVector3f(Vector3f &vector)
 {
-	// Adding zero vector overwrites elements that are NaN with zero
 	addIfNotNanVector3f(vector, Vector3f());
 }
 
 Vector3f constrainIfodroneBodyThrust(const Vector3f &thrust_ned, const Quatf &attitude,
 				     float thrust_xy_max)
 {
-	Vector3f thrust_ned_finite = thrust_ned;
+	Vector3f thrust_finite = thrust_ned;
+	setZeroIfNanVector3f(thrust_finite);
 
-	for (int i = 0; i < 3; ++i) {
-		if (!PX4_ISFINITE(thrust_ned_finite(i))) {
-			thrust_ned_finite(i) = 0.f;
-		}
-	}
-
-	Vector3f thrust_body = attitude.rotateVectorInverse(thrust_ned_finite);
+	Vector3f thrust_body = attitude.rotateVectorInverse(thrust_finite);
 
 	// The coaxial pair is unidirectional and cannot produce force along body +Z.
 	thrust_body(2) = math::min(thrust_body(2), 0.f);
 
-	// Limit the actual side-EDF demand after the full attitude transformation.
+	// Limit side-EDF demand after the full attitude transformation.
 	const float xy_limit = math::max(thrust_xy_max, 0.f);
 	const float xy_norm = thrust_body.xy().norm();
 

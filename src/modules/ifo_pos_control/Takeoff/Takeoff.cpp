@@ -53,87 +53,55 @@ void TakeoffHandling::updateTakeoffState(const bool armed, const bool landed, co
 {
 	_spoolup_time_hysteresis.set_state_and_update(armed, now_us);
 
-	switch (_takeoff_state) {
-	case TakeoffState::disarmed:
-		if (armed) {
-			_takeoff_state = TakeoffState::spoolup;
-
-		} else {
-			break;
-		}
-
-	// FALLTHROUGH
-	case TakeoffState::spoolup:
-		if (_spoolup_time_hysteresis.get_state()) {
-			_takeoff_state = TakeoffState::ready_for_takeoff;
-
-		} else {
-			break;
-		}
-
-	// FALLTHROUGH
-	case TakeoffState::ready_for_takeoff:
-		if (want_takeoff) {
-			_takeoff_state = TakeoffState::rampup;
-			_takeoff_ramp_progress = 0.f;
-
-		} else {
-			break;
-		}
-
-	// FALLTHROUGH
-	case TakeoffState::rampup:
-		if (_takeoff_ramp_progress >= 1.f) {
-			_takeoff_state = TakeoffState::flight;
-
-		} else {
-			break;
-		}
-
-	// FALLTHROUGH
-	case TakeoffState::flight:
-		if (landed) {
-			_takeoff_state = TakeoffState::ready_for_takeoff;
-		}
-
-		break;
-
-	default:
-		break;
+	if (!armed) {
+		_takeoff_state = TakeoffState::disarmed;
+		return;
 	}
 
-	if (armed && skip_takeoff) {
+	// Each stage may complete in the same call, so the checks run in order.
+	if (_takeoff_state == TakeoffState::disarmed) {
+		_takeoff_state = TakeoffState::spoolup;
+	}
+
+	if (_takeoff_state == TakeoffState::spoolup && _spoolup_time_hysteresis.get_state()) {
+		_takeoff_state = TakeoffState::ready_for_takeoff;
+	}
+
+	if (_takeoff_state == TakeoffState::ready_for_takeoff && want_takeoff) {
+		_takeoff_state = TakeoffState::rampup;
+		_takeoff_ramp_progress = 0.f;
+	}
+
+	if (_takeoff_state == TakeoffState::rampup && _takeoff_ramp_progress >= 1.f) {
 		_takeoff_state = TakeoffState::flight;
 	}
 
-	// TODO: need to consider free fall here
-	if (!armed) {
-		_takeoff_state = TakeoffState::disarmed;
+	if (_takeoff_state == TakeoffState::flight && landed) {
+		_takeoff_state = TakeoffState::ready_for_takeoff;
+	}
+
+	if (skip_takeoff) {
+		_takeoff_state = TakeoffState::flight;
 	}
 }
 
 float TakeoffHandling::updateRamp(const float dt, const float takeoff_desired_vz)
 {
-	float upwards_velocity_limit = takeoff_desired_vz;
-
 	if (_takeoff_state < TakeoffState::rampup) {
-		upwards_velocity_limit = _takeoff_ramp_vz_init;
+		return _takeoff_ramp_vz_init;
 	}
 
-	if (_takeoff_state == TakeoffState::rampup) {
-		if (_takeoff_ramp_time > dt) {
-			_takeoff_ramp_progress += dt / _takeoff_ramp_time;
-
-		} else {
-			_takeoff_ramp_progress = 1.f;
-		}
-
-		if (_takeoff_ramp_progress < 1.f) {
-			upwards_velocity_limit = _takeoff_ramp_vz_init + _takeoff_ramp_progress * (takeoff_desired_vz - _takeoff_ramp_vz_init);
-		}
+	if (_takeoff_state > TakeoffState::rampup) {
+		return takeoff_desired_vz;
 	}
 
-	return upwards_velocity_limit;
+	_takeoff_ramp_progress = (_takeoff_ramp_time > dt) ? _takeoff_ramp_progress + dt / _takeoff_ramp_time : 1.f;
+
+	if (_takeoff_ramp_progress >= 1.f) {
+		return takeoff_desired_vz;
+	}
+
+	return _takeoff_ramp_vz_init + _takeoff_ramp_progress * (takeoff_desired_vz - _takeoff_ramp_vz_init);
 }
 
 } // namespace ifodrone

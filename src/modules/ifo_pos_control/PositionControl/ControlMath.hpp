@@ -34,8 +34,7 @@
 /**
  * @file ControlMath.hpp
  *
- * Simple functions for vector manipulation that do not fit into matrix lib.
- * These functions are specific for controls.
+ * Control-specific vector helpers.
  */
 
 #pragma once
@@ -50,7 +49,7 @@ namespace ControlMath
 // Sum constrained to max magnitude, prioritizing v0 over feedforward v1.
 matrix::Vector2f constrainXY(const matrix::Vector2f &v0, const matrix::Vector2f &v1, const float &max);
 
-// NaN marks an unset axis; finite feedback and feedforward are added.
+// NaN marks an unset axis; finite values are added, a NaN setpoint takes the addition.
 void addIfNotNan(float &setpoint, const float addition);
 void addIfNotNanVector3f(matrix::Vector3f &setpoint, const matrix::Vector3f &addition);
 void setZeroIfNanVector3f(matrix::Vector3f &vector);

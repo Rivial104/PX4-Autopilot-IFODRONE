@@ -38,10 +38,9 @@ public:
 	static const trajectory_setpoint_s empty_trajectory_setpoint;
 
 private:
-	bool _inputValid();
+	bool _inputValid() const;
 	void _positionControl();
 	void _velocityControl(float dt);
-	void _accelerationControl();
 
 	matrix::Vector3f _gain_pos_p;
 	matrix::Vector3f _gain_vel_p;

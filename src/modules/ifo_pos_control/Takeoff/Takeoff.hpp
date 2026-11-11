@@ -34,7 +34,7 @@
 /**
  * @file Takeoff.hpp
  *
- * A class handling all takeoff states and a smooth ramp up of the motors.
+ * Takeoff state machine and smooth climb-rate ramp.
  */
 
 #pragma once
@@ -59,47 +59,28 @@ enum class TakeoffState {
 class TakeoffHandling
 {
 public:
-	TakeoffHandling() = default;
-	~TakeoffHandling() = default;
-
-	// initialize parameters
 	void setSpoolupTime(const float seconds) { _spoolup_time_hysteresis.set_hysteresis_time_from(false, seconds * 1_s); }
 	void setTakeoffRampTime(const float seconds) { _takeoff_ramp_time = seconds; }
 
-	/**
-	 * Calculate a vertical velocity to initialize the takeoff ramp
-	 * that when passed to the velocity controller results in a zero throttle setpoint.
-	 * @param velocity_p_gain proportional gain of the velocity controller to calculate the thrust
-	 */
+	// Ramp start velocity that gives zero thrust from the velocity controller.
 	void generateInitialRampValue(const float velocity_p_gain);
 
-	/**
-	 * Update the state for the takeoff.
-	 * Has to be called also when not flying altitude controlled to skip the takeoff and not do it in flight when switching mode.
-	 */
+	// Must be called every cycle (also outside altitude control) so mode switches in flight skip takeoff.
 	void updateTakeoffState(const bool armed, const bool landed, const bool want_takeoff,
 				const bool skip_takeoff, const hrt_abstime &now_us);
 
-	/**
-	 * Update and return the velocity constraint ramp value during takeoff.
-	 * By ramping up _takeoff_ramp_vz during the takeoff and using it to constain the maximum climb rate a smooth takeoff behavior is achieved.
-	 * Returns zero on the ground and takeoff_desired_vz in flight.
-	 * @param dt time in seconds since the last call/loop iteration
-	 * @param takeoff_desired_vz end value for the velocity ramp
-	 * @return true if setpoint has updated correctly
-	 */
+	// Climb-rate limit: ramp start value on the ground, takeoff_desired_vz in flight.
 	float updateRamp(const float dt, const float takeoff_desired_vz);
 
-	TakeoffState getTakeoffState() { return _takeoff_state; }
+	TakeoffState getTakeoffState() const { return _takeoff_state; }
 
 private:
-	TakeoffState _takeoff_state = TakeoffState::disarmed;
-
-	systemlib::Hysteresis _spoolup_time_hysteresis{false}; ///< becomes true COM_SPOOLUP_TIME seconds after the vehicle was armed
+	TakeoffState _takeoff_state{TakeoffState::disarmed};
+	systemlib::Hysteresis _spoolup_time_hysteresis{false};
 
 	float _takeoff_ramp_time{0.f};
-	float _takeoff_ramp_vz_init{0.f}; ///< verticval velocity resulting in zero thrust
-	float _takeoff_ramp_progress{0.f}; ///< asecnding from 0 to 1
+	float _takeoff_ramp_vz_init{0.f};
+	float _takeoff_ramp_progress{0.f}; // 0 to 1
 };
 
 } // namespace ifodrone

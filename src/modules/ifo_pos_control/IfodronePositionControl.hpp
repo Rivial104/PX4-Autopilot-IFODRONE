@@ -57,6 +57,18 @@ private:
 
 	void parameters_update(bool force);
 
+	void runCycle();
+	void updateSubscriptions();
+	ifodrone::PositionControlStates buildStates(const vehicle_local_position_s &lp);
+	void updateSetpointSource(const vehicle_local_position_s &local_pos, const ifodrone::PositionControlStates &states);
+	bool runManual(const vehicle_local_position_s &local_pos, const ifodrone::PositionControlStates &states, float dt);
+	bool runAuto(const vehicle_local_position_s &local_pos, const ifodrone::PositionControlStates &states, float dt);
+	float updateManualYaw(float heading);
+	trajectory_setpoint_s groundSetpoint(hrt_abstime timestamp);
+	void resetLocks();
+	void resetManualState();
+	void publishTakeoffStatus();
+
 	void publishSetpoints(const ifodrone::PositionControlStates &states);
 
 	trajectory_setpoint_s generateManualSetpoint(const vehicle_local_position_s &local_pos,

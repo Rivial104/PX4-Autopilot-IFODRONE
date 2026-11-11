@@ -58,6 +58,11 @@ public:
 
 protected:
 	float tiltTrim(int tilt_index, float hover_angle_rad) const;
+	float hoverAngleRad() const;
+	float edfTrim() const;                       ///< IFO_EDF_TRIM clamped to [0, 0.9]
+	bool  isSideEdf(int rotor_index) const;      ///< tilting side EDF (vs fixed coax motor)
+	int   rotorForTilt(int tilt_index, int num_rotors) const;  ///< rotor driven by this tilt servo, or -1
+	void  ensureLinPoint(int num_rotors);        ///< initialize _lin_point to hover on first use
 
 	ActuatorEffectivenessRotors _mc_motors;
 	ActuatorEffectivenessTilts  _tilts;

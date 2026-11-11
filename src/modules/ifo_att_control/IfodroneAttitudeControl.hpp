@@ -36,8 +36,17 @@ public:
 	int print_status() override;
 
 private:
+	struct Setpoint {
+		matrix::Quatf    q;
+		matrix::Vector3f thrust; // body frame
+		float            yaw_rate_ff;
+	};
+
 	void Run() override;
+	void update();
 	void parameters_update();
+	Setpoint attitudeSetpoint(const vehicle_attitude_setpoint_s &att_sp, bool valid, bool fresh, float yaw) const;
+	Setpoint manualSetpoint(float yaw, float dt, hrt_abstime now);
 
 	AttitudeControl _attitude_control;
 

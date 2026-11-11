@@ -240,7 +240,7 @@ param set-default IFO_POS_XY_P 0.6
 param set-default MPC_XY_CRUISE 2.0
 param set-default MPC_ACC_HOR 1.0
 param set-default MPC_ACC_HOR_MAX 2.0
-param set-default MPC_JERK_AUTO 1.0
+param set-default MPC_JERK_AUTO 2.5
 
 param set-default MPC_YAW_MODE 4
 

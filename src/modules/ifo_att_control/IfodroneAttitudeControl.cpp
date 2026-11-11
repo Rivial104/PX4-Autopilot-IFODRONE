@@ -49,7 +49,12 @@ void IfodroneAttitudeControl::Run()
 	}
 
 	perf_begin(_loop_perf);
+	update();
+	perf_end(_loop_perf);
+}
 
+void IfodroneAttitudeControl::update()
+{
 	if (_parameter_update_sub.updated()) {
 		parameter_update_s param_update;
 		_parameter_update_sub.copy(&param_update);
@@ -59,7 +64,6 @@ void IfodroneAttitudeControl::Run()
 	vehicle_attitude_s att;
 
 	if (!_vehicle_attitude_sub.update(&att)) {
-		perf_end(_loop_perf);
 		return;
 	}
 
@@ -70,86 +74,99 @@ void IfodroneAttitudeControl::Run()
 	if (!_vehicle_control_mode.flag_control_attitude_enabled) {
 		_yaw_setpoint = NAN;
 		_thrust_z = 0.f;
-		perf_end(_loop_perf);
 		return;
 	}
 
 	const Quatf q(att.q);
-	const float yaw = Eulerf(q).psi();
 	const hrt_abstime now = hrt_absolute_time();
+
 	vehicle_attitude_setpoint_s att_sp{};
 	const bool att_sp_valid = _vehicle_attitude_setpoint_sub.copy(&att_sp) && att_sp.timestamp != 0;
 	const bool att_sp_fresh = att_sp_valid && now < att_sp.timestamp + ATT_SP_TIMEOUT;
-	const bool manual_fallback = _vehicle_control_mode.flag_control_manual_enabled && !att_sp_fresh;
 
-	float yaw_rate_ff = 0.f;
-	Vector3f thrust_body{};
-	Quatf q_sp(Eulerf(0.f, 0.f, yaw));
+	Setpoint sp;
 
-	if (manual_fallback) {
-		// Hold the last collective until commander handles a lost manual input.
-		thrust_body(2) = _thrust_z;
-		manual_control_setpoint_s manual{};
-		const bool manual_valid = _manual_control_setpoint_sub.copy(&manual) && manual.valid
-					  && now < manual.timestamp + 500_ms
-					  && PX4_ISFINITE(manual.yaw) && PX4_ISFINITE(manual.throttle);
-
-		if (!manual_valid || !PX4_ISFINITE(_yaw_setpoint) || !_vehicle_control_mode.flag_armed) {
-			_yaw_setpoint = yaw;
-		}
-
-		if (manual_valid) {
-			yaw_rate_ff = math::constrain(manual.yaw, -1.f, 1.f) * YAW_RATE_MAX;
-			_yaw_setpoint = wrap_pi(_yaw_setpoint + yaw_rate_ff * dt);
-			const float throttle = math::constrain((manual.throttle + 1.f) * 0.5f, 0.f, 1.f);
-			thrust_body(2) = -(THROTTLE_IDLE + throttle * (1.f - THROTTLE_IDLE));
-		}
-
-		q_sp = Quatf(Eulerf(0.f, 0.f, _yaw_setpoint));
+	if (_vehicle_control_mode.flag_control_manual_enabled && !att_sp_fresh) {
+		sp = manualSetpoint(Eulerf(q).psi(), dt, now);
 
 	} else {
 		_yaw_setpoint = NAN;
-
-		if (att_sp_valid) {
-			const Quatf requested(att_sp.q_d);
-
-			if (requested.isAllFinite() && requested.norm_squared() > FLT_EPSILON) {
-				q_sp = requested;
-			}
-
-			thrust_body = Vector3f(att_sp.thrust_body);
-
-			if (att_sp_fresh) {
-				yaw_rate_ff = PX4_ISFINITE(att_sp.yaw_sp_move_rate) ? att_sp.yaw_sp_move_rate : 0.f;
-
-			} else {
-				// Without feedback, stop lateral acceleration and yaw feedforward.
-				thrust_body.xy() = Vector2f();
-			}
-		}
+		sp = attitudeSetpoint(att_sp, att_sp_valid, att_sp_fresh, Eulerf(q).psi());
 	}
 
 	for (int i = 0; i < 3; ++i) {
-		if (!PX4_ISFINITE(thrust_body(i))) {
-			thrust_body(i) = 0.f;
+		if (!PX4_ISFINITE(sp.thrust(i))) {
+			sp.thrust(i) = 0.f;
 		}
 	}
 
 	// The fixed coaxial pair cannot produce body +Z thrust.
-	thrust_body(2) = math::min(thrust_body(2), 0.f);
-	_thrust_z = _vehicle_control_mode.flag_armed ? thrust_body(2) : 0.f;
-	_attitude_control.setAttitudeSetpoint(q_sp, yaw_rate_ff);
+	sp.thrust(2) = math::min(sp.thrust(2), 0.f);
+	_thrust_z = _vehicle_control_mode.flag_armed ? sp.thrust(2) : 0.f;
+
+	_attitude_control.setAttitudeSetpoint(sp.q, sp.yaw_rate_ff);
 	const Vector3f rates = _attitude_control.update(q);
 
 	vehicle_rates_setpoint_s rates_sp{};
 	rates_sp.roll = rates(0);
 	rates_sp.pitch = rates(1);
 	rates_sp.yaw = rates(2);
-	thrust_body.copyTo(rates_sp.thrust_body);
+	sp.thrust.copyTo(rates_sp.thrust_body);
 	rates_sp.timestamp = now;
 	_vehicle_rates_setpoint_pub.publish(rates_sp);
+}
 
-	perf_end(_loop_perf);
+IfodroneAttitudeControl::Setpoint IfodroneAttitudeControl::attitudeSetpoint(const vehicle_attitude_setpoint_s &att_sp,
+		bool valid, bool fresh, float yaw) const
+{
+	Setpoint sp{Quatf(Eulerf(0.f, 0.f, yaw)), Vector3f(), 0.f};
+
+	if (!valid) {
+		return sp;
+	}
+
+	const Quatf requested(att_sp.q_d);
+
+	if (requested.isAllFinite() && requested.norm_squared() > FLT_EPSILON) {
+		sp.q = requested;
+	}
+
+	sp.thrust = Vector3f(att_sp.thrust_body);
+
+	if (fresh) {
+		sp.yaw_rate_ff = PX4_ISFINITE(att_sp.yaw_sp_move_rate) ? att_sp.yaw_sp_move_rate : 0.f;
+
+	} else {
+		// Without feedback, stop lateral acceleration and yaw feedforward.
+		sp.thrust.xy() = Vector2f();
+	}
+
+	return sp;
+}
+
+IfodroneAttitudeControl::Setpoint IfodroneAttitudeControl::manualSetpoint(float yaw, float dt, hrt_abstime now)
+{
+	// Hold the last collective until commander handles a lost manual input.
+	Setpoint sp{Quatf(), Vector3f(0.f, 0.f, _thrust_z), 0.f};
+
+	manual_control_setpoint_s manual{};
+	const bool manual_valid = _manual_control_setpoint_sub.copy(&manual) && manual.valid
+				  && now < manual.timestamp + 500_ms
+				  && PX4_ISFINITE(manual.yaw) && PX4_ISFINITE(manual.throttle);
+
+	if (!manual_valid || !PX4_ISFINITE(_yaw_setpoint) || !_vehicle_control_mode.flag_armed) {
+		_yaw_setpoint = yaw;
+	}
+
+	if (manual_valid) {
+		sp.yaw_rate_ff = math::constrain(manual.yaw, -1.f, 1.f) * YAW_RATE_MAX;
+		_yaw_setpoint = wrap_pi(_yaw_setpoint + sp.yaw_rate_ff * dt);
+		const float throttle = math::constrain((manual.throttle + 1.f) * 0.5f, 0.f, 1.f);
+		sp.thrust(2) = -(THROTTLE_IDLE + throttle * (1.f - THROTTLE_IDLE));
+	}
+
+	sp.q = Quatf(Eulerf(0.f, 0.f, _yaw_setpoint));
+	return sp;
 }
 
 int IfodroneAttitudeControl::task_spawn(int argc, char *argv[])
