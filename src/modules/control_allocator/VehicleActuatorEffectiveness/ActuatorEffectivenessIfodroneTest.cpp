@@ -129,6 +129,7 @@ protected:
 		setF("IFO_CA_LIN_TAU", 0.05f);
 		setI("IFO_BST_ROTOR", -1);
 		setF("IFO_BST_RATIO", 2.f);
+		setI("IFO_DEVEL", 0);
 	}
 
 	// Params are read at construction: construct a fresh instance after setting them
@@ -398,4 +399,44 @@ TEST_F(ActuatorEffectivenessIfodroneTest, DisabledDoesNotTouchBoosterSetpoint)
 	ActuatorEffectivenessIfodrone ifo(nullptr);
 	computeMatrix(ifo);
 	EXPECT_NEAR(boosterSpUntouchedCoax(ifo, 0.8f, 0.6f, 0.123f), 0.123f, TOL);
+}
+
+TEST_F(ActuatorEffectivenessIfodroneTest, DevelModeZeroesBooster)
+{
+	const EffMatrix off = matrixWithBooster(-1);
+
+	setF("IFO_BST_RATIO", 2.f);
+	setI("IFO_DEVEL", 1);
+	int num_act = 0;
+	const EffMatrix devel = matrixWithBooster(BOOSTER, &num_act);
+	EXPECT_EQ(num_act, NUM_ROTORS + NUM_SERVOS);
+
+	// Booster column all zeros, every other column identical to the disabled-booster case
+	for (int axis = 0; axis < NUM_AXES; ++axis) {
+		EXPECT_NEAR(devel(axis, BOOSTER), 0.f, TOL) << "axis " << axis;
+	}
+
+	for (int col = 0; col < NUM_ACTUATORS; ++col) {
+		if (col != BOOSTER) {
+			expectColumnsEqual(devel, col, off, col, "devel");
+		}
+	}
+
+	// Coax Fz without booster contribution
+	EXPECT_NEAR(devel(ActuatorEffectiveness::ControlAxis::THRUST_Z, 0), -0.6f, TOL);
+	EXPECT_NEAR(devel(ActuatorEffectiveness::ControlAxis::THRUST_Z, 1), -0.6f, TOL);
+
+	{
+		ActuatorEffectivenessIfodrone ifo(nullptr);
+		computeMatrix(ifo);
+		expectCoax(ifo, 0.3f, 0.1f, 0.3f, 0.1f, 0.f);
+		// m 0.1, d 0.4 -> d limited to m -> coax (0.2, 0.0), booster 0
+		expectCoax(ifo, 0.5f, -0.3f, 0.2f, 0.f, 0.f);
+	}
+
+	// Switch back to normal operation: booster follows the coax mean again
+	setI("IFO_DEVEL", 0);
+	ActuatorEffectivenessIfodrone ifo(nullptr);
+	computeMatrix(ifo);
+	expectCoax(ifo, 0.3f, 0.1f, 0.3f, 0.1f, 0.4f);
 }

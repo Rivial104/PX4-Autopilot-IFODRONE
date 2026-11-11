@@ -67,7 +67,7 @@ protected:
 	int   rotorForTilt(int tilt_index, int num_rotors) const;  ///< rotor driven by this tilt servo, or -1
 	void  ensureLinPoint(int num_rotors);        ///< initialize _lin_point to hover on first use
 	int   boosterIndex(int num_rotors);          ///< validated IFO_BST_ROTOR, or -1 (booster disabled)
-	float boosterRatio() const;                  ///< IFO_BST_RATIO clamped to [0, 10]
+	float boosterRatio() const;                  ///< IFO_BST_RATIO clamped to [0, 10], 0 in IFO_DEVEL mode
 
 	ActuatorEffectivenessRotors _mc_motors;
 	ActuatorEffectivenessTilts  _tilts;
@@ -96,6 +96,7 @@ protected:
 		(ParamFloat<px4::params::IFO_TILT_GAIN>)  _param_ifo_tilt_gain,
 		(ParamFloat<px4::params::IFO_CA_LIN_TAU>) _param_ifo_ca_lin_tau,
 		(ParamInt<px4::params::IFO_BST_ROTOR>)    _param_ifo_bst_rotor,
-		(ParamFloat<px4::params::IFO_BST_RATIO>)  _param_ifo_bst_ratio
+		(ParamFloat<px4::params::IFO_BST_RATIO>)  _param_ifo_bst_ratio,
+		(ParamBool<px4::params::IFO_DEVEL>)       _param_ifo_devel
 	)
 };

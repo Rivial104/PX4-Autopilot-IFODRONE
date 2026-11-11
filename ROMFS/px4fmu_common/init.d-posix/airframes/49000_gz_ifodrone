@@ -170,6 +170,8 @@ param set-default IFO_TILT_GAIN 1.0
 # Booster = CA_ROTOR6, command = IFO_BST_RATIO * coax mean (higher ratio: more Fz on booster, less yaw headroom)
 param set-default IFO_BST_ROTOR 6
 param set-default IFO_BST_RATIO 2.0
+# 0 = normal operation (1 = developer mode: booster only in motor test)
+param set-default IFO_DEVEL 0
 
 # ============================================
 # GZ OUTPUTS

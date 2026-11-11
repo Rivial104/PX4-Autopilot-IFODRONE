@@ -148,11 +148,24 @@ parameters:
                   a higher ratio moves more thrust to the booster but lowers the coax
                   operating point, and with it the yaw authority (yaw comes only from the
                   coax differential, limited by the coax mean command).
+                  Ignored (treated as 0) while IFO_DEVEL = 1.
             type: float
             decimal: 2
             min: 0.0
             max: 10.0
             default: 1.0
+
+        IFO_DEVEL:
+            description:
+                short: IFODRONE developer mode
+                long: |
+                  1 = developer mode, 0 = normal operation.
+                  In developer mode the vertical booster (IFO_BST_ROTOR) stays configured, so it
+                  appears in the QGC motor test and responds to actuator_test, but it is commanded
+                  0 in flight regardless of IFO_BST_RATIO and the coax columns are those without
+                  booster.
+            type: boolean
+            default: 0
 
         # Motor parameters
         CA_R_REV:

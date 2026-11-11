@@ -115,6 +115,11 @@ int ActuatorEffectivenessIfodrone::boosterIndex(int num_rotors)
 
 float ActuatorEffectivenessIfodrone::boosterRatio() const
 {
+	// Developer mode: booster stays configured (motor test, actuator_test) but is commanded 0 in flight
+	if (_param_ifo_devel.get()) {
+		return 0.f;
+	}
+
 	return math::constrain(_param_ifo_bst_ratio.get(), 0.f, 10.f);
 }
 
@@ -266,9 +271,7 @@ void ActuatorEffectivenessIfodrone::updateSetpoint(const matrix::Vector<float, N
 	}
 
 	// Next cycle's matrix is linearized around the command actually driven (after gains, clipped to the
-	// actuator range), low-pass filtered with IFO_CA_LIN_TAU. Feeding back the raw previous allocation is
-	// an algebraic loop with a negative eigenvalue: ringing at half the allocation rate and a full-range
-	// servo limit cycle at large hover tilt (2026-09-03 flights).
+	// actuator range), low-pass filtered with IFO_CA_LIN_TAU
 	const hrt_abstime now = hrt_absolute_time();
 	const float tau = math::max(_param_ifo_ca_lin_tau.get(), 0.f);
 	float alpha = 1.f;

@@ -21,7 +21,7 @@
 #   S4  ->   104     CA_ROTOR3      Motor 4     side1  right EDF
 #   S5  ->   105     CA_ROTOR4      Motor 5     side2  back  EDF
 #   S6  ->   103     CA_ROTOR2      Motor 3     side0  front EDF
-#   S7  ->     0                                free
+#   S7  ->   107     CA_ROTOR6      Motor 7     booster: 4x EDF up (Y-cable, one signal)
 #   S8  ->     0                                free
 #   S9  ->   202     CA_SV_TL1      Servo 2     tilt right
 #   S10 ->   203     CA_SV_TL2      Servo 3     tilt back
@@ -36,7 +36,7 @@
 # CONTROL ALLOCATION
 # ============================================
 param set-default CA_AIRFRAME 90
-param set-default CA_ROTOR_COUNT 6
+param set-default CA_ROTOR_COUNT 7
 
 # must be set 0 for proper yaw control
 param set-default CA_METHOD 0
@@ -107,6 +107,19 @@ param set-default CA_ROTOR5_KM 0
 param set-default CA_ROTOR5_CT 0.1
 param set-default CA_ROTOR5_TILT 4
 
+# Vertical booster: 4x QX-Motor 64 mm EDF in X configuration (r = 0.605 m), one PWM signal (S7).
+# Modelled as ONE rotor at the centroid; slaved to the coax mean (IFO_BST_*), never allocated itself.
+# CT is a placeholder until the real calibration (plan.md Etap 4); unused while IFO_DEVEL = 1.
+param set-default CA_ROTOR6_PX 0.0
+param set-default CA_ROTOR6_PY 0.0
+param set-default CA_ROTOR6_PZ 0.045
+param set-default CA_ROTOR6_AX 0.0
+param set-default CA_ROTOR6_AY 0.0
+param set-default CA_ROTOR6_AZ -1.0
+param set-default CA_ROTOR6_KM 0
+param set-default CA_ROTOR6_CT 1.4
+param set-default CA_ROTOR6_TILT 0
+
 # ============================================
 # TILT SERVO GEOMETRY
 # ============================================
@@ -146,9 +159,17 @@ param set-default IFO_EDF_TRIM 0.2
 param set-default IFO_EDF_GAIN 1.0
 param set-default IFO_TILT_GAIN 1.0
 
+# Booster = CA_ROTOR6, command = IFO_BST_RATIO * coax mean.
+# IFO_DEVEL 1 = developer mode: booster configured (QGC motor-test slider 7, actuator_test -m 7)
+# but commanded 0 in flight. Set IFO_DEVEL 0 (normal operation) ONLY after the real Fz unit
+# calibration (plan.md Etap 4: CA_ROTOR*_CT scale, IFO_THR_*), SITL needed s = 0.72.
+param set-default IFO_BST_ROTOR 6
+param set-default IFO_BST_RATIO 2.0
+param set-default IFO_DEVEL 1
+
 # ============================================
 # PWM OUTPUTS - FMU MAIN (S1..S12)
-#   101..106 = Motor 1..6, 201..204 = Servo 1..4
+#   101..107 = Motor 1..7 (107 = booster on S7), 201..204 = Servo 1..4
 # ============================================
 param set-default PWM_MAIN_FUNC1 101
 param set-default PWM_MAIN_FUNC2 102
@@ -156,7 +177,8 @@ param set-default PWM_MAIN_FUNC3 106
 param set-default PWM_MAIN_FUNC4 104
 param set-default PWM_MAIN_FUNC5 105
 param set-default PWM_MAIN_FUNC6 103
-param set-default PWM_MAIN_FUNC7 0
+# S7 shares TIM4 with S8-S10 (S9/S10 = tilt servos): PWM 400 Hz only, no DShot
+param set-default PWM_MAIN_FUNC7 107
 param set-default PWM_MAIN_FUNC8 0
 
 param set-default PWM_MAIN_MIN1 1020
@@ -165,6 +187,7 @@ param set-default PWM_MAIN_MIN3 1020
 param set-default PWM_MAIN_MIN4 1020
 param set-default PWM_MAIN_MIN5 1020
 param set-default PWM_MAIN_MIN6 1020
+param set-default PWM_MAIN_MIN7 1020
 
 # Tilt servos
 param set-default PWM_MAIN_FUNC9  202
