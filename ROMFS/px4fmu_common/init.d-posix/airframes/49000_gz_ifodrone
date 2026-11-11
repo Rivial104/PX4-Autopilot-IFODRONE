@@ -1,0 +1,256 @@
+#!/bin/sh
+#
+# @name IfoDrone Airframe
+#
+# @description IfoDrone - Hybrid multicopter with 2 main Z-axis motors and 4 tilting side motors
+#
+# Parameter reference (why each value is what it is): IFODRONE-params.md
+#
+#   gz output  function  allocator      position
+#   EC1    ->    101     CA_ROTOR0      coax top
+#   EC2    ->    102     CA_ROTOR1      coax bottom
+#   EC3    ->    103     CA_ROTOR2      side0 front EDF
+#   EC4    ->    104     CA_ROTOR3      side1 right EDF
+#   EC5    ->    105     CA_ROTOR4      side2 back  EDF
+#   EC6    ->    106     CA_ROTOR5      side3 left  EDF
+#   SV1    ->    201     CA_SV_TL0      tilt front
+#   SV2    ->    202     CA_SV_TL1      tilt right
+#   SV3    ->    203     CA_SV_TL2      tilt back
+#   SV4    ->    204     CA_SV_TL3      tilt left
+#
+# @maintainer PZ
+#
+
+. ${R}etc/init.d/rc.ifodrone_defaults
+
+PX4_SIMULATOR=${PX4_SIMULATOR:=gz}
+PX4_GZ_WORLD=${PX4_GZ_WORLD:=default}
+PX4_SIM_MODEL=${PX4_SIM_MODEL:=ifodrone}
+
+param set-default SIM_GZ_EN 1
+
+param set-default SYS_AUTOSTART 49000
+
+# ============================================
+# CONTROL ALLOCATION
+# ============================================
+param set-default CA_AIRFRAME 90
+param set-default CA_ROTOR_COUNT 6
+
+# must be set 0 for proper yaw control
+param set-default CA_METHOD 0
+# same as previous param -- look at IFODRONE-params.md
+param set-default MC_AIRMODE 0
+
+# ============================================
+# ROTOR GEOMETRY (FRD; must match real 4072_ifodrone)
+# ============================================
+
+# Main motors
+param set-default CA_ROTOR0_PX 0.0
+param set-default CA_ROTOR0_PY 0.0
+param set-default CA_ROTOR0_PZ -0.1
+param set-default CA_ROTOR0_AX 0.0
+param set-default CA_ROTOR0_AY 0.0
+param set-default CA_ROTOR0_AZ -1.0
+param set-default CA_ROTOR0_KM 0.4
+param set-default CA_ROTOR0_CT 0.6
+
+param set-default CA_ROTOR1_PX 0.0
+param set-default CA_ROTOR1_PY 0.0
+param set-default CA_ROTOR1_PZ 0.1
+param set-default CA_ROTOR1_AX 0.0
+param set-default CA_ROTOR1_AY 0.0
+param set-default CA_ROTOR1_AZ -1.0
+param set-default CA_ROTOR1_KM -0.4
+param set-default CA_ROTOR1_CT 0.6
+
+# Side EDFs (tiltable)
+param set-default CA_ROTOR2_PX 0.535
+param set-default CA_ROTOR2_PY 0.0
+param set-default CA_ROTOR2_PZ 0.045
+param set-default CA_ROTOR2_AX 1.0
+param set-default CA_ROTOR2_AY 0.0
+param set-default CA_ROTOR2_AZ 0.0
+param set-default CA_ROTOR2_KM 0
+param set-default CA_ROTOR2_CT 0.1
+param set-default CA_ROTOR2_TILT 1
+
+param set-default CA_ROTOR3_PX 0.0
+param set-default CA_ROTOR3_PY 0.535
+param set-default CA_ROTOR3_PZ 0.045
+param set-default CA_ROTOR3_AX 0.0
+param set-default CA_ROTOR3_AY 1.0
+param set-default CA_ROTOR3_AZ 0.0
+param set-default CA_ROTOR3_KM 0
+param set-default CA_ROTOR3_CT 0.1
+param set-default CA_ROTOR3_TILT 2
+
+param set-default CA_ROTOR4_PX -0.535
+param set-default CA_ROTOR4_PY 0.0
+param set-default CA_ROTOR4_PZ 0.045
+param set-default CA_ROTOR4_AX -1.0
+param set-default CA_ROTOR4_AY 0.0
+param set-default CA_ROTOR4_AZ 0.0
+param set-default CA_ROTOR4_KM 0
+param set-default CA_ROTOR4_CT 0.1
+param set-default CA_ROTOR4_TILT 3
+
+param set-default CA_ROTOR5_PX 0.0
+param set-default CA_ROTOR5_PY -0.535
+param set-default CA_ROTOR5_PZ 0.045
+param set-default CA_ROTOR5_AX 0.0
+param set-default CA_ROTOR5_AY -1.0
+param set-default CA_ROTOR5_AZ 0.0
+param set-default CA_ROTOR5_KM 0
+param set-default CA_ROTOR5_CT 0.1
+param set-default CA_ROTOR5_TILT 4
+
+# ============================================
+# TILT SERVO GEOMETRY
+# ============================================
+param set-default CA_SV_TL_COUNT 4
+
+param set-default CA_SV_TL0_MINA -35.0
+param set-default CA_SV_TL0_MAXA  35.0
+param set-default CA_SV_TL0_TD 0
+param set-default CA_SV_TL0_CT 0
+
+param set-default CA_SV_TL1_MINA -35.0
+param set-default CA_SV_TL1_MAXA  35.0
+param set-default CA_SV_TL1_TD 90
+param set-default CA_SV_TL1_CT 0
+
+param set-default CA_SV_TL2_MINA -35.0
+param set-default CA_SV_TL2_MAXA  35.0
+param set-default CA_SV_TL2_TD 180
+param set-default CA_SV_TL2_CT 0
+
+param set-default CA_SV_TL3_MINA -35.0
+param set-default CA_SV_TL3_MAXA  35.0
+param set-default CA_SV_TL3_TD 270
+param set-default CA_SV_TL3_CT 0
+
+param set-default CA_SV0_SLEW 0.0
+param set-default CA_SV1_SLEW 0.0
+param set-default CA_SV2_SLEW 0.0
+param set-default CA_SV3_SLEW 0.0
+
+# ============================================
+# IFODRONE ALLOCATION TRIMS / GAINS (control_allocator/module.yaml)
+# ============================================
+param set-default IFO_TILT_HOVER 0.0
+param set-default IFO_CA_LIN_TAU 0.05
+param set-default IFO_EDF_TRIM 0.7
+param set-default IFO_EDF_GAIN 1.0
+param set-default IFO_TILT_GAIN 1.0
+
+# ============================================
+# GZ OUTPUTS
+# ============================================
+
+# Motors: omega = MIN + cmd * (MAX - MIN)
+param set-default SIM_GZ_EC_FUNC1 101
+param set-default SIM_GZ_EC_FUNC2 102
+param set-default SIM_GZ_EC_FUNC3 103
+param set-default SIM_GZ_EC_FUNC4 104
+param set-default SIM_GZ_EC_FUNC5 105
+param set-default SIM_GZ_EC_FUNC6 106
+
+param set-default SIM_GZ_EC_MIN1 100
+param set-default SIM_GZ_EC_MIN2 100
+param set-default SIM_GZ_EC_MIN3 350
+param set-default SIM_GZ_EC_MIN4 350
+param set-default SIM_GZ_EC_MIN5 350
+param set-default SIM_GZ_EC_MIN6 350
+
+param set-default SIM_GZ_EC_MAX1 1000
+param set-default SIM_GZ_EC_MAX2 1000
+param set-default SIM_GZ_EC_MAX3 1000
+param set-default SIM_GZ_EC_MAX4 1000
+param set-default SIM_GZ_EC_MAX5 1000
+param set-default SIM_GZ_EC_MAX6 1000
+
+# Tilt servos
+param set-default SIM_GZ_SV_FUNC1 201
+param set-default SIM_GZ_SV_FUNC2 202
+param set-default SIM_GZ_SV_FUNC3 203
+param set-default SIM_GZ_SV_FUNC4 204
+
+param set-default SIM_GZ_SV_MINA1 -35.0
+param set-default SIM_GZ_SV_MINA2 -35.0
+param set-default SIM_GZ_SV_MINA3 -35.0
+param set-default SIM_GZ_SV_MINA4 -35.0
+param set-default SIM_GZ_SV_MAXA1 35.0
+param set-default SIM_GZ_SV_MAXA2 35.0
+param set-default SIM_GZ_SV_MAXA3 35.0
+param set-default SIM_GZ_SV_MAXA4 35.0
+
+param set-default SIM_GZ_SV_MIN1 1000
+param set-default SIM_GZ_SV_MIN2 1000
+param set-default SIM_GZ_SV_MIN3 1000
+param set-default SIM_GZ_SV_MIN4 1000
+param set-default SIM_GZ_SV_DIS1 1500
+param set-default SIM_GZ_SV_DIS2 1500
+param set-default SIM_GZ_SV_DIS3 1500
+param set-default SIM_GZ_SV_DIS4 1500
+param set-default SIM_GZ_SV_MAX1 2000
+param set-default SIM_GZ_SV_MAX2 2000
+param set-default SIM_GZ_SV_MAX3 2000
+param set-default SIM_GZ_SV_MAX4 2000
+
+# ============================================
+# ATTITUDE + RATE CONTROL
+# ============================================
+
+# Attitude P (ifo_att_control -> vehicle_rates_setpoint); body is kept level
+param set-default MC_ROLL_P 1.0
+param set-default MC_PITCH_P 1.0
+param set-default MC_YAW_P 0.48
+
+# Rate PID (mc_rate_control -> torque + thrust); NOT stock multicopter gains.
+# gz ceiling: rate P > 0.3 limit-cycles (SDF servo model) -- look at IFODRONE-params.md
+param set-default MC_ROLLRATE_P 0.20
+param set-default MC_ROLLRATE_I 0.20
+param set-default MC_ROLLRATE_D 0.0003
+param set-default MC_RR_INT_LIM 0.50
+param set-default MC_PITCHRATE_P 0.30
+param set-default MC_PITCHRATE_I 0.20
+param set-default MC_PITCHRATE_D 0.0003
+param set-default MC_PR_INT_LIM 0.50
+param set-default MC_YAWRATE_P 0.22
+param set-default MC_YAWRATE_I 0.01
+param set-default MC_YAWRATE_D 0.0
+param set-default MC_YR_INT_LIM 0.30
+
+# ============================================
+# POSITION / MANUAL CONTROL (ifo_pos_control) + THRUST REFERENCES
+# ============================================
+param set-default IFO_THR_HOVER 0.6
+param set-default MPC_THR_HOVER 0.6
+
+param set-default IFO_THR_XY_MAX 0.1
+
+param set-default IFO_STB_VD_TAU 2.0
+
+param set-default IFO_VEL_MAX_XY 2.0
+param set-default IFO_VEL_XY_P 1.2
+param set-default IFO_POS_XY_P 0.6
+param set-default MPC_XY_CRUISE 2.0
+param set-default MPC_ACC_HOR 1.0
+param set-default MPC_ACC_HOR_MAX 2.0
+param set-default MPC_JERK_AUTO 2.5
+
+param set-default MPC_YAW_MODE 4
+
+# ============================================
+# SITL-ONLY SAFETY WORKAROUNDS - NEVER copy these to the real airframe
+# ============================================
+param set-default COM_RC_IN_MODE 0
+param set-default COM_RCL_EXCEPT 4
+param set-default NAV_RCL_ACT 0
+param set-default FD_ACT_EN 0
+param set-default FD_ESCS_EN 0
+param set-default CBRK_SUPPLY_CHK 894281
+param set-default FD_FAIL_R 0
+param set-default FD_FAIL_P 0

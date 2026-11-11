@@ -110,6 +110,16 @@ public:
 	 */
 	uint32_t updateAxisFromTilts(const ActuatorEffectivenessTilts &tilts, float tilt_control);
 
+	/**
+	 * Sets each motor axis from per-tilt actuator setpoints.
+	 * @param tilts configured tilt servos
+	 * @param actuator_sp full actuator setpoint vector
+	 * @param first_tilt_idx first tilt actuator index in actuator_sp
+	 * @return the motors as bitset which are not tiltable
+	 */
+	uint32_t updateAxisFromTiltSetpoints(const ActuatorEffectivenessTilts &tilts,
+					     const ActuatorVector &actuator_sp, int first_tilt_idx);
+
 	const Geometry &geometry() const { return _geometry; }
 
 	/**
@@ -117,6 +127,20 @@ public:
 	 * rotated by tilt_direction around z.
 	 */
 	static matrix::Vector3f tiltedAxis(float tilt_angle, float tilt_direction);
+
+	/**
+	 * Hinge axis (FRD) for a rotor with a horizontal base thrust axis, matching
+	 * the IFODRONE SDF joint axes converted from gz ENU to FRD (Y flips):
+	 * base +X → hinge (0,−1,0), base +Y → (1,0,0), base −X → (0,1,0),
+	 * base −Y → (−1,0,0); a positive command tilts the thrust axis towards +Z
+	 * (downwards). The SDF itself lists +Y/+X/−Y/−X in ENU. Single source of the tilt sign
+	 * convention: used both to rotate rotor axes and to build tilt-servo
+	 * effectiveness columns (d axis / d angle = hinge × axis).
+	 */
+	static matrix::Vector3f hingeAxisForBase(const matrix::Vector3f &base_axis);
+
+	/// Normalized base (untilted) axis of rotor i, as configured by parameters
+	const matrix::Vector3f &baseAxis(int i) const { return _base_axis[i]; }
 
 	void enablePropellerTorque(bool enable) { _geometry.propeller_torque_disabled = !enable; }
 
@@ -149,6 +173,7 @@ private:
 	ParamHandles _param_handles[NUM_ROTORS_MAX];
 
 	Geometry _geometry{};
+	matrix::Vector3f _base_axis[NUM_ROTORS_MAX] {};
 
 	DEFINE_PARAMETERS(
 		(ParamInt<px4::params::CA_ROTOR_COUNT>) _param_ca_rotor_count

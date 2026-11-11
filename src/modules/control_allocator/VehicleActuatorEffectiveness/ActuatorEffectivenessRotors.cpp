@@ -112,6 +112,13 @@ void ActuatorEffectivenessRotors::updateParams()
 			break;
 		}
 
+		_base_axis[i] = axis;
+		const float axis_norm = _base_axis[i].norm();
+
+		if (axis_norm > FLT_EPSILON) {
+			_base_axis[i] /= axis_norm;
+		}
+
 		param_get(_param_handles[i].thrust_coef, &_geometry.rotors[i].thrust_coef);
 		param_get(_param_handles[i].moment_ratio, &_geometry.rotors[i].moment_ratio);
 
@@ -245,6 +252,80 @@ uint32_t ActuatorEffectivenessRotors::updateAxisFromTilts(const ActuatorEffectiv
 		const float tilt_angle = math::lerp(tilt.min_angle, tilt.max_angle, (collective_tilt_control + 1.f) / 2.f);
 		const float tilt_direction = math::radians((float)tilt.tilt_direction);
 		_geometry.rotors[i].axis = tiltedAxis(tilt_angle, tilt_direction);
+	}
+
+	return nontilted_motors;
+}
+
+Vector3f ActuatorEffectivenessRotors::hingeAxisForBase(const Vector3f &base_axis)
+{
+	// IFODRONE side rotors are configured with horizontal neutral axes (+/-X or +/-Y).
+	// The SDF joint axes are given in the gz ENU body frame; converting to FRD
+	// keeps X-aligned hinges but negates Y-aligned ones (FRD y = -ENU y):
+	//   base +X → SDF hinge [0,1,0]  (ENU) → FRD (0,-1,0)   (front, motor_2_joint)
+	//   base +Y → SDF hinge [1,0,0]  (ENU) → FRD (1,0,0)    (right, motor_3_joint)
+	//   base -X → SDF hinge [0,-1,0] (ENU) → FRD (0,1,0)    (back,  motor_4_joint)
+	//   base -Y → SDF hinge [-1,0,0] (ENU) → FRD (-1,0,0)   (left,  motor_5_joint)
+	// With this convention a positive command tilts the thrust axis downwards
+	// (d axis/d angle = hinge × axis = +Z at neutral), e.g. front +1 → nose-down.
+	if (fabsf(base_axis(0)) >= fabsf(base_axis(1))) {
+		return Vector3f(0.f, (base_axis(0) >= 0.f) ? -1.f : 1.f, 0.f);
+	}
+
+	return Vector3f((base_axis(1) >= 0.f) ? 1.f : -1.f, 0.f, 0.f);
+}
+
+uint32_t ActuatorEffectivenessRotors::updateAxisFromTiltSetpoints(const ActuatorEffectivenessTilts &tilts,
+		const ActuatorVector &actuator_sp, int first_tilt_idx)
+{
+	uint32_t nontilted_motors = 0;
+
+	for (int i = 0; i < _geometry.num_rotors; ++i) {
+		const int tilt_index = _geometry.rotors[i].tilt_index;
+
+		if (tilt_index == -1 || tilt_index >= tilts.count()) {
+			nontilted_motors |= 1u << i;
+			continue;
+		}
+
+		const int actuator_idx = first_tilt_idx + tilt_index;
+
+		if (actuator_idx < 0 || actuator_idx >= NUM_ACTUATORS) {
+			nontilted_motors |= 1u << i;
+			continue;
+		}
+
+		float tilt_control = actuator_sp(actuator_idx);
+
+		if (!PX4_ISFINITE(tilt_control)) {
+			tilt_control = -1.f;
+		}
+
+		tilt_control = math::constrain(tilt_control, -1.f, 1.f);
+
+		const ActuatorEffectivenessTilts::Params &tilt = tilts.config(tilt_index);
+		const float tilt_angle = math::lerp(tilt.min_angle, tilt.max_angle, (tilt_control + 1.f) / 2.f);
+
+		Vector3f base_axis = _base_axis[i];
+		float base_axis_norm = base_axis.norm();
+
+		if (base_axis_norm < FLT_EPSILON) {
+			base_axis = _geometry.rotors[i].axis;
+			base_axis_norm = base_axis.norm();
+		}
+
+		if (base_axis_norm > FLT_EPSILON) {
+			base_axis /= base_axis_norm;
+		} else {
+			base_axis = Vector3f(0.f, 0.f, -1.f);
+		}
+
+		const Vector3f hinge_axis = hingeAxisForBase(base_axis);
+		const float c = cosf(tilt_angle);
+		const float s = sinf(tilt_angle);
+		_geometry.rotors[i].axis = base_axis * c
+					   + hinge_axis.cross(base_axis) * s
+					   + hinge_axis * hinge_axis.dot(base_axis) * (1.f - c);
 	}
 
 	return nontilted_motors;

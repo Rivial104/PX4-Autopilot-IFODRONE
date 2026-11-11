@@ -1,0 +1,296 @@
+#!/bin/sh
+#
+# @name IFODRONE (Matek H743 Slim V3)
+#
+# @type Custom
+# @class Copter
+#
+# @desc
+# IFODRONE - Hybrid multicopter with 2 main Z-axis motors and 4 tilting side motors.
+# Hardware airframe for Matek H743-Slim V3.
+#
+# Parameter reference (why each value is what it is): IFODRONE-params.md
+#
+# "side N" below = the arm carried by tilt servo CA_SV_TL<N> (TD = N*90 deg):
+#   side0 = front (+X)   side1 = right (+Y)   side2 = back (-X)   side3 = left (-Y)
+#
+#   out    function  allocator      QGC label   position
+#   S1  ->   101     CA_ROTOR0      Motor 1     coax top
+#   S2  ->   102     CA_ROTOR1      Motor 2     coax bottom
+#   S3  ->   106     CA_ROTOR5      Motor 6     side3  left  EDF
+#   S4  ->   104     CA_ROTOR3      Motor 4     side1  right EDF
+#   S5  ->   105     CA_ROTOR4      Motor 5     side2  back  EDF
+#   S6  ->   103     CA_ROTOR2      Motor 3     side0  front EDF
+#   S7  ->     0                                free
+#   S8  ->     0                                free
+#   S9  ->   202     CA_SV_TL1      Servo 2     tilt right
+#   S10 ->   203     CA_SV_TL2      Servo 3     tilt back
+#   S11 ->   204     CA_SV_TL3      Servo 4     tilt left
+#   S12 ->   201     CA_SV_TL0      Servo 1     tilt front
+#
+# @maintainer PZ
+
+. ${R}etc/init.d/rc.ifodrone_defaults
+
+# ============================================
+# CONTROL ALLOCATION
+# ============================================
+param set-default CA_AIRFRAME 90
+param set-default CA_ROTOR_COUNT 6
+
+# must be set 0 for proper yaw control
+param set-default CA_METHOD 0
+# same as previous param -- look at IFODRONE-params.md
+param set-default MC_AIRMODE 0
+
+# ============================================
+# ROTOR GEOMETRY (FRD; must match SITL 49000_gz_ifodrone)
+# ============================================
+
+# Main motors
+param set-default CA_ROTOR0_PX 0.0
+param set-default CA_ROTOR0_PY 0.0
+param set-default CA_ROTOR0_PZ -0.1
+param set-default CA_ROTOR0_AX 0.0
+param set-default CA_ROTOR0_AY 0.0
+param set-default CA_ROTOR0_AZ -1.0
+param set-default CA_ROTOR0_KM 0.4
+param set-default CA_ROTOR0_CT 0.6
+
+param set-default CA_ROTOR1_PX 0.0
+param set-default CA_ROTOR1_PY 0.0
+param set-default CA_ROTOR1_PZ 0.1
+param set-default CA_ROTOR1_AX 0.0
+param set-default CA_ROTOR1_AY 0.0
+param set-default CA_ROTOR1_AZ -1.0
+param set-default CA_ROTOR1_KM -0.4
+param set-default CA_ROTOR1_CT 0.6
+
+# Side EDFs (tiltable)
+param set-default CA_ROTOR2_PX 0.535
+param set-default CA_ROTOR2_PY 0.0
+param set-default CA_ROTOR2_PZ 0.045
+param set-default CA_ROTOR2_AX 1.0
+param set-default CA_ROTOR2_AY 0.0
+param set-default CA_ROTOR2_AZ 0.0
+param set-default CA_ROTOR2_KM 0
+param set-default CA_ROTOR2_CT 0.1
+param set-default CA_ROTOR2_TILT 1
+
+param set-default CA_ROTOR3_PX 0.0
+param set-default CA_ROTOR3_PY 0.535
+param set-default CA_ROTOR3_PZ 0.045
+param set-default CA_ROTOR3_AX 0.0
+param set-default CA_ROTOR3_AY 1.0
+param set-default CA_ROTOR3_AZ 0.0
+param set-default CA_ROTOR3_KM 0
+param set-default CA_ROTOR3_CT 0.1
+param set-default CA_ROTOR3_TILT 2
+
+param set-default CA_ROTOR4_PX -0.535
+param set-default CA_ROTOR4_PY 0.0
+param set-default CA_ROTOR4_PZ 0.045
+param set-default CA_ROTOR4_AX -1.0
+param set-default CA_ROTOR4_AY 0.0
+param set-default CA_ROTOR4_AZ 0.0
+param set-default CA_ROTOR4_KM 0
+param set-default CA_ROTOR4_CT 0.1
+param set-default CA_ROTOR4_TILT 3
+
+param set-default CA_ROTOR5_PX 0.0
+param set-default CA_ROTOR5_PY -0.535
+param set-default CA_ROTOR5_PZ 0.045
+param set-default CA_ROTOR5_AX 0.0
+param set-default CA_ROTOR5_AY -1.0
+param set-default CA_ROTOR5_AZ 0.0
+param set-default CA_ROTOR5_KM 0
+param set-default CA_ROTOR5_CT 0.1
+param set-default CA_ROTOR5_TILT 4
+
+# ============================================
+# TILT SERVO GEOMETRY
+# ============================================
+param set-default CA_SV_TL_COUNT 4
+
+param set-default CA_SV_TL0_MINA -60.0
+param set-default CA_SV_TL0_MAXA  60.0
+param set-default CA_SV_TL0_TD 0
+param set-default CA_SV_TL0_CT 0
+
+param set-default CA_SV_TL1_MINA -60.0
+param set-default CA_SV_TL1_MAXA  60.0
+param set-default CA_SV_TL1_TD 90
+param set-default CA_SV_TL1_CT 0
+
+param set-default CA_SV_TL2_MINA -60.0
+param set-default CA_SV_TL2_MAXA  60.0
+param set-default CA_SV_TL2_TD 180
+param set-default CA_SV_TL2_CT 0
+
+param set-default CA_SV_TL3_MINA -60.0
+param set-default CA_SV_TL3_MAXA  60.0
+param set-default CA_SV_TL3_TD 270
+param set-default CA_SV_TL3_CT 0
+
+param set-default CA_SV0_SLEW 0.0
+param set-default CA_SV1_SLEW 0.0
+param set-default CA_SV2_SLEW 0.0
+param set-default CA_SV3_SLEW 0.0
+
+# ============================================
+# IFODRONE ALLOCATION TRIMS / GAINS (control_allocator/module.yaml)
+# ============================================
+param set-default IFO_TILT_HOVER 0.0
+param set-default IFO_CA_LIN_TAU 0.05
+param set-default IFO_EDF_TRIM 0.2
+param set-default IFO_EDF_GAIN 1.0
+param set-default IFO_TILT_GAIN 1.0
+
+# ============================================
+# PWM OUTPUTS - FMU MAIN (S1..S12)
+#   101..106 = Motor 1..6, 201..204 = Servo 1..4
+# ============================================
+param set-default PWM_MAIN_FUNC1 101
+param set-default PWM_MAIN_FUNC2 102
+param set-default PWM_MAIN_FUNC3 106
+param set-default PWM_MAIN_FUNC4 104
+param set-default PWM_MAIN_FUNC5 105
+param set-default PWM_MAIN_FUNC6 103
+param set-default PWM_MAIN_FUNC7 0
+param set-default PWM_MAIN_FUNC8 0
+
+param set-default PWM_MAIN_MIN1 1020
+param set-default PWM_MAIN_MIN2 1020
+param set-default PWM_MAIN_MIN3 1020
+param set-default PWM_MAIN_MIN4 1020
+param set-default PWM_MAIN_MIN5 1020
+param set-default PWM_MAIN_MIN6 1020
+
+# Tilt servos
+param set-default PWM_MAIN_FUNC9  202
+param set-default PWM_MAIN_FUNC10 203
+param set-default PWM_MAIN_FUNC11 204
+param set-default PWM_MAIN_FUNC12 201
+
+param set-default PWM_MAIN_CENT9  1500
+param set-default PWM_MAIN_CENT10 1500
+param set-default PWM_MAIN_CENT11 1500
+param set-default PWM_MAIN_CENT12 1500
+param set-default PWM_MAIN_DIS9  1500
+param set-default PWM_MAIN_DIS10 1500
+param set-default PWM_MAIN_DIS11 1500
+param set-default PWM_MAIN_DIS12 1500
+
+# ============================================
+# RC (CRSF) / ARMING / FLIGHT MODES
+# ============================================
+
+# 2 = RC and MAVLink manual control, with fallback
+param set-default COM_RC_IN_MODE 2
+
+# Stick mapping
+param set-default RC_CHAN_CNT 16
+param set-default RC_MAP_ROLL 1
+param set-default RC_MAP_PITCH 2
+param set-default RC_MAP_THROTTLE 3
+param set-default RC_MAP_YAW 4
+
+# Flight modes on channel 7: 8 = Stabilized, 1 = Altitude, 11 = Land
+param set-default RC_MAP_FLTMODE 7
+param set-default COM_FLTMODE1 8
+param set-default COM_FLTMODE3 1
+param set-default COM_FLTMODE4 1
+param set-default COM_FLTMODE6 11
+
+# Arm/disarm switch on channel 5
+# COM_ARM_SWISBTN and MAN_ARM_GESTURE are NOT on the reset keep-list, so they
+# revert on a reset - MAN_ARM_GESTURE to 1, which re-enables the stick arming
+# gesture this vehicle does not use.
+param set-default RC_MAP_ARM_SW 5
+param set-default COM_ARM_SWISBTN 0
+param set-default MAN_ARM_GESTURE 0
+
+# ============================================
+# SERIAL PORTS / MAVLINK
+# ============================================
+
+# SiK telemetry radio on TEL1
+param set-default MAV_1_CONFIG 101
+param set-default MAV_1_MODE 0
+param set-default MAV_1_RADIO_CTL 1
+param set-default MAV_1_FLOW_CTRL 2
+param set-default SER_TEL1_BAUD 57600
+
+# TEL3 - MAVLink telemetry backpack
+param set-default SER_TEL3_BAUD 460800
+param set-default MAV_0_CONFIG 103
+param set-default MAV_0_MODE 0
+param set-default MAV_0_FLOW_CTRL 2
+param set-default MAV_0_RADIO_CTL 1
+param set-default MAV_0_FORWARD 1
+param set-default MAV_0_RATE 9600
+
+# ============================================
+# SENSORS: GPS + COMPASS
+# ============================================
+param set-default UAVCAN_ENABLE 0
+param set-default GPS_1_CONFIG 201
+param set-default SER_GPS1_BAUD 0
+param set-default GPS_1_PROTOCOL 1
+
+param set-default SYS_HAS_MAG 1
+param set-default EKF2_MAG_TYPE 0
+param set-default EKF2_MAG_CHECK 1
+param set-default SENS_MAG_MODE 1
+
+# ============================================
+# BATTERY
+# ============================================
+param set-default BAT1_N_CELLS 6
+param set-default BAT1_V_EMPTY 3.3
+param set-default BAT1_V_CHARGED 4.2
+
+# ============================================
+# ATTITUDE + RATE CONTROL
+# ============================================
+
+# Attitude P (ifo_att_control -> vehicle_rates_setpoint); body is kept level
+param set-default MC_ROLL_P 1.0
+param set-default MC_PITCH_P 1.0
+param set-default MC_YAW_P 0.48
+
+# Rate PID (mc_rate_control -> torque + thrust). Allocation runs without RPY
+# normalization, so these are NOT the stock multicopter gains. I/D/limits that
+# happen to equal the PX4 defaults are pinned too: this is the tuning table.
+param set-default MC_ROLLRATE_P 0.20
+param set-default MC_ROLLRATE_I 0.20
+param set-default MC_ROLLRATE_D 0.0003
+param set-default MC_RR_INT_LIM 0.50
+param set-default MC_PITCHRATE_P 0.30
+param set-default MC_PITCHRATE_I 0.20
+param set-default MC_PITCHRATE_D 0.0003
+param set-default MC_PR_INT_LIM 0.50
+param set-default MC_YAWRATE_P 0.22
+param set-default MC_YAWRATE_I 0.01
+param set-default MC_YAWRATE_D 0.0
+param set-default MC_YR_INT_LIM 0.30
+
+# ============================================
+# POSITION / MANUAL CONTROL (ifo_pos_control) + THRUST REFERENCES
+# ============================================
+param set-default IFO_THR_HOVER 0.5
+param set-default MPC_THR_HOVER 0.5
+
+param set-default IFO_THR_XY_MAX 0.2
+
+param set-default IFO_STB_VD_TAU 2.0
+
+param set-default IFO_VEL_MAX_XY 2.0
+param set-default IFO_VEL_XY_P 1.2
+param set-default IFO_POS_XY_P 0.6
+param set-default MPC_XY_CRUISE 2.0
+param set-default MPC_ACC_HOR 1.0
+param set-default MPC_ACC_HOR_MAX 2.0
+param set-default MPC_JERK_AUTO 2.5
+
+param set-default MPC_YAW_MODE 4

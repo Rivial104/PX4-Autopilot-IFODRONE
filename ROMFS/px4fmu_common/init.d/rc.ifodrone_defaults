@@ -1,0 +1,24 @@
+#!/bin/sh
+#
+# IFODRONE default parameters, shared by 4072_ifodrone (real) and 49000_gz_ifodrone
+# (SITL). Replaces rc.mc_defaults, which is NOT loaded for VEHICLE_TYPE ifodrone.
+#
+# NOTE: Script variables are declared/initialized/unset in the rcS script.
+# NOTE: deliberately no SYS_AUTOSTART / SYS_AUTOCONFIG here -- look at IFODRONE-params.md
+#
+
+# Use custom vehicle type to avoid rc.mc_apps being loaded
+set VEHICLE_TYPE ifodrone
+
+# MAV_TYPE_QUADROTOR 2 (closest match for QGC compatibility)
+param set-default MAV_TYPE 2
+
+if param compare IMU_GYRO_RATEMAX 400
+then
+	param set-default IMU_GYRO_RATEMAX 800
+fi
+
+param set-default NAV_ACC_RAD 2
+
+param set-default RTL_RETURN_ALT 30
+param set-default RTL_DESCEND_ALT 10

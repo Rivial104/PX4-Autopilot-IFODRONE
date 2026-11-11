@@ -273,6 +273,10 @@ ControlAllocator::update_effectiveness_source()
 			tmp = new ActuatorEffectivenessSpacecraft(this);
 			break;
 
+		case EffectivenessSource::IFODRONE:
+			tmp = new ActuatorEffectivenessIfodrone(this);
+			break;
+
 		default:
 			PX4_ERR("Unknown airframe");
 			break;
@@ -410,6 +414,7 @@ ControlAllocator::Run()
 		c[0](4) = _thrust_sp(1);
 		c[0](5) = _thrust_sp(2);
 
+
 		if (_num_control_allocation > 1) {
 			if (_vehicle_torque_setpoint1_sub.copy(&vehicle_torque_setpoint)) {
 				c[1](0) = vehicle_torque_setpoint.xyz[0];
@@ -440,6 +445,21 @@ ControlAllocator::Run()
 
 			_control_allocation[i]->clipActuatorSetpoint();
 		}
+
+		// if (_effectiveness_source_id == EffectivenessSource::IFODRONE && _num_control_allocation > 0) {
+		// 	static hrt_abstime last_debug{0};
+
+		// 	if (hrt_elapsed_time(&last_debug) > 250_ms) {
+		// 		const auto &act = _control_allocation[0]->_actuator_sp;
+		// 		PX4_INFO("CA_IFO sp_tq=(%.2f %.2f %.2f) sp_thr=(%.2f %.2f %.2f) "
+		// 			 "mot=[%.2f %.2f %.2f %.2f %.2f %.2f]",
+		// 			 (double)c[0](0), (double)c[0](1), (double)c[0](2),
+		// 			 (double)c[0](3), (double)c[0](4), (double)c[0](5),
+		// 			 (double)act(0), (double)act(1), (double)act(2),
+		// 			 (double)act(3), (double)act(4), (double)act(5));
+		// 		last_debug = now;
+		// 	}
+		// }
 	}
 
 	// Publish actuator setpoint and allocator status
@@ -464,8 +484,17 @@ void
 ControlAllocator::update_effectiveness_matrix_if_needed(EffectivenessUpdateReason reason)
 {
 	ActuatorEffectiveness::Configuration config{};
+	// IFODRONE: the matrix is state dependent and is rebuilt on every allocation.
+	// Side effect (relied upon by the IFODRONE thrust calibration, do not "fix"
+	// without recalibrating IFO_THR_HOVER / CA_ROTOR*_CT): the CONFIGURATION_UPDATE
+	// request for a new thrust normalization scale is always overwritten by the
+	// following NO_EXTERNAL_UPDATE before the pseudo-inverse is recomputed, so the
+	// scale stays 1 and vehicle_thrust_setpoint is in raw CT units
+	// (coax command = |Fz| / (2 * CA_ROTOR0_CT) without side-EDF share).
+	const bool high_rate_no_external_updates = (_effectiveness_source_id == EffectivenessSource::IFODRONE);
 
 	if (reason == EffectivenessUpdateReason::NO_EXTERNAL_UPDATE
+	    && !high_rate_no_external_updates
 	    && hrt_elapsed_time(&_last_effectiveness_update) < 100_ms) { // rate-limit updates
 		return;
 	}
@@ -710,6 +739,8 @@ ControlAllocator::publish_actuator_controls()
 
 		_actuator_servos_pub.publish(actuator_servos);
 	}
+
+	// PX4_INFO("CA -- Actuator controls published: motors %d, servos %d", motors_idx, _num_actuators[1]);
 }
 
 void

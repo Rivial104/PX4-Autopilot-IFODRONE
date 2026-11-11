@@ -1,0 +1,27 @@
+#!/bin/sh
+#
+# IfoDrone specific apps. Cascaded MC-style control chain:
+#   ifo_pos_control : trajectory_setpoint → vehicle_attitude_setpoint (yaw + thrust_body)
+#   ifo_att_control : attitude P          → vehicle_rates_setpoint (+ thrust_body passthrough)
+#   mc_rate_control : rate PID            → vehicle_torque_setpoint + vehicle_thrust_setpoint
+#   control_allocator: torque/thrust      → actuator_motors + actuator_servos (tilts)
+#
+
+if ! crsf_rc status
+then
+	crsf_rc start -d /dev/ttyS4
+fi
+
+control_allocator start
+
+ifo_pos_control start
+
+ifo_att_control start
+
+mc_rate_control start
+
+mc_hover_thrust_estimator start
+
+flight_mode_manager start
+
+land_detector start multicopter

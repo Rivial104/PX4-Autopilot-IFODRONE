@@ -33,6 +33,7 @@ parameters:
                 13: Rover (Mecanum)
                 14: Spacecraft 2D
                 15: Spacecraft 3D
+                90: IFODRONE
             default: 0
 
         CA_METHOD:
@@ -47,6 +48,80 @@ parameters:
                 1: Pseudo-inverse with sequential desaturation technique
                 2: Automatic
             default: 2
+
+        # IFODRONE (CA_AIRFRAME 90)
+        IFO_TILT_HOVER:
+            description:
+                short: IFODRONE hover tilt angle
+                long: |
+                  Tilt-servo angle the allocation rests at with zero torque demand.
+                  0 = side-EDF thrust axes horizontal.
+            type: float
+            decimal: 1
+            unit: deg
+            min: -60.0
+            max: 90.0
+            default: 0.0
+
+        IFO_EDF_TRIM:
+            description:
+                short: IFODRONE side-EDF idle trim
+                long: |
+                  Idle thrust baseline of the side EDFs. Opposing pairs are allocated
+                  differentially around this value; it also sets the minimum assumed
+                  EDF thrust when scaling the tilt-servo torque authority.
+            type: float
+            decimal: 2
+            min: 0.0
+            max: 0.9
+            default: 0.2
+
+        IFO_EDF_GAIN:
+            description:
+                short: IFODRONE side-EDF command gain
+                long: |
+                  Scales each side-EDF command around IFO_EDF_TRIM after allocation.
+                  A value below 1 reduces differential side-EDF authority without
+                  changing the coaxial motors or the shared EDF idle baseline.
+            type: float
+            decimal: 2
+            min: 0.0
+            max: 1.0
+            default: 1.0
+
+        IFO_TILT_GAIN:
+            description:
+                short: IFODRONE tilt-servo command gain
+                long: |
+                  Scales each tilt-servo command around IFO_TILT_HOVER after
+                  allocation. A value below 1 reduces tilt authority symmetrically
+                  while preserving the configured hover angle.
+            type: float
+            decimal: 2
+            min: 0.0
+            max: 1.0
+            default: 1.0
+
+        IFO_CA_LIN_TAU:
+            description:
+                short: IFODRONE allocation linearization time constant
+                long: |
+                  The IFODRONE effectiveness matrix depends on the actuator operating
+                  point (EDF axes rotated by the tilt angles, tilt-servo columns scaled
+                  by EDF thrust). That operating point is the clipped allocation
+                  result, low-pass filtered with this time constant. 0 uses the raw
+                  previous allocation, which forms an algebraic loop between
+                  consecutive allocation cycles: the servo setpoints alternate from
+                  cycle to cycle and, at large hover tilt angles, settle into a
+                  full-range limit cycle. Keep it on the order of the servo / EDF
+                  response time.
+            type: float
+            decimal: 3
+            unit: s
+            min: 0.0
+            max: 1.0
+            increment: 0.01
+            default: 0.05
 
         # Motor parameters
         CA_R_REV:
@@ -1251,3 +1326,48 @@ mixer:
                             function: 'axisz'
                           - name: 'CA_ROTOR${i}_CT'
                             label: "Thrust\nCoefficient"
+
+            90: # IFODRONE
+                title: 'IFODRONE (Main + Tilt)'
+                actuators:
+                  # =========================
+                  # ALL MOTORS (0-1: Main, 2-5: Side/Tilt)
+                  # =========================
+                  - actuator_type: 'motor'
+                    group_label: 'Motors'
+                    count: 6
+                    item_label_prefix: ['Main 0', 'Main 1', 'Side 0', 'Side 1', 'Side 2', 'Side 3']
+                    per_item_parameters:
+                        standard:
+                          position: [
+                            'CA_ROTOR${i}_PX',
+                            'CA_ROTOR${i}_PY',
+                            'CA_ROTOR${i}_PZ'
+                          ]
+                        extra:
+                          - name: 'CA_ROTOR${i}_KM'
+                            label: 'Direction CCW'
+                            function: 'spin-dir'
+                            show_as: 'true-if-positive'
+                          - name: 'CA_ROTOR${i}_TILT'
+                            label: 'Tilt Servo Index'
+                          - name: 'CA_ROTOR${i}_CT'
+                            label: 'Thrust Coefficient'
+
+                  # =========================
+                  # TILT SERVOS
+                  # =========================
+                  - actuator_type: 'servo'
+                    group_label: 'Tilt Servos'
+                    count: 'CA_SV_TL_COUNT'
+                    item_label_prefix: 'Tilt ${i}'
+                    per_item_parameters:
+                        extra:
+                          - name: 'CA_SV_TL${i}_MINA'
+                            label: "Angle at Min\nTilt"
+                          - name: 'CA_SV_TL${i}_MAXA'
+                            label: "Angle at Max\nTilt"
+                          - name: 'CA_SV_TL${i}_TD'
+                            label: 'Tilt Direction'
+                          - name: 'CA_SV_TL${i}_CT'
+                            label: 'Use for Control'

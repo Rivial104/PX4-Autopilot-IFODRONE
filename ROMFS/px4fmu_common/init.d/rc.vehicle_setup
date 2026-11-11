@@ -87,6 +87,15 @@ then
 fi
 
 #
+# IfoDrone setup.
+#
+if [ $VEHICLE_TYPE = ifodrone ]
+then
+	# Start ifodrone apps.
+	. ${R}etc/init.d/rc.ifodrone_apps
+fi
+
+#
 # UUV setup
 #
 if [ $VEHICLE_TYPE = uuv ]

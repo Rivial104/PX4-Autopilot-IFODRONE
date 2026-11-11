@@ -81,7 +81,6 @@ TEST(ControlAllocationMetricTest, AllZeroCase)
 	matrix::Vector<float, 16> linearization_point;
 	matrix::Vector<float, 16> actuator_sp_expected;
 
-	method.setMetricAllocation(true);
 	method.setEffectivenessMatrix(effectiveness, actuator_trim, linearization_point, 16, false);
 	method.setControlSetpoint(control_sp);
 	method.allocate();

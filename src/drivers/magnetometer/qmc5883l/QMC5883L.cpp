@@ -186,7 +186,7 @@ void QMC5883L::RunImpl()
 					int16_t y = combine(buffer.Y_MSB, buffer.Y_LSB);
 					int16_t z = combine(buffer.Z_MSB, buffer.Z_LSB);
 
-					if (x != _prev_data[0] || y != _prev_data[1] || z != _prev_data[2]) {
+					if (buffer.STATUS & STATUS_BIT::DRDY) {
 						_prev_data[0] = x;
 						_prev_data[1] = y;
 						_prev_data[2] = z;

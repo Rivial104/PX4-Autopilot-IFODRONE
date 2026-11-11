@@ -20314,6 +20314,7 @@ Some are generic, while others are specifically fit to a certain vehicle with a 
 - `13`: Rover (Mecanum)
 - `14`: Spacecraft 2D
 - `15`: Spacecraft 3D
+- `90`: IfoDrone
 
 | Reboot | minValue | maxValue | increment | default | unit |
 | ------ | -------- | -------- | --------- | ------- | ---- |
