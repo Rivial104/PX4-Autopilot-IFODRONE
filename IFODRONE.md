@@ -8,11 +8,13 @@ Added:
 - Initial commit, dodano IFODRONE.md [08.12.2025]
 - Dodano gałąź ifo-model oraz odpowiedni fork submodułu gz [08.12.2025]
 - Dodano gałąź ifo-airframe [08.12.2025]
+- Pionowy booster 4× EDF (jeden sygnał PWM S7): alokator `IFO_BST_ROTOR`/`IFO_BST_RATIO`, tryb deweloperski `IFO_DEVEL`, model gz (4 linki `booster_0..3`, `SIM_GZ_EC_*7`), parametry 49000/4072 (`CA_ROTOR6_*`, `PWM_MAIN_FUNC7 107`); real 4072 w trybie `IFO_DEVEL 1` do kalibracji, opis w `IFODRONE-params.md` §15 [11.11.2026]
 
 Changed:
-
+- SITL: skala jednostek Fz s = 0.72 (`CA_ROTOR*_CT` ×s, coax KM ÷s, `IFO_THR_*` ×s) – z boosterem hover > `IFO_THR_MAX`, dron nie startował [11.11.2026]
 
 Fixed:
+- Booster: wyciek yaw → Fz (średnia przyciętych komend coax ×g dawała ~2 g wznoszenia przy pełnym yaw); para coax odsaturowana z zachowaniem średniej [11.11.2026]
 
 
 ## Dokumentacja

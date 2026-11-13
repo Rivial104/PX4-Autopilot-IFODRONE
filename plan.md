@@ -4,8 +4,9 @@
 Booster przejmuje **większość Fz**. Para coax zostaje głównie do **yaw** i tylko w niewielkim stopniu dokłada Fz.
 Booster nie daje momentów (roll/pitch/yaw).
 
-Status: **DO AKCEPTACJI (v2, po odpowiedziach)**. Zmiana względem v1: ratio boostera nie jest już ≤ 1, tylko jest
-gałką podziału Fz (§1). Doszły też dwa twarde ograniczenia: §3 kompromis yaw i §4 budżet jednostek Fz.
+Status (11.11.2026): **Etapy 1–3 zrobione** (+ tryb deweloperski `IFO_DEVEL`, 4072 skonfigurowany w trybie dev), **Etap 4 czeka na dane/loty z
+realu** (procedura w `IFODRONE-params.md` §15), **Etap 5 zrobiony**. Wyniki SITL: §10. (v2: ratio boostera jest gałką podziału Fz
+(§1); twarde ograniczenia: §3 kompromis yaw, §4 budżet jednostek Fz.)
 
 ---
 
@@ -229,3 +230,17 @@ Q7. Możesz dodać 0.9kg
 Q8. Może być na ten moment
 Q9. Ta sama co tilty
 Q10. odległość w płaszczyźnie XY od autopilota. 7cm to dodatek do promienia względem edfów tilt (tylko pamietaj że w konfiguracji X a nie + jak silniki)
+
+## 10. Wyniki (SITL, 11.11.2026)
+
+- **Skala Fz s = 0.72** (CT ×s, coax KM ÷s, `IFO_THR_*` ×s): bez niej hover ~0.89 > `IFO_THR_MAX` 0.8 i dron nie startował.
+  Z nią `hover_thrust_estimate` **0.643** vs przewidziane **0.644**; coax **0.223**, booster **0.446** (g = 2).
+- **Błąd i fix (yaw → Fz):** booster podążał za średnią indywidualnie przyciętych komend coax; pełny drążek yaw ⇒ dolny coax < 0,
+  przycięcie podnosiło średnią, ×g ⇒ ~2 g wznoszenia, ucieczka Stabilize > 30 m. Fix: odsaturowanie pary coax z zachowaniem średniej
+  (m ∈ [0,1], |d| ≤ min(m, 1−m)). Pos/Alt przy pełnym yaw: ±0.3–0.4 m.
+- **Zapas yaw (g = 2):** skok yaw 90° zużył 0.11 z 0.22; pełny drążek nasyca coax ~30 % czasu.
+- **Stabilize, pełny yaw:** wznoszenie do ~1.7 m/s (ciąg coax ∝ ω², różnica przy niskiej średniej +44 % ciągu coax, ~10 % ciężaru;
+  przed boosterem +67 % przy średniej 0.5). Niezwiązane z alokatorem; możliwy fix = linearyzacja ciągu coax.
+- **Asymetria (jeden EDF −5 %):** stabilne, serwa ~±0.08, integratory rate ~0.15 = **30 % `MC_RR/PR_INT_LIM`**, roll/pitch ±1.3° (symetrycznie
+  ±0.12°). ~15 % asymetrii wyczerpie integrator; awaria jednego EDF-a nieodzyskiwalna (R2).
+- **Do zrobienia:** Etap 4 (real) wg `IFODRONE-params.md` §15.

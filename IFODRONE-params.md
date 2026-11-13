@@ -30,23 +30,28 @@ attitude/rate → pozycja → failsafe/SITL), więc bloki sterowania da się por
 | Parametr | Real | SITL | Dlaczego |
 |---|---|---|---|
 | `CA_AIRFRAME` | 90 | 90 | `ActuatorEffectivenessIfodrone`: macierz zależna od stanu, przeliczana co cykl. |
-| `CA_ROTOR_COUNT` | 6 | 6 | 2 coax + 4 boczne EDF-y. |
+| `CA_ROTOR_COUNT` | 7 | 7 | 2 coax + 4 boczne EDF-y + rotor 6 = booster pionowy (4× EDF, jeden sygnał; [§15](#15-booster-pionowy-4-edf)). Indeksy 0–5 bez zmian (okablowanie). |
 | `CA_METHOD` | 0 | 0 | **Krytyczne.** Default 2 (AUTO) → `getDesiredAllocationMethod` = SEQUENTIAL_DESATURATION → `mixYaw()` „reduce thrust only” ściąga ciąg pary coax na rzecz yaw. Objaw: gaz nie działa na realu, działa w SITL. |
 | `MC_AIRMODE` | 0 **[pin]** | 0 | Przy `CA_METHOD 0` nieczytany (czyta go tylko sequential desaturation; `mixer_module` go tylko deklaruje). Przypięty jako bezpiecznik: gdy `CA_METHOD` na płycie wróci do 2 (stało się 01.09), airmode dodatkowo podbijałby ciąg pod roll/pitch, a ten realizują serwa. SITL miał 1 z komentarzem „Airmode off” – ujednolicone na 0. |
 
-## 2. Geometria rotorów (FRD, identyczna real/SITL)
+## 2. Geometria rotorów (FRD; geometria identyczna real/SITL, CT/KM różnią się skalą Fz – §11)
 
 | Parametr | Wartość | Dlaczego |
 |---|---|---|
 | `CA_ROTOR0_PZ` / `CA_ROTOR1_PZ` | −0.1 / +0.1 | Górny coax nad CoM (−Z w FRD), dolny pod. Współliniowe z osią Z ⇒ **zerowy** wpływ na macierz (r × F = 0). Poprawione 10.11 tylko dla porządku (real miał odwrotnie, SITL miał oba +0.1). |
 | `CA_ROTOR0/1_AZ` | −1 **[pin]** | Ciąg w górę. Pełne wektory P/A zostają jawne mimo zer: to blok geometrii porównywany 1:1 z SITL. |
-| `CA_ROTOR0_KM` / `CA_ROTOR1_KM` | +0.4 / −0.4 | Rotor 0 CCW, rotor 1 CW. **Nie odwracać** – odwrócony znak rozkręca yaw > 40 rad/s (gz). Na płycie znaleziono kiedyś −0.4 dla rotora 0. |
-| `CA_ROTOR0/1_CT` | 0.6 | Stosunek ct coax:EDF ≈ nachylenie siły w punkcie pracy (37.6 vs 3.7 N/u). Coax musi dominować w kolumnie Fz, inaczej alokator realizuje Fz kolektywnym ciągiem EDF-ów i dron nie wznosi się. **Wartość absolutna też ma znaczenie:** dla IFODRONE skala normalizacji ciągu w alokatorze zostaje 1 (udokumentowane w `ControlAllocator.cpp`), więc komenda coax ≈ \|Fz\| / (2·CT0) – zmiana CT przesuwa punkt zawisu i wymaga ponownej kalibracji `IFO_THR_HOVER`/`MPC_THR_HOVER` (§11). |
+| `CA_ROTOR0_KM` / `CA_ROTOR1_KM` | real +0.4 / −0.4; SITL +0.556 / −0.556 | SITL = real ÷ s (s = 0.72, §11) – zachowuje wiersz yaw KM·CT. Rotor 0 CCW, rotor 1 CW. **Nie odwracać** – odwrócony znak rozkręca yaw > 40 rad/s (gz). Na płycie znaleziono kiedyś −0.4 dla rotora 0. |
+| `CA_ROTOR0/1_CT` | real 0.6; SITL 0.432 | SITL = real · s (s = 0.72, §11). Stosunek ct coax:EDF ≈ nachylenie siły w punkcie pracy (37.6 vs 3.7 N/u). Coax musi dominować w kolumnie Fz, inaczej alokator realizuje Fz kolektywnym ciągiem EDF-ów i dron nie wznosi się. **Wartość absolutna też ma znaczenie:** dla IFODRONE skala normalizacji ciągu w alokatorze zostaje 1 (udokumentowane w `ControlAllocator.cpp`), więc komenda coax ≈ \|Fz\| / (2·CT0) – zmiana CT przesuwa punkt zawisu i wymaga ponownej kalibracji `IFO_THR_HOVER`/`MPC_THR_HOVER` (§11). |
 | `CA_ROTOR2..5_P*` | ±0.535 radialnie, PZ 0.045 | Ramiona: 2=przód, 3=prawo, 4=tył, 5=lewo. Patrz [problem PZ](#problemy-otwarte). |
 | `CA_ROTOR2..5_A*` | radialne, **AZ 0** | Osie bazowe POZIOME; kąt spoczynkowy daje `IFO_TILT_HOVER`, alokator obraca osie do bieżącego tiltu. AZ musi być jawne – default to −1. |
 | `CA_ROTOR2..5_KM` | 0 | Moment reakcyjny EDF niemodelowany (w SDF `momentConstant` EDF też musi być 0 – regresowało). |
-| `CA_ROTOR2..5_CT` | 0.1 | Uczciwe CT; podniesienie psuje wiersze sił (sprzężenie Fz ↔ kolektywny tilt, crash 15.07). |
+| `CA_ROTOR2..5_CT` | real 0.1; SITL 0.072 | SITL = real · s. Uczciwe CT; podniesienie psuje wiersze sił (sprzężenie Fz ↔ kolektywny tilt, crash 15.07). |
 | `CA_ROTOR2..5_TILT` | 1..4 | Rotor 2+N ↔ serwo `CA_SV_TL<N>`. |
+| `CA_ROTOR6_PX/PY/PZ` | 0 / 0 / 0.045 | Booster (4× EDF w X, r = 0.605 m) modelowany jako **jeden** rotor w centroidzie: brak momentów roll/pitch. PZ jak EDF-y tilt. |
+| `CA_ROTOR6_AX/AY/AZ` | 0 / 0 / −1 **[pin]** | Ciąg w górę (FRD −Z); AZ jawne – patrz pułapka kierunku osi w SDF. |
+| `CA_ROTOR6_KM` | 0 | Momenty reakcyjne znoszą się po przekątnych (2× CW + 2× CCW); `momentConstant 0` w SDF. |
+| `CA_ROTOR6_CT` | real 1.4 (placeholder); SITL 1.008 | 1.4 z krzywej QX-64 (sieczna 51–59 N/u na 4 EDF-y, CT0 0.6); SITL = 1.4 · s. Real: nieużywane przy `IFO_DEVEL 1`, do kalibracji w Etapie 4 (§15). |
+| `CA_ROTOR6_TILT` | 0 | Bez serwa (indeks z tiltem ⇒ booster wyłączony, §4). |
 
 ## 3. Serwa tiltu
 
@@ -67,6 +72,9 @@ attitude/rate → pozycja → failsafe/SITL), więc bloki sterowania da się por
 | `IFO_EDF_TRIM` | 0.2 **[pin]** | 0.7 | Bazowy ciąg EDF; pary przeciwległe alokowane różnicowo wokół niego. Ustala też minimalny ciąg EDF przyjmowany przy skalowaniu autorytetu tiltu (moment tiltu ∝ ciąg EDF). **Największa rozbieżność real/SITL** – patrz niżej. |
 | `IFO_EDF_GAIN` | 1.0 **[pin]** | 1.0 | Wzmocnienia po alokacji = tylko awaryjne gałki; < 1 ukrywa wzmocnienie obiektu przed alokatorem i psuje księgowanie saturacji. Kod przycina do [0, 1]. SITL miał 1.5 – po przycięciu i tak działało jak 1.0, ujednolicone. |
 | `IFO_TILT_GAIN` | 1.0 **[pin]** | 1.0 | jw. SITL miał 2.5 (przycinane do 1.0). |
+| `IFO_BST_ROTOR` | 6 | 6 | Indeks rotora boostera. Booster **nie** jest w pseudo-inwersji: jego kolumna (wszystkie 6 wierszy) jest wsuwana po g/2 w kolumny coax i zerowana, więc B·u zostaje fizycznym wrenchem. −1 = stare zachowanie (macierz identyczna). Zły indeks (0/1, rotor z tiltem, poza zakresem) ⇒ booster wyłączony + jedno ostrzeżenie. |
+| `IFO_BST_RATIO` | 2.0 | 2.0 | g: `u_boost = g · mean(coax0, coax1)`, zakres 0..10. Gałka podziału Fz (model CT_b ≈ 1.4 vs CT0 0.6): g=1 → 54 %, 2 → 70 %, 3 → 78 %, 4 → 82 %. Większe g ⇒ niższy punkt pracy coax ⇒ mniejszy zapas yaw (§15). Nie 7. rotor w pseudo-inwersji: pinv dzieli komendy ∝ CT (ciąg ∝ CT²), brak gałki. Przy `IFO_DEVEL 1` traktowane jak 0. |
+| `IFO_DEVEL` | 1 | 0 | Tryb deweloperski: booster skonfigurowany (suwak 7 w teście silników QGC, `actuator_test set -m 7 -v 0.1 -t 2`), ale w locie g = 0 (kolumny coax jak bez boostera). Real zostaje na 1 do kalibracji jednostek Fz (Etap 4); SITL na 0. |
 
 ## 5. Wyjścia PWM (tylko real)
 
@@ -76,13 +84,14 @@ Trzy równoległe numeracje: `CA_ROTOR2` = funkcja 103 = „Motor 3” w QGC. �
 |---|---|---|
 | S1 / S2 | 101 / 102 | coax góra / dół |
 | S3 / S4 / S5 / S6 | 106 / 104 / 105 / 103 | EDF lewy / prawy / tył / przód |
-| S7 / S8 | 0 **[pin]** | wolne |
+| S7 | 107 | booster: 4× EDF w górę, Y-kabel (sygnał + GND do 4 ESC, +5 V BEC tylko z jednego) |
+| S8 | 0 **[pin]** | wolne |
 | S9 / S10 / S11 / S12 | 202 / 203 / 204 / 201 | tilt prawy / tył / lewy / przód |
 
 | Parametr | Wartość | Dlaczego |
 |---|---|---|
-| `PWM_MAIN_FUNC1..12` | jw. | **Fizyczne okablowanie** po przelutowaniu 02.09. Regresowało 2× przez „porządkowanie” na S3–S6, gdy EDF-y były jeszcze na S5–S8. Teraz S3–S6 jest poprawne – nie cofać. 01.09: FUNC6 był duplikatem 103, a 105 nie było nigdzie (podwójny ciąg z przodu, zero z tyłu). FUNC7/8 = 0 jawnie, bo kiedyś niosły EDF-y. |
-| `PWM_MAIN_MIN1..6` | 1020 | Uzbrojony idle: ESC uzbrojony, śmigła stoją (próg startu ESC ~1050). EDF-y i tak dostają `IFO_EDF_TRIM` po uzbrojeniu. |
+| `PWM_MAIN_FUNC1..12` | jw. | **Fizyczne okablowanie** po przelutowaniu 02.09. Regresowało 2× przez „porządkowanie” na S3–S6, gdy EDF-y były jeszcze na S5–S8. Teraz S3–S6 jest poprawne – nie cofać. 01.09: FUNC6 był duplikatem 103, a 105 nie było nigdzie (podwójny ciąg z przodu, zero z tyłu). S7 = 107 (booster). FUNC8 = 0 jawnie, bo kiedyś niosło EDF-a. **S7 dzieli TIM4 z S8–S10** (S9/S10 = serwa tilt) ⇒ grupa tylko PWM 400 Hz, **bez DShot** na boosterze. |
+| `PWM_MAIN_MIN1..7` | 1020 | Uzbrojony idle: ESC uzbrojony, śmigła stoją (próg startu ESC ~1050). EDF-y i tak dostają `IFO_EDF_TRIM` po uzbrojeniu. MIN7 1020 = booster, idle po uzbrojeniu. |
 | `PWM_MAIN_CENT9..12`, `PWM_MAIN_DIS9..12` | 1500 | Serwo: środek = 0° = rozbrojone, rampa uzbrajania bez skoku. Odwrócone cięgło poprawiać reverse'em, nie przesuwaniem środka. |
 | *(usunięte)* `PWM_MAIN_MAX1..6/9..12`, `DIS1..6`, `MIN9..12` | 2000 / 1000 / 1000 | Równe defaultom PX4 – zakres 1000..2000 µs. |
 
@@ -170,9 +179,10 @@ wzmocnienia rate nie przenoszą się 1:1 między realem (0.2) a SITL (0.7).
 
 | Parametr | Real | SITL | Dlaczego |
 |---|---|---|---|
-| `IFO_THR_HOVER` | 0.5 **[pin]** | 0.6 | Środek drążka gazu w Stabilized + człon hover. **Kalibracja per pojazd**, w jednostkach `vehicle_thrust_setpoint` (surowe CT): hover = 2·`CA_ROTOR0_CT`·komenda coax w zawisie = 1.2·0.496 ≈ 0.6 w gz (`hover_thrust_estimate` 0.597). SITL 0.5 → auto takeoff stał ~11 s rozkręcony na ziemi, bo brakujące 0.1 musiał nadrobić integrator Z (`IFO_VEL_Z_I` 0.2) – poprawione 10.11. Real: odczytać `hover_thrust_estimate` z logu zawisu (0.5 oznacza komendę coax ~0.42). |
-| `MPC_THR_HOVER` | 0.5 **[pin]** | 0.6 | Czyta go `land_detector` (dopóki estymator hover thrust nie zbiegnie). Nieaktualna wartość = dron „wylądowany”, w Alt/Pos włączony docisk do ziemi. Trzymać równe `IFO_THR_HOVER`. |
-| `IFO_THR_XY_MAX` | 0.2 **[pin]** | 0.1 | Twardy limit siły bocznej body-XY. Real 0.2 „cięższe EDF-y” (decyzja użytkownika). SITL miał podwójną linię 0.2 → 0.1 (wygrywała ostatnia) – zostawiona tylko 0.1. |
+| `IFO_THR_HOVER` | 0.5 **[pin]** | 0.64 | Środek drążka gazu w Stabilized + człon hover. **Kalibracja per pojazd**, w jednostkach `vehicle_thrust_setpoint` (surowe CT): hover = 2·`CA_ROTOR0_CT`·komenda coax w zawisie = 1.2·0.496 ≈ 0.6 w gz (`hover_thrust_estimate` 0.597). SITL 0.5 → auto takeoff stał ~11 s rozkręcony na ziemi, bo brakujące 0.1 musiał nadrobić integrator Z (`IFO_VEL_Z_I` 0.2) – poprawione 10.11. Real: odczytać `hover_thrust_estimate` z logu zawisu (0.5 oznacza komendę coax ~0.42). |
+| `MPC_THR_HOVER` | 0.5 **[pin]** | 0.64 | Czyta go `land_detector` (dopóki estymator hover thrust nie zbiegnie). Nieaktualna wartość = dron „wylądowany”, w Alt/Pos włączony docisk do ziemi. Trzymać równe `IFO_THR_HOVER`. |
+| `IFO_THR_XY_MAX` | 0.2 **[pin]** | 0.072 | Twardy limit siły bocznej body-XY. Real 0.2 „cięższe EDF-y” (decyzja użytkownika). SITL miał podwójną linię 0.2 → 0.1 (wygrywała ostatnia) – zostawiona tylko 0.1. |
+| `IFO_THR_MAX` / `IFO_THR_MIN` | real default (bez zmian) | 1.0 / 0.09 | **Skala jednostek Fz s = 0.72 (11.11, tylko SITL).** Z boosterem i +0.9 kg hover w starych jednostkach CT wynosił ~0.89 > `IFO_THR_MAX` 0.8, a estymator tnie hover do [0.1, 0.9] ⇒ dron nie startował. Fix: wszystkie `CA_ROTOR*_CT` ×s, coax KM ÷s, `IFO_THR_*` ×s (HOVER/MPC_THR_HOVER 0.64, MAX 1.0, MIN 0.09, XY_MAX 0.072). Dolna granica s ≥ 0.65: `CT_side·s·cos35°` musi zostać > 0.05, inaczej alokator zeruje wiersze Fx/Fy. Wynik: `hover_thrust_estimate` 0.643 vs przewidziane 0.644, coax 0.223, booster 0.446. Real zostaje na starych jednostkach do Etapu 4 (§15). |
 | `IFO_STB_VD_TAU` | 2.0 **[pin]** | 2.0 | Horyzont washoutu tłumienia w Stabilized. Przy 10 s bias akcelerometru 0.26 m/s² żąda całego autorytetu bocznego (incydent 08.09). Default modułu był 10 s; w working tree (równoległa zmiana w `ifo_pos_control_params.c`) jest już 2.0 – przypięty, bo default się zmieniał. Dodany też do SITL – to prawo sterowania, nie obejście sprzętowe. |
 | `IFO_VEL_MAX_XY`, `IFO_VEL_XY_P`, `IFO_POS_XY_P` | 2.0, 1.2, 0.6 | jw. | Profil „gentle translation”: każda siła boczna zaburza attitude. `IFO_VEL_MAX_XY` ogranicza też estymatę tłumienia (`_vel_damp_body`). |
 | `MPC_XY_CRUISE`, `MPC_ACC_HOR`, `MPC_ACC_HOR_MAX`, `MPC_JERK_AUTO` | 2.0, 1.0, 2.0, 2.5 | jw. | Kształtowanie trajektorii auto w `flight_mode_manager`. `MPC_JERK_AUTO` 1.0 → 2.5 (11.11): przy celu `PositionSmoothing` ogranicza prędkość do v ≈ d·J/(2A), czyli setpoint dochodzi wykładniczo z τ = 2·ACC_HOR/JERK = 2 s; „dron staje przed punktem” to był pełznący setpoint, nie regulator (dron trzymał setpoint ±5 cm). SITL 10 m: setpoint w celu po ~8 s zamiast ~15 s, peak pitch bez zmian (~6°), przestrzał ~0.15 m. Uwaga: 2.0 i 1.0 są poniżej `@min` z metadanych (3.0 / 2.0) – PX4 tego nie wymusza, QGC pokaże na czerwono. |
@@ -192,6 +202,7 @@ wzmocnienia rate nie przenoszą się 1:1 między realem (0.2) a SITL (0.7).
 | `SIM_GZ_EN` | 1 | |
 | `SYS_AUTOSTART` | 49000 | Efekt uboczny: wartość = runtime default ⇒ `param save` jej nie eksportuje ⇒ przy następnym starcie posix `rcS` widzi inny SYS_AUTOSTART i robi `param reset_all`. **Każdy start SITL zaczyna od tego pliku**, bez starych zapisanych paramów. Nie usuwać, jeśli harness polega na czystym starcie. |
 | `SIM_GZ_EC_FUNC/MIN/MAX1..6` | 101..106; 100/1000 coax, 350/1000 EDF | Kalibracja gz: ω = MIN + cmd·(MAX−MIN); coax wisi przy ~0.5, EDF max 6 N. Regresowało raz (crash 15.07) – sprawdzać po każdej zmianie SDF/CT. EDF MIN 350 – niski, żeby EDF-y nie rozkręcały się mocno po uzbrojeniu. Brak `SIM_GZ_EC_REV`: dolny rotor w SDF jest już `cw`, zgodnie z `CA_ROTOR1_KM −0.4`. |
+| `SIM_GZ_EC_FUNC7/MIN7/MAX7` | 107; 125/1000 | Booster. ω = 125 + 875·u ⇒ 23.2 N @ 1.0, 7.4 N @ 0.5 na EDF (krzywa QX-64, `motorConstant 2.325e-05`). Model (`models/ifodrone/model.sdf`, fork submodułu): 4 linki `booster_0..3`, wszystkie pluginy `motorNumber 6` (= Y-kabel), `momentConstant 0`, śmigła niebieskie = CCW (0/2), czarne = CW (1/3). `base_link` 2.0 → 2.8 kg, ixx/iyy 0.03 → 0.177, izz 0.05 → 0.343 (inercja roll/pitch ~6× większa – tak samo na realu). Oś jointów w ENU = +Z (w górę) – po zmianie SDF sprawdzić kierunek (R6: g ↑ ⇒ komenda coax ↓ w zawisie). |
 | `SIM_GZ_SV_FUNC/MINA/MAXA/MIN/DIS/MAX1..4` | 201..204; ±35; 1000/1500/2000 | Zmieniać RAZEM z `CA_SV_TL*_MINA/MAXA`. |
 | `COM_RC_IN_MODE 0`, `COM_RCL_EXCEPT 4`, `NAV_RCL_ACT 0`, `FD_ACT_EN 0`, `FD_ESCS_EN 0`, `CBRK_SUPPLY_CHK 894281`, `FD_FAIL_R/P 0` | | **Obejścia bezpieczeństwa SITL – nigdy na real.** |
 | *(usunięte)* `SYS_AUTOCONFIG 1` | | No-op: posix `rcS` sprawdza go PRZED airframe'em, a `set-default` nie jest eksportowany. |
@@ -218,7 +229,9 @@ wzmocnienia rate nie przenoszą się 1:1 między realem (0.2) a SITL (0.7).
 |---|---|---|---|
 | `IFO_EDF_TRIM` | 0.2 | 0.7 | **Zostawione, do rozstrzygnięcia testem.** Real: wyższy idle EDF = więcej drgań (clipping akcelerometru 08.09 pojawił się przy rozpędzaniu EDF-ów) i prądu. Ale: moment roll/pitch na jednostkę żądania ∝ trim, więc przy tych samych `MC_*RATE_*` pętla na realu ma ~3.5× mniejsze wzmocnienie fizyczne niż w SITL (przy liniowym ciągu EDF). Rekomendacja: przelecieć SITL z `IFO_EDF_TRIM 0.2` (to stan realu) zanim wzmocnienia rate pójdą na real. **Sprawdzone 10.11:** pełny test z obecnym SDF i trymem 0.2 = FAIL w loiter/reposition/mission/rtl (cykl graniczny ~0.8 Hz, roll do 7.7°, pitch do 10.8°, nieprzydzielony moment do 0.15, serwa std 0.07); ten sam zestaw MC_* z poprawionym modelem serwa (bezwładność linków 0.001, tarcie 0.25) = PASS (reposition pitch 5.6°, roll 1.5°). Przy trymie 0.2 martwa strefa serwa w gz jest ~2.8× większa w jednostkach momentu – znowu artefakt modelu, ale też sygnał, że przy trymie 0.2 autorytet roll/pitch na realu jest mały. |
 | `CA_SV_TL*_MINA/MAXA` | ±60 | ±35 | Fizycznie uzasadnione tylko jeśli serwo realne naprawdę ma ±60° przy 1000/2000 µs (do zmierzenia na stole). SITL ±35 to decyzja projektowa (autorytet + bezpieczeństwo przewrotki). Jeśli ±35 ma obowiązywać na realu: zawęzić PWM serw do kątów ±35 i ustawić MINA/MAXA ±35 **razem**. |
-| `IFO_THR_XY_MAX` | 0.2 | 0.1 | Zostawione (decyzja użytkownika: cięższe EDF-y). W SITL ogranicznik estymaty tłumienia z 08.09 jest przez to nieskuteczny ([Problemy otwarte](#problemy-otwarte), pkt 2). |
+| `IFO_THR_XY_MAX` | 0.2 | 0.072 | Zostawione (decyzja użytkownika: cięższe EDF-y). W SITL ogranicznik estymaty tłumienia z 08.09 jest przez to nieskuteczny ([Problemy otwarte](#problemy-otwarte), pkt 2). |
+| `CA_ROTOR0..6_CT`, `CA_ROTOR0/1_KM`, `IFO_THR_*`, `MPC_THR_HOVER` | 0.6/0.1/1.4, KM 0.4, hover 0.5 | CT ×0.72 (0.432/0.072/1.008), KM ÷0.72 (0.556); hover 0.64 skalibrowany na nowo z boosterem (nie ×s) | **Skala Fz s = 0.72 tylko w SITL**, do kalibracji realu w Etapie 4 (§11, §15). Nie przenosić 1:1 w żadną stronę. |
+| `IFO_DEVEL` | 1 | 0 | Real: booster skonfigurowany, ale w locie wyłączony do kalibracji. SITL: pełny booster (g = 2). |
 | `COM_RC_IN_MODE`, `COM_RCL_EXCEPT`, `NAV_RCL_ACT`, `FD_*`, `CBRK_SUPPLY_CHK` | default / 2 | obejścia | Celowe. Nie przenosić. |
 | `RC_*`, `COM_FLTMODE*`, `COM_ARM_SWISBTN`, `MAN_ARM_GESTURE`, `MAV_*`, `SER_*`, `GPS_*`, sensory, `BAT1_*`, `PWM_*` | ✔ | – | Sprzęt. |
 | `SIM_GZ_*`, `SIM_GZ_EN`, `SYS_AUTOSTART` | – | ✔ | Symulator. |
@@ -238,6 +251,18 @@ wzmocnienia rate nie przenoszą się 1:1 między realem (0.2) a SITL (0.7).
 3. `MPC_XY_CRUISE 2.0` / `MPC_ACC_HOR 1.0` poniżej `@min` z metadanych.
 4. `rc.board_sensors`: `qmc5883l -X start -a 13` – opcje PO verbie `start` są ignorowane; ratuje to, że
    default adres i tak 0x0d. Poprawnie: `qmc5883l -X -a 13 start`.
+5. **Booster – kalibracja realu (Etap 4) czeka na dane/loty.** Do tego czasu real: `IFO_DEVEL 1`,
+   `CA_ROTOR6_CT 1.4` to placeholder, jednostki Fz niezeskalowane. Procedura: [§15](#15-booster-pionowy-4-edf).
+6. **Stabilize + pełny drążek yaw ⇒ wznoszenie do ~1.7 m/s** (nie alokator, SITL): ciąg coax ∝ ω², więc
+   różnica przy niskiej średniej dokłada ~44 % ciągu coax (~10 % ciężaru). Istniało przed boosterem
+   (gorzej: +67 % przy średniej 0.5). Pilot koryguje gazem; możliwe rozwiązanie: linearyzacja ciągu coax.
+   Pełny drążek yaw nasyca coax ~30 % czasu przy g = 2.
+7. **Asymetria boostera a `MC_RR/PR_INT_LIM`.** Test SITL: jeden EDF −5 % ⇒ stabilne, serwa ~±0.08,
+   integratory rate ~0.15 = 30 % limitu 0.5, roll/pitch ±1.3° (symetrycznie ±0.12°). Asymetria ~15 %
+   wyczerpie limit integratora.
+8. **Awaria jednego EDF-a boostera jest nieodzyskiwalna.** Moment kilka Nm na 0.6 m vs ~1 Nm autorytetu
+   tiltów; jeden sygnał = brak redundancji (świadoma decyzja). CG musi leżeć na centroidzie boostera
+   (1 cm ≈ 0.25 Nm stałego momentu).
 
 ---
 
@@ -269,11 +294,62 @@ wzmocnienia rate nie przenoszą się 1:1 między realem (0.2) a SITL (0.7).
 7. **`RC_CRSF_PRT_CFG` nigdy na TELx** (§6). Brak/zła wartość jest całkowicie cicha: płyta się uzbraja,
    telemetria działa, drążki nic nie robią. Po każdej edycji sekcji RC/SERIAL: `grep crsf_rc rc.ifodrone_apps`.
 8. **`PWM_MAIN_FUNC*` = fizyczne kable.** Nie „porządkować”. Sprawdzić duplikaty funkcji i funkcje
-   nieprzypisane (`103..106`, `201..204` – każda dokładnie raz).
+   nieprzypisane (`103..107`, `201..204` – każda dokładnie raz).
 9. **Parametr może być martwy, bo moduł nie startuje.** `mc_att_control`/`mc_pos_control` nie są
    uruchamiane ⇒ `MC_YAW_WEIGHT`, `MPC_THR_MAX`, `MPC_MANTHR_MIN` (poza land detectorem) nic nie robią.
    `IMU_GYRO_DNF_EN 2` bez `IMU_GYRO_FFT_EN 1` nic nie robi (`gyro_fft` nie startuje).
 10. **Real nie dziedziczy po SITL.** Każde „działa w sim, nie na realu” zaczynać od diffu paramów, nie od kodu.
+11. **Booster jako zwykły 7. rotor = brak gałki podziału Fz.** Pseudo-inwersja dzieli komendy ∝ CT (ciąg ∝ CT²),
+    udział stały (~73 % przy CT_b 1.4). Dlatego `IFO_BST_RATIO` (g) i kolumna boostera wsunięta w coax.
+12. **g ↑ ⇒ zapas yaw ↓.** Yaw tylko z różnicy coax, |d| ≤ średnia coax. Przy g = 2 coax wisi na ~0.22 (było
+    ~0.5 SITL / ~0.42 real). SITL: skok yaw 90° zużył 0.11 z 0.22.
+13. **Yaw → Fz przez przycięte średnie coax ×g (naprawione 11.11, nie cofać).** Booster podążał za średnią
+    *indywidualnie przyciętych* komend coax: pełny drążek yaw wpychał dolny coax poniżej 0, przycięcie
+    podnosiło średnią, ×g ⇒ ~2 g wznoszenia, ucieczka w Stabilize > 30 m. Teraz para coax jest odsaturowana
+    **z zachowaniem średniej** (m ∈ [0,1], |d| ≤ min(m, 1−m)), booster liczony z m. Nigdy „clip, potem średnia”.
+    Pos/Alt przy pełnym yaw: ±0.3–0.4 m.
+14. **Jednostki Fz i hover > 0.7 ⇒ przeskalować.** Fz w surowych CT (skala 1); hover > 0.7 przy `IFO_THR_MAX` 1.0
+    i estymatorze tnącym do 0.9 = za mały T/W (dron nie startuje). Skala s (§11) z ograniczeniem **s ≥ 0.65**
+    (próg słabych wierszy 0.05 dla `CT_side·s·cos35°`).
+15. **`set-default` nie dociera na płytę także dla boostera** – `CA_ROTOR_COUNT 7`, `CA_ROTOR6_*`, `IFO_BST_*`,
+    `IFO_DEVEL`, `PWM_MAIN_FUNC7/MIN7` trzeba `param set` + `param save` (pułapka 1, §15).
+
+## 15. Booster pionowy (4× EDF)
+
+**Sprzęt:** 4× QX-Motor 64 mm (2370 g @ 100 %, 750 g @ 50 % ⇒ F ≈ 23.2·u^1.66 N na EDF, 93 N razem), ciąg w górę,
+konfiguracja X, r = 0.605 m (= 0.535 + 0.07), pozycje (±0.428, ±0.428), CW/CCW po przekątnych. Jeden sygnał PWM
+(S7) przez Y-kabel do 4 ESC (sygnał + GND do wszystkich, +5 V BEC tylko z jednego). W CA: **jeden** rotor
+`CA_ROTOR6` w centroidzie (§2).
+
+**Architektura** (`ActuatorEffectivenessIfodrone`): booster nie jest w pseudo-inwersji. `u_boost = g · mean(coax0, coax1)`,
+g = `IFO_BST_RATIO`. Kolumna boostera (6 wierszy) jest wsunięta po g/2 w kolumny coax i zerowana, więc B·u = fizyczny
+wrench; Fz = (2·CT0 + g·CT_b)·średnia_coax. Para coax odsaturowana z zachowaniem średniej (pułapka 13). Yaw nie rusza
+boostera. `IFO_BST_ROTOR −1` = zachowanie sprzed boostera. `IFO_DEVEL 1` = booster skonfigurowany, w locie g = 0.
+Szczegóły i uzasadnienia: §4, pułapki 11–15, `plan.md`.
+
+**Stan:** SITL 49000 z boosterem (`IFO_DEVEL 0`, g = 2, s = 0.72) zweryfikowany. Real 4072: skonfigurowany w trybie
+deweloperskim (`IFO_DEVEL 1`), kalibracja jednostek czeka na Etap 4.
+
+**Procedura realu (Etap 4):**
+
+1. Flash, potem na płycie `param set` (`set-default` nie nadpisuje zapisanych): `CA_ROTOR_COUNT 7`;
+   `CA_ROTOR6_PX 0`, `PY 0`, `PZ 0.045`, `AX 0`, `AY 0`, `AZ −1`, `KM 0`, `CT 1.4`, `TILT 0`; `IFO_BST_ROTOR 6`;
+   `IFO_BST_RATIO 2.0`; `IFO_DEVEL 1`; `PWM_MAIN_FUNC7 107`; `PWM_MAIN_MIN7 1020`; `param save`, reboot.
+   Zweryfikować z logu (procedura niżej).
+2. Stół (dron przywiązany): `actuator_test` motor 7 – ruszają **wszystkie 4** EDF-y, CW/CCW po przekątnych, powietrze
+   dmucha w dół (ciąg w górę). Wspólna kalibracja ESC albo stałe endpointy BLHeli; opcjonalnie pomiar ciągu
+   każdego EDF-a na wadze przy tej samej komendzie.
+3. Zamontować booster, wyważyć CG na centroid boostera. Lot w `IFO_DEVEL 1` (booster wyłączony) jak dotąd: odczyt
+   `hover_thrust_estimate` h_dev (nowa masa, stare jednostki) i komendy coax w zawisie.
+4. Na uwięzi: `IFO_DEVEL 0`, `IFO_BST_RATIO 1.0`, Stabilize, ostrożny gaz. Odczyt `hover_thrust_estimate` h1 i komend
+   coax/booster. Dron nie unosi się przy ciągu `IFO_THR_MAX` ⇒ jednostki za małe (tak było w SITL) – bezpieczna
+   porażka. h1 > 0.7 ⇒ s = 0.64 / h1 (musi być ≥ 0.65, inaczej przemyśleć też `CT_side`) i lista skalowania: wszystkie
+   CT ×s, coax KM ÷s, `IFO_THR_HOVER`/`MPC_THR_HOVER`/`IFO_THR_MIN`/`IFO_THR_XY_MAX` ×s, `IFO_THR_MAX` ≤ 1.0.
+   `CA_ROTOR6_CT` dobrać tak, by model zawisu zgadzał się z h1: Fz = (2·CT0 + g·CT_b)·średnia_coax.
+5. Podnosić `IFO_BST_RATIO` 1 → 1.5 → 2 krokami; w każdym: pełny drążek yaw w Alt (zapas yaw), dryf roll/pitch,
+   estymata hover.
+
+---
 
 ## Procedura weryfikacji parametrów na płycie
 
