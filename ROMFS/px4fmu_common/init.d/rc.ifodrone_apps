@@ -9,7 +9,7 @@
 
 if ! crsf_rc status
 then
-	crsf_rc start -d /dev/ttyS4
+	crsf_rc start -d /dev/ttyS5
 fi
 
 control_allocator start
