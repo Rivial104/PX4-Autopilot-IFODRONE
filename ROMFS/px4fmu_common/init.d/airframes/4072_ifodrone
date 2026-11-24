@@ -177,7 +177,6 @@ param set-default PWM_MAIN_FUNC3 106
 param set-default PWM_MAIN_FUNC4 104
 param set-default PWM_MAIN_FUNC5 105
 param set-default PWM_MAIN_FUNC6 103
-# S7 shares TIM4 with S8-S10 (S9/S10 = tilt servos): PWM 400 Hz only, no DShot
 param set-default PWM_MAIN_FUNC7 107
 param set-default PWM_MAIN_FUNC8 0
 
@@ -203,6 +202,15 @@ param set-default PWM_MAIN_DIS9  1500
 param set-default PWM_MAIN_DIS10 1500
 param set-default PWM_MAIN_DIS11 1500
 param set-default PWM_MAIN_DIS12 1500
+
+param set-default PWM_MAIN_FAIL9  1500
+param set-default PWM_MAIN_FAIL10 1500
+param set-default PWM_MAIN_FAIL11 1500
+param set-default PWM_MAIN_FAIL12 1500
+
+# TIMER RATES (one rate per timer group, see boards/matek/h743-slim/src/
+param set-default PWM_MAIN_TIM2 50
+param set-default PWM_MAIN_TIM3 50
 
 # ============================================
 # RC (CRSF) / ARMING / FLIGHT MODES
