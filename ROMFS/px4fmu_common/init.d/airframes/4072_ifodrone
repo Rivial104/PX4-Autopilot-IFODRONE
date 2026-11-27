@@ -66,11 +66,15 @@ param set-default CA_ROTOR1_AZ -1.0
 param set-default CA_ROTOR1_KM -0.4
 param set-default CA_ROTOR1_CT 0.6
 
-# Side EDFs (tiltable)
+# Side EDFs (tiltable). CA_ROTORn_A* = direction of the FORCE on the vehicle. On the real 4072 the side
+# EDFs exhaust outwards, so each one pushes the vehicle INWARDS (front EDF -> -X, right -> -Y, ...).
+# Outward axes (as in SITL 49000) made the wrong EDF fire for lateral force (27.11: nose down -> back EDF
+# harder instead of front). The tilt-servo columns do not change with this sign: hingeAxisForBase()
+# flips the hinge together with the base axis, so hinge x axis (servo torque) stays the same.
 param set-default CA_ROTOR2_PX 0.535
 param set-default CA_ROTOR2_PY 0.0
 param set-default CA_ROTOR2_PZ 0.045
-param set-default CA_ROTOR2_AX 1.0
+param set-default CA_ROTOR2_AX -1.0
 param set-default CA_ROTOR2_AY 0.0
 param set-default CA_ROTOR2_AZ 0.0
 param set-default CA_ROTOR2_KM 0
@@ -81,7 +85,7 @@ param set-default CA_ROTOR3_PX 0.0
 param set-default CA_ROTOR3_PY 0.535
 param set-default CA_ROTOR3_PZ 0.045
 param set-default CA_ROTOR3_AX 0.0
-param set-default CA_ROTOR3_AY 1.0
+param set-default CA_ROTOR3_AY -1.0
 param set-default CA_ROTOR3_AZ 0.0
 param set-default CA_ROTOR3_KM 0
 param set-default CA_ROTOR3_CT 0.1
@@ -90,7 +94,7 @@ param set-default CA_ROTOR3_TILT 2
 param set-default CA_ROTOR4_PX -0.535
 param set-default CA_ROTOR4_PY 0.0
 param set-default CA_ROTOR4_PZ 0.045
-param set-default CA_ROTOR4_AX -1.0
+param set-default CA_ROTOR4_AX 1.0
 param set-default CA_ROTOR4_AY 0.0
 param set-default CA_ROTOR4_AZ 0.0
 param set-default CA_ROTOR4_KM 0
@@ -101,7 +105,7 @@ param set-default CA_ROTOR5_PX 0.0
 param set-default CA_ROTOR5_PY -0.535
 param set-default CA_ROTOR5_PZ 0.045
 param set-default CA_ROTOR5_AX 0.0
-param set-default CA_ROTOR5_AY -1.0
+param set-default CA_ROTOR5_AY 1.0
 param set-default CA_ROTOR5_AZ 0.0
 param set-default CA_ROTOR5_KM 0
 param set-default CA_ROTOR5_CT 0.1
@@ -295,6 +299,9 @@ param set-default MC_PITCHRATE_P 0.30
 param set-default MC_PITCHRATE_I 0.20
 param set-default MC_PITCHRATE_D 0.0003
 param set-default MC_PR_INT_LIM 0.50
+
+param set-default MC_ROLLRATE_K 1.0
+param set-default MC_PITCHRATE_K 1.0
 param set-default MC_YAWRATE_P 0.22
 param set-default MC_YAWRATE_I 0.01
 param set-default MC_YAWRATE_D 0.0

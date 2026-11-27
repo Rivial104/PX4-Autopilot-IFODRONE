@@ -656,3 +656,31 @@ TEST_F(ActuatorEffectivenessIfodroneTest, HighTrimKeepsLateralAuthority)
 	EXPECT_NEAR(sp(2), 0.2f, TOL);
 	EXPECT_NEAR(sp(4), 1.0f, TOL);
 }
+
+TEST_F(ActuatorEffectivenessIfodroneTest, InwardEdfAxesFlipForceKeepServoColumns)
+{
+	// Real 4072: side EDFs exhaust outwards, so their force points inwards. Flipping the configured
+	// axes must flip only the EDF wrench; the tilt-servo columns stay identical (the hinge flips with
+	// the base axis), so servo behaviour verified on the vehicle is preserved.
+	const EffMatrix outward = matrixWithBooster(-1);
+
+	setRotor(2, {0.535f, 0.f, 0.045f}, {-1.f, 0.f, 0.f}, 0.f, 0.1f, 1);
+	setRotor(3, {0.f, 0.535f, 0.045f}, {0.f, -1.f, 0.f}, 0.f, 0.1f, 2);
+	setRotor(4, {-0.535f, 0.f, 0.045f}, {1.f, 0.f, 0.f}, 0.f, 0.1f, 3);
+	setRotor(5, {0.f, -0.535f, 0.045f}, {0.f, 1.f, 0.f}, 0.f, 0.1f, 4);
+	const EffMatrix inward = matrixWithBooster(-1);
+
+	for (int s = 0; s < NUM_SERVOS; ++s) {
+		expectColumnsEqual(inward, NUM_ROTORS + s, outward, NUM_ROTORS + s, "servo");
+	}
+
+	for (int r = 2; r < 6; ++r) {
+		for (int axis = 0; axis < NUM_AXES; ++axis) {
+			EXPECT_NEAR(inward(axis, r), -outward(axis, r), TOL) << "edf " << r << " axis " << axis;
+		}
+	}
+
+	// Front EDF now pushes backwards: a backward force (nose-down tilt compensation) is taken by it
+	EXPECT_LT(inward(ActuatorEffectiveness::ControlAxis::THRUST_X, 2), 0.f);
+	EXPECT_GT(inward(ActuatorEffectiveness::ControlAxis::THRUST_X, 4), 0.f);
+}
