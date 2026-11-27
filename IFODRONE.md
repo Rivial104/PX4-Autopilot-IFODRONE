@@ -85,3 +85,17 @@ git push origin ifo-model
 ```
 
 Można przejsć do testowania modelu w SITL.
+
+### Podłączenie kontrolera lotu (USB) do WSL — usbipd
+
+```
+usbipd list
+```
+
+```
+usbipd bind --busid 2-3
+```
+
+```
+usbipd attach --wsl --busid 2-3 --auto-attach
+```

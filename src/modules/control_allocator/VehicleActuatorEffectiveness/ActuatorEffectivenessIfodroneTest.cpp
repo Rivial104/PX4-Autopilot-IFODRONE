@@ -34,8 +34,9 @@
 /**
  * @file ActuatorEffectivenessIfodroneTest.cpp
  *
- * Functional tests for the IFODRONE vertical booster (IFO_BST_ROTOR / IFO_BST_RATIO):
- * folding of the booster column into the coax columns and the slaved booster setpoint.
+ * Functional tests for the IFODRONE allocation: the vertical booster (IFO_BST_ROTOR / IFO_BST_RATIO),
+ * folding of the booster column into the coax columns and the slaved booster setpoint, and the
+ * side-EDF pair desaturation + tilt-servo re-solve (IFO_CA_PAIR).
  */
 
 #include <gtest/gtest.h>
@@ -130,6 +131,8 @@ protected:
 		setI("IFO_BST_ROTOR", -1);
 		setF("IFO_BST_RATIO", 2.f);
 		setI("IFO_DEVEL", 0);
+		setI("IFO_CA_PAIR", 1);
+		setF("IFO_EDF_MIN", 0.2f);
 	}
 
 	// Params are read at construction: construct a fresh instance after setting them
@@ -439,4 +442,217 @@ TEST_F(ActuatorEffectivenessIfodroneTest, DevelModeZeroesBooster)
 	ActuatorEffectivenessIfodrone ifo(nullptr);
 	computeMatrix(ifo);
 	expectCoax(ifo, 0.3f, 0.1f, 0.3f, 0.1f, 0.4f);
+}
+
+// ---------------------------------------------------------------------------------------------------
+// IFO_CA_PAIR: side-EDF pair desaturation + tilt-servo re-solve with the commanded EDF thrust
+// Rotors 2/4 (+X/-X, tilts 0/2) and 3/5 (+Y/-Y, tilts 1/3) are the opposing pairs.
+// ---------------------------------------------------------------------------------------------------
+
+static constexpr int ROLL = ActuatorEffectiveness::ControlAxis::ROLL;
+static constexpr int PITCH = ActuatorEffectiveness::ControlAxis::PITCH;
+static constexpr int SERVO_ROTOR[NUM_SERVOS] = {2, 3, 4, 5};
+static constexpr float LIN_THRUST = 0.2f;  // matrix built at hover: EDFs at IFO_EDF_TRIM
+
+static ActuatorVector edfServoSp(const float edf[4], const float sv[4])
+{
+	ActuatorVector sp{};
+	sp(0) = 0.3f;
+	sp(1) = 0.3f;
+
+	for (int k = 0; k < 4; ++k) {
+		sp(2 + k) = edf[k];
+		sp(NUM_ROTORS + k) = sv[k];
+	}
+
+	return sp;
+}
+
+// Roll/pitch torque as the allocation intended it: EDF columns at the allocated EDF setpoints and
+// servo columns at the matrix (linearization) thrust
+static Vector2f intendedTorque(const EffMatrix &m, const ActuatorVector &sp)
+{
+	Vector2f t{};
+
+	for (int r = 2; r < 6; ++r) {
+		t += Vector2f(m(ROLL, r), m(PITCH, r)) * sp(r);
+	}
+
+	for (int s = 0; s < NUM_SERVOS; ++s) {
+		t += Vector2f(m(ROLL, NUM_ROTORS + s), m(PITCH, NUM_ROTORS + s)) * sp(NUM_ROTORS + s);
+	}
+
+	return t;
+}
+
+// Roll/pitch torque actually produced: servo columns scaled to the commanded EDF thrust
+static Vector2f realTorque(const EffMatrix &m, const ActuatorVector &sp)
+{
+	Vector2f t{};
+
+	for (int r = 2; r < 6; ++r) {
+		t += Vector2f(m(ROLL, r), m(PITCH, r)) * sp(r);
+	}
+
+	for (int s = 0; s < NUM_SERVOS; ++s) {
+		const float scale = sp(SERVO_ROTOR[s]) / LIN_THRUST;
+		t += Vector2f(m(ROLL, NUM_ROTORS + s), m(PITCH, NUM_ROTORS + s)) * (sp(NUM_ROTORS + s) * scale);
+	}
+
+	return t;
+}
+
+TEST_F(ActuatorEffectivenessIfodroneTest, PairKeepsDifferentialAndFloorsAtTrim)
+{
+	ActuatorEffectivenessIfodrone ifo(nullptr);
+	computeMatrix(ifo);
+	ActuatorVector min{}, max{};
+	defaultLimits(min, max);
+
+	// Pair 2/4: d -1.8 -> limited to -(1 - 0.2) -> (0.2, 1.0). Pair 3/5: d -0.3, low side raised to trim.
+	const float edf[4] = {-0.6f, 0.05f, 1.2f, 0.35f};
+	const float sv[4] = {0.f, 0.f, 0.f, 0.f};
+	ActuatorVector sp = edfServoSp(edf, sv);
+	ifo.updateSetpoint(Vector<float, NUM_AXES> {}, 0, sp, min, max);
+
+	EXPECT_NEAR(sp(2), 0.2f, TOL);
+	EXPECT_NEAR(sp(4), 1.0f, TOL);
+	EXPECT_NEAR(sp(3), 0.2f, TOL);
+	EXPECT_NEAR(sp(5), 0.5f, TOL);
+
+	// Within range: untouched
+	const float edf_ok[4] = {0.6f, 0.2f, 0.2f, 0.45f};
+	sp = edfServoSp(edf_ok, sv);
+	ifo.updateSetpoint(Vector<float, NUM_AXES> {}, 0, sp, min, max);
+
+	for (int k = 0; k < 4; ++k) {
+		EXPECT_NEAR(sp(2 + k), edf_ok[k], TOL) << "edf " << k;
+		EXPECT_NEAR(sp(NUM_ROTORS + k), 0.f, TOL) << "servo " << k;
+	}
+}
+
+TEST_F(ActuatorEffectivenessIfodroneTest, PairDisabledLeavesAllocationUntouched)
+{
+	setI("IFO_CA_PAIR", 0);
+	ActuatorEffectivenessIfodrone ifo(nullptr);
+	computeMatrix(ifo);
+	ActuatorVector min{}, max{};
+	defaultLimits(min, max);
+
+	const float edf[4] = {-0.6f, 0.05f, 1.2f, 0.35f};
+	const float sv[4] = {0.3f, -0.2f, 0.1f, 0.4f};
+	ActuatorVector sp = edfServoSp(edf, sv);
+	ifo.updateSetpoint(Vector<float, NUM_AXES> {}, 0, sp, min, max);
+
+	for (int k = 0; k < 4; ++k) {
+		EXPECT_NEAR(sp(2 + k), edf[k], TOL) << "edf " << k;
+		EXPECT_NEAR(sp(NUM_ROTORS + k), sv[k], TOL) << "servo " << k;
+	}
+}
+
+TEST_F(ActuatorEffectivenessIfodroneTest, ServoTorqueUsesCommandedEdfThrust)
+{
+	ActuatorEffectivenessIfodrone ifo(nullptr);
+	const EffMatrix m = computeMatrix(ifo);
+	ActuatorVector min{}, max{};
+	defaultLimits(min, max);
+
+	// Front EDF (rotor 2) at 3x the thrust the matrix assumed: its servo is 3x stronger
+	const float edf[4] = {0.6f, 0.2f, 0.2f, 0.2f};
+	const float sv[4] = {0.3f, 0.1f, -0.3f, -0.1f};
+	ActuatorVector sp = edfServoSp(edf, sv);
+	const Vector2f intended = intendedTorque(m, sp);
+	ASSERT_GT(std::fabs(intended(1)), 1e-3f);
+
+	ifo.updateSetpoint(Vector<float, NUM_AXES> {}, 0, sp, min, max);
+	const Vector2f real = realTorque(m, sp);
+
+	EXPECT_NEAR(real(0), intended(0), 1e-4f);
+	EXPECT_NEAR(real(1), intended(1), 1e-4f);
+
+	// Minimum norm: command proportional to authority, front servo 3x the back one
+	EXPECT_NEAR(std::fabs(sp(NUM_ROTORS + 0)), 3.f * std::fabs(sp(NUM_ROTORS + 2)), 1e-4f);
+}
+
+TEST_F(ActuatorEffectivenessIfodroneTest, PairDesaturationTorqueIsMadeUpByServos)
+{
+	ActuatorEffectivenessIfodrone ifo(nullptr);
+	const EffMatrix m = computeMatrix(ifo);
+	ActuatorVector min{}, max{};
+	defaultLimits(min, max);
+
+	// Log 86 situation: the lateral force drives the front EDF below 0 and the back one above 1
+	const float edf[4] = {-0.6f, 0.2f, 1.2f, 0.2f};
+	const float sv[4] = {0.05f, 0.f, 0.05f, 0.f};
+	ActuatorVector sp = edfServoSp(edf, sv);
+	const Vector2f intended = intendedTorque(m, sp);
+
+	ifo.updateSetpoint(Vector<float, NUM_AXES> {}, 0, sp, min, max);
+	const Vector2f real = realTorque(m, sp);
+
+	EXPECT_NEAR(sp(2), 0.2f, TOL);
+	EXPECT_NEAR(sp(4), 1.0f, TOL);
+	EXPECT_NEAR(real(0), intended(0), 1e-4f);
+	EXPECT_NEAR(real(1), intended(1), 1e-4f);
+}
+
+TEST_F(ActuatorEffectivenessIfodroneTest, SaturatedServoHandsTorqueToOthers)
+{
+	ActuatorEffectivenessIfodrone ifo(nullptr);
+	const EffMatrix m = computeMatrix(ifo);
+	ActuatorVector min{}, max{};
+	defaultLimits(min, max);
+
+	// Pitch only, both pitch servos pushing the same way. Front EDF at full thrust (5x authority).
+	const float s0 = 2.8f * matrix::sign(m(PITCH, NUM_ROTORS + 0));
+	const float s2 = 2.8f * matrix::sign(m(PITCH, NUM_ROTORS + 2));
+	const float edf[4] = {1.0f, 0.2f, 0.2f, 0.2f};
+	const float sv[4] = {s0, 0.f, s2, 0.f};
+	ActuatorVector sp = edfServoSp(edf, sv);
+	const Vector2f intended = intendedTorque(m, sp);
+
+	ifo.updateSetpoint(Vector<float, NUM_AXES> {}, 0, sp, min, max);
+	const Vector2f real = realTorque(m, sp);
+
+	// Min-norm would need |front| 1.077 > 1: front fixed at the limit, back makes up the rest (0.6)
+	EXPECT_NEAR(std::fabs(sp(NUM_ROTORS + 0)), 1.f, TOL);
+	EXPECT_NEAR(std::fabs(sp(NUM_ROTORS + 2)), 0.6f, 1e-4f);
+	EXPECT_NEAR(real(1), intended(1), 1e-4f);
+	EXPECT_NEAR(real(0), 0.f, 1e-4f);
+	EXPECT_NEAR(sp(NUM_ROTORS + 1), 0.f, TOL);
+	EXPECT_NEAR(sp(NUM_ROTORS + 3), 0.f, TOL);
+}
+
+TEST_F(ActuatorEffectivenessIfodroneTest, HighTrimKeepsLateralAuthority)
+{
+	// SITL: IFO_EDF_TRIM 0.7. The floor is IFO_EDF_MIN (0.2), not the trim: the pair differential may
+	// reach 1 - 0.2 = 0.8 (with the trim as floor it would collapse to 0.3).
+	setF("IFO_EDF_TRIM", 0.7f);
+	ActuatorEffectivenessIfodrone ifo(nullptr);
+	computeMatrix(ifo);
+	ActuatorVector min{}, max{};
+	defaultLimits(min, max);
+
+	// Pseudo-inverse around 0.7: d 1.2 -> (1.3, 0.1) -> limited to 0.8 -> (1.0, 0.2)
+	// Pair 3/5: d 0.6 around 0.7 -> (1.0, 0.4), within range: untouched
+	const float edf[4] = {1.3f, 1.0f, 0.1f, 0.4f};
+	const float sv[4] = {0.f, 0.f, 0.f, 0.f};
+	ActuatorVector sp = edfServoSp(edf, sv);
+	ifo.updateSetpoint(Vector<float, NUM_AXES> {}, 0, sp, min, max);
+
+	EXPECT_NEAR(sp(2), 1.0f, TOL);
+	EXPECT_NEAR(sp(4), 0.2f, TOL);
+	EXPECT_NEAR(sp(3), 1.0f, TOL);
+	EXPECT_NEAR(sp(5), 0.4f, TOL);
+
+	// IFO_EDF_MIN above the trim is clamped to the trim
+	setF("IFO_EDF_TRIM", 0.2f);
+	setF("IFO_EDF_MIN", 0.5f);
+	ActuatorEffectivenessIfodrone ifo2(nullptr);
+	computeMatrix(ifo2);
+	const float edf2[4] = {-0.6f, 0.2f, 1.2f, 0.2f};
+	sp = edfServoSp(edf2, sv);
+	ifo2.updateSetpoint(Vector<float, NUM_AXES> {}, 0, sp, min, max);
+	EXPECT_NEAR(sp(2), 0.2f, TOL);
+	EXPECT_NEAR(sp(4), 1.0f, TOL);
 }

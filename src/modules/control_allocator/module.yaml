@@ -76,6 +76,21 @@ parameters:
             max: 0.9
             default: 0.2
 
+        IFO_EDF_MIN:
+            description:
+                short: IFODRONE side-EDF minimum thrust (servo authority floor)
+                long: |
+                  With IFO_CA_PAIR = 1 no side EDF of an opposing pair is commanded below this
+                  value, so the tilt servo on it keeps torque authority (tilt torque is proportional
+                  to EDF thrust). The pair differential (lateral force) is limited to 1 - IFO_EDF_MIN.
+                  Clamped to IFO_EDF_TRIM. Keep it well below a high IFO_EDF_TRIM (SITL 0.7), or the
+                  lateral force authority collapses.
+            type: float
+            decimal: 2
+            min: 0.0
+            max: 0.9
+            default: 0.2
+
         IFO_EDF_GAIN:
             description:
                 short: IFODRONE side-EDF command gain
@@ -166,6 +181,21 @@ parameters:
                   booster.
             type: boolean
             default: 0
+
+        IFO_CA_PAIR:
+            description:
+                short: IFODRONE side-EDF pair desaturation and servo re-solve
+                long: |
+                  1 = after the pseudo-inverse, each opposing side-EDF pair keeps its thrust
+                  differential (lateral force) but neither EDF drops below IFO_EDF_MIN; the
+                  differential is limited to 1 - IFO_EDF_MIN. The tilt servos are then re-solved
+                  for the roll/pitch torque the allocation intended, with the EDF thrust actually
+                  commanded (tilt torque authority is proportional to it), and a servo that
+                  saturates hands the rest of the torque to the others.
+                  0 = plain pseudo-inverse with clipping: a lateral force drives one EDF of the pair
+                  to 0 and its servo loses all real authority while the matrix still assumes it.
+            type: boolean
+            default: 1
 
         # Motor parameters
         CA_R_REV:

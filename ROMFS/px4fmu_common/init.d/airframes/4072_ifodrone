@@ -108,8 +108,6 @@ param set-default CA_ROTOR5_CT 0.1
 param set-default CA_ROTOR5_TILT 4
 
 # Vertical booster: 4x QX-Motor 64 mm EDF in X configuration (r = 0.605 m), one PWM signal (S7).
-# Modelled as ONE rotor at the centroid; slaved to the coax mean (IFO_BST_*), never allocated itself.
-# CT is a placeholder until the real calibration (plan.md Etap 4); unused while IFO_DEVEL = 1.
 param set-default CA_ROTOR6_PX 0.0
 param set-default CA_ROTOR6_PY 0.0
 param set-default CA_ROTOR6_PZ 0.045
@@ -117,7 +115,7 @@ param set-default CA_ROTOR6_AX 0.0
 param set-default CA_ROTOR6_AY 0.0
 param set-default CA_ROTOR6_AZ -1.0
 param set-default CA_ROTOR6_KM 0
-param set-default CA_ROTOR6_CT 1.4
+param set-default CA_ROTOR6_CT 0.5
 param set-default CA_ROTOR6_TILT 0
 
 # ============================================
@@ -186,7 +184,7 @@ param set-default PWM_MAIN_MIN3 1020
 param set-default PWM_MAIN_MIN4 1020
 param set-default PWM_MAIN_MIN5 1020
 param set-default PWM_MAIN_MIN6 1020
-param set-default PWM_MAIN_MIN7 1020
+param set-default PWM_MAIN_MIN7 1200
 
 # Tilt servos
 param set-default PWM_MAIN_FUNC9  202
