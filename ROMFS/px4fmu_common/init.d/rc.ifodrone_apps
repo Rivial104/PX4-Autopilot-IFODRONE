@@ -7,10 +7,6 @@
 #   control_allocator: torque/thrust      → actuator_motors + actuator_servos (tilts)
 #
 
-if ! crsf_rc status
-then
-	crsf_rc start -d /dev/ttyS5
-fi
 
 control_allocator start
 

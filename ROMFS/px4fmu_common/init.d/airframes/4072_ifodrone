@@ -243,14 +243,7 @@ param set-default MAN_ARM_GESTURE 0
 # SERIAL PORTS / MAVLINK
 # ============================================
 
-# SiK telemetry radio on TEL1
-param set-default MAV_1_CONFIG 101
-param set-default MAV_1_MODE 0
-param set-default MAV_1_RADIO_CTL 1
-param set-default MAV_1_FLOW_CTRL 2
-param set-default SER_TEL1_BAUD 57600
-
-# TEL3 - MAVLink telemetry backpack
+# TEL3 (RX7/TX7, /dev/ttyS5) - ELRS receiver in MAVLink mode (RC + telemetry,
 param set-default SER_TEL3_BAUD 460800
 param set-default MAV_0_CONFIG 103
 param set-default MAV_0_MODE 0
@@ -258,6 +251,9 @@ param set-default MAV_0_FLOW_CTRL 2
 param set-default MAV_0_RADIO_CTL 1
 param set-default MAV_0_FORWARD 1
 param set-default MAV_0_RATE 9600
+
+
+param set-default MAV_1_CONFIG 0
 
 # ============================================
 # SENSORS: GPS + COMPASS
