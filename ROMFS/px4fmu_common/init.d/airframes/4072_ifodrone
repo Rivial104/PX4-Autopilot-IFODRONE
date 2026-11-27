@@ -312,6 +312,7 @@ param set-default MC_YR_INT_LIM 0.30
 # ============================================
 param set-default IFO_THR_HOVER 0.5
 param set-default MPC_THR_HOVER 0.5
+param set-default IFO_THR_MAX 2.2
 
 param set-default IFO_THR_XY_MAX 0.2
 

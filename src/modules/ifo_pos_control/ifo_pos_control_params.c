@@ -75,9 +75,15 @@ PARAM_DEFINE_FLOAT(IFO_VEL_XY_I, 0.4f);
 PARAM_DEFINE_FLOAT(IFO_VEL_XY_D, 0.2f);
 
 /**
- * Maximum thrust (main motors)
+ * Maximum thrust (full throttle stick)
+ *
+ * In allocator Fz units (CA_ROTORn_CT, no thrust normalization), so it can exceed 1.
+ * Full platform thrust, i.e. both coax motors at 1 and the booster at 1, is
+ * 2 * CA_ROTOR0_CT + IFO_BST_RATIO * CA_ROTOR6_CT (for IFO_BST_RATIO >= 1; the booster
+ * saturates first). A smaller value leaves the top of the throttle stick unused.
+ *
  * @min 0.0
- * @max 1.0
+ * @max 5.0
  * @decimal 2
  * @group IFODRONE Position Control
  */
