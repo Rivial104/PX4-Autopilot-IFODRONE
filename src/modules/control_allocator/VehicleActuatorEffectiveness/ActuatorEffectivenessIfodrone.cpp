@@ -61,6 +61,12 @@ float ActuatorEffectivenessIfodrone::edfTrim() const
 	return math::constrain(_param_ifo_edf_trim.get(), 0.f, 0.9f);
 }
 
+float ActuatorEffectivenessIfodrone::edfMin() const
+{
+	// Never above the idle trim: the trim is where an EDF rests without any lateral demand
+	return math::constrain(_param_ifo_edf_min.get(), 0.f, edfTrim());
+}
+
 bool ActuatorEffectivenessIfodrone::isSideEdf(int rotor_index) const
 {
 	return _mc_motors.geometry().rotors[rotor_index].tilt_index >= 0;
@@ -185,6 +191,9 @@ ActuatorEffectivenessIfodrone::getEffectivenessMatrix(Configuration &configurati
 		// A servo column is always added (zero torque if no rotor maps to it) to keep actuator indexing
 		const int rotor_idx = rotorForTilt(i, num_rotors);
 		Vector3f dtorque{};
+		_servo_rotor[i] = rotor_idx;
+		_servo_rp_unit[i].setZero();
+		_servo_thrust_lin[i] = 0.f;
 
 		if (rotor_idx >= 0) {
 			const auto &rotor = _mc_motors.geometry().rotors[rotor_idx];
@@ -194,8 +203,11 @@ ActuatorEffectivenessIfodrone::getEffectivenessMatrix(Configuration &configurati
 			// _lin_point is clipped to [0, 1], so the scale stays within [1, 1/edf_trim] times its trim value
 			const float edf_thrust = math::max(_lin_point(rotor_idx), edf_trim);
 
-			const Vector3f dthrust = hinge.cross(rotor.axis) * (rotor.thrust_coef * edf_thrust * dangle_dcmd);
-			dtorque = rotor.position.cross(dthrust);
+			const Vector3f dthrust_unit = hinge.cross(rotor.axis) * (rotor.thrust_coef * dangle_dcmd);
+			const Vector3f dtorque_unit = rotor.position.cross(dthrust_unit);
+			dtorque = dtorque_unit * edf_thrust;
+			_servo_rp_unit[i] = Vector2f(dtorque_unit(0), dtorque_unit(1));
+			_servo_thrust_lin[i] = edf_thrust;
 
 			// Floored: with IFO_EDF_TRIM = 0 the reference would vanish and roll/pitch get zeroed (see below)
 			torque_ref = math::max(torque_ref,
@@ -214,10 +226,37 @@ ActuatorEffectivenessIfodrone::getEffectivenessMatrix(Configuration &configurati
 	// Rescale roll/pitch rows to normalized units by torque_ref, FIXED at the trim operating point (keeps
 	// the live EDF-thrust scaling of servo columns). In physical CT units entries (~0.007) fall below the
 	// ControlAllocator weak-row threshold (0.05) and roll/pitch would be zeroed (frozen servos, drift).
+	auto &matrix = configuration.effectiveness_matrices[configuration.selected_matrix];
+
 	if (torque_ref > FLT_EPSILON) {
-		auto &matrix = configuration.effectiveness_matrices[configuration.selected_matrix];
 		matrix.row(ControlAxis::ROLL) /= torque_ref;
 		matrix.row(ControlAxis::PITCH) /= torque_ref;
+
+		for (int i = 0; i < _tilts.count(); ++i) {
+			_servo_rp_unit[i] /= torque_ref;
+		}
+	}
+
+	// Cache side-EDF roll/pitch columns and opposing pairs for updateSetpoint(). Pairs are found from
+	// the untilted base axes, so they do not depend on the current operating point.
+	for (int i = 0; i < MAX_ROTORS; ++i) {
+		_edf_pair[i] = -1;
+		_edf_rp[i].setZero();
+	}
+
+	for (int i = 0; i < num_rotors && i < MAX_ROTORS; ++i) {
+		if (!isSideEdf(i)) {
+			continue;
+		}
+
+		_edf_rp[i] = Vector2f(matrix(ControlAxis::ROLL, motor_start_idx + i), matrix(ControlAxis::PITCH, motor_start_idx + i));
+
+		for (int j = 0; j < num_rotors && j < MAX_ROTORS; ++j) {
+			if (j != i && isSideEdf(j) && (_mc_motors.baseAxis(i).dot(_mc_motors.baseAxis(j)) < -0.9f)) {
+				_edf_pair[i] = j;
+				break;
+			}
+		}
 	}
 
 	return motors_ok;
@@ -238,6 +277,16 @@ void ActuatorEffectivenessIfodrone::updateSetpoint(const matrix::Vector<float, N
 		if (isSideEdf(i)) {
 			actuator_sp(i) = edf_trim + edf_gain * (actuator_sp(i) - edf_trim);
 		}
+	}
+
+	if (_param_ifo_ca_pair.get()) {
+		// The pseudo-inverse splits a lateral force symmetrically around the EDF trim, so a small force
+		// can drive one EDF of the pair to 0: its servo then has no torque authority although the
+		// matrix assumes it does, and the clipped differential also takes the EDF pitch/roll lever
+		// torque with it. Fix the EDF pair first, then re-solve the servos with the real EDF thrust.
+		const ActuatorVector edf_sp_allocated = actuator_sp;
+		desaturateEdfPairs(actuator_sp, actuator_min, actuator_max, edfMin());
+		redistributeServoTorque(edf_sp_allocated, actuator_sp, actuator_min, actuator_max, hover_angle_rad);
 	}
 
 	// Reduce servo authority around the hover angle so gain changes never move the neutral tilt
@@ -297,6 +346,166 @@ void ActuatorEffectivenessIfodrone::updateSetpoint(const matrix::Vector<float, N
 
 		const float sp_clipped = (actuator_min(i) < actuator_max(i)) ? math::constrain(sp, actuator_min(i), actuator_max(i)) : sp;
 		_lin_point(i) += alpha * (sp_clipped - _lin_point(i));
+	}
+}
+
+void ActuatorEffectivenessIfodrone::desaturateEdfPairs(ActuatorVector &actuator_sp, const ActuatorVector &actuator_min,
+		const ActuatorVector &actuator_max, float edf_min) const
+{
+	const int num_rotors = math::min(_mc_motors.geometry().num_rotors, MAX_ROTORS);
+
+	for (int i = 0; i < num_rotors; ++i) {
+		const int j = _edf_pair[i];
+
+		// Each pair once; rotor index == actuator index (motors are the first actuators)
+		if (j <= i || j >= NUM_ACTUATORS) {
+			continue;
+		}
+
+		const float lo = math::max(edf_min, math::max(actuator_min(i), actuator_min(j)));
+		const float hi = math::min(actuator_max(i), actuator_max(j));
+
+		if (!(hi > lo)) {
+			continue;
+		}
+
+		const float a = PX4_ISFINITE(actuator_sp(i)) ? actuator_sp(i) : lo;
+		const float b = PX4_ISFINITE(actuator_sp(j)) ? actuator_sp(j) : lo;
+
+		// The differential is the lateral force (and the PZ lever torque): keep it, limited to what the
+		// pair can produce with both EDFs at or above IFO_EDF_MIN. The common mode cancels out, so it is
+		// free to move: shift it so the low EDF stays at the minimum (servo authority on both sides).
+		const float d = math::constrain(a - b, lo - hi, hi - lo);
+		const float half_abs_d = 0.5f * fabsf(d);
+		const float m = math::constrain(0.5f * (a + b), lo + half_abs_d, hi - half_abs_d);
+
+		actuator_sp(i) = m + 0.5f * d;
+		actuator_sp(j) = m - 0.5f * d;
+	}
+}
+
+void ActuatorEffectivenessIfodrone::redistributeServoTorque(const ActuatorVector &edf_sp_allocated,
+		ActuatorVector &actuator_sp, const ActuatorVector &actuator_min, const ActuatorVector &actuator_max,
+		float hover_angle_rad) const
+{
+	const int num_rotors = math::min(_mc_motors.geometry().num_rotors, MAX_ROTORS);
+	const int num_tilts = math::min(_tilts.count(), MAX_TILTS);
+
+	auto finite = [](float v, float fallback) { return PX4_ISFINITE(v) ? v : fallback; };
+
+	// Roll/pitch torque the allocation intended from the servos (with the matrix' EDF thrust), plus the
+	// EDF torque lost or gained by the pair desaturation, which the servos have to make up for
+	Vector2f torque{};
+	float trim[MAX_TILTS] {};
+
+	for (int i = 0; i < num_tilts; ++i) {
+		const int col = _first_tilt_idx + i;
+
+		if (col >= NUM_ACTUATORS) {
+			return;
+		}
+
+		trim[i] = tiltTrim(i, hover_angle_rad);
+		torque += _servo_rp_unit[i] * (_servo_thrust_lin[i] * (finite(actuator_sp(col), trim[i]) - trim[i]));
+	}
+
+	for (int r = 0; r < num_rotors; ++r) {
+		if (isSideEdf(r)) {
+			torque += _edf_rp[r] * (finite(edf_sp_allocated(r), actuator_sp(r)) - finite(actuator_sp(r), 0.f));
+		}
+	}
+
+	// Servo columns at the commanded EDF thrust; a servo on an EDF without thrust has no authority
+	Vector2f g[MAX_TILTS] {};
+	float delta[MAX_TILTS] {};
+	float delta_min[MAX_TILTS] {};
+	float delta_max[MAX_TILTS] {};
+	bool active[MAX_TILTS] {};
+	bool any_free = false;
+	bool enabled[MAX_TILTS] {};
+
+	for (int i = 0; i < num_tilts; ++i) {
+		const int col = _first_tilt_idx + i;
+		const int r = _servo_rotor[i];
+		const float thrust = (r >= 0 && r < num_rotors) ? math::max(finite(actuator_sp(r), 0.f), 0.f) : 0.f;
+		g[i] = _servo_rp_unit[i] * thrust;
+		delta_min[i] = actuator_min(col) - trim[i];
+		delta_max[i] = actuator_max(col) - trim[i];
+		enabled[i] = actuator_min(col) < actuator_max(col);
+		active[i] = enabled[i] && (g[i].norm_squared() > 1e-12f);
+		any_free = any_free || active[i];
+	}
+
+	if (!any_free) {
+		return;
+	}
+
+	// Minimum-norm solution of G * delta = torque; a servo that hits its limit is fixed there and the
+	// rest of the torque is re-solved with the remaining servos (it does not just get clipped away)
+	for (int iter = 0; iter < num_tilts; ++iter) {
+		Vector2f remaining = torque;
+		matrix::SquareMatrix<float, 2> gram{};
+
+		for (int i = 0; i < num_tilts; ++i) {
+			if (active[i]) {
+				gram(0, 0) += g[i](0) * g[i](0);
+				gram(0, 1) += g[i](0) * g[i](1);
+				gram(1, 1) += g[i](1) * g[i](1);
+
+			} else {
+				remaining -= g[i] * delta[i];
+			}
+		}
+
+		gram(1, 0) = gram(0, 1);
+
+		// Regularized per axis: an axis without any servo authority left stays unallocated instead of
+		// blowing up (lambda grows only along a direction no servo column has a component in)
+		gram(0, 0) += 1e-5f * gram(0, 0) + 1e-9f;
+		gram(1, 1) += 1e-5f * gram(1, 1) + 1e-9f;
+		const float det = gram(0, 0) * gram(1, 1) - gram(0, 1) * gram(1, 0);
+		const Vector2f lambda((gram(1, 1) * remaining(0) - gram(0, 1) * remaining(1)) / det,
+				      (gram(0, 0) * remaining(1) - gram(1, 0) * remaining(0)) / det);
+
+		int worst = -1;
+		float worst_excess = 0.f;
+
+		for (int i = 0; i < num_tilts; ++i) {
+			if (!active[i]) {
+				continue;
+			}
+
+			delta[i] = g[i].dot(lambda);
+			const float excess = math::max(delta[i] - delta_max[i], delta_min[i] - delta[i]);
+
+			if (excess > worst_excess) {
+				worst_excess = excess;
+				worst = i;
+			}
+		}
+
+		if (worst < 0) {
+			break;
+		}
+
+		delta[worst] = math::constrain(delta[worst], delta_min[worst], delta_max[worst]);
+		active[worst] = false;
+
+		bool still_free = false;
+
+		for (int i = 0; i < num_tilts; ++i) {
+			still_free = still_free || active[i];
+		}
+
+		if (!still_free) {
+			break;
+		}
+	}
+
+	for (int i = 0; i < num_tilts; ++i) {
+		if (enabled[i]) {
+			actuator_sp(_first_tilt_idx + i) = trim[i] + math::constrain(delta[i], delta_min[i], delta_max[i]);
+		}
 	}
 }
 

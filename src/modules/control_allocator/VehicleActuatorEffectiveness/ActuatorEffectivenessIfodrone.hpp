@@ -63,11 +63,22 @@ protected:
 	float tiltTrim(int tilt_index, float hover_angle_rad) const;
 	float hoverAngleRad() const;
 	float edfTrim() const;                       ///< IFO_EDF_TRIM clamped to [0, 0.9]
+	float edfMin() const;                        ///< IFO_EDF_MIN clamped to [0, edfTrim()]
 	bool  isSideEdf(int rotor_index) const;      ///< tilting side EDF (vs fixed coax motor)
 	int   rotorForTilt(int tilt_index, int num_rotors) const;  ///< rotor driven by this tilt servo, or -1
 	void  ensureLinPoint(int num_rotors);        ///< initialize _lin_point to hover on first use
 	int   boosterIndex(int num_rotors);          ///< validated IFO_BST_ROTOR, or -1 (booster disabled)
 	float boosterRatio() const;                  ///< IFO_BST_RATIO clamped to [0, 10], 0 in IFO_DEVEL mode
+
+	/// Opposing side-EDF pairs: keep the differential (lateral force), floor both at IFO_EDF_MIN
+	void desaturateEdfPairs(ActuatorVector &actuator_sp, const ActuatorVector &actuator_min,
+				const ActuatorVector &actuator_max, float edf_min) const;
+
+	/// Re-solve the tilt servos for the roll/pitch torque the allocation intended, using the EDF
+	/// thrust actually commanded this cycle (servo authority is proportional to it)
+	void redistributeServoTorque(const ActuatorVector &edf_sp_allocated, ActuatorVector &actuator_sp,
+				     const ActuatorVector &actuator_min, const ActuatorVector &actuator_max,
+				     float hover_angle_rad) const;
 
 	ActuatorEffectivenessRotors _mc_motors;
 	ActuatorEffectivenessTilts  _tilts;
@@ -89,14 +100,25 @@ protected:
 	int            _booster_idx{-1};          ///< booster actuator index used by updateSetpoint(), -1 = none
 	int32_t        _booster_warned_param{-1}; ///< IFO_BST_ROTOR value already warned about (warn once per value)
 
+	// Cached by getEffectivenessMatrix() for updateSetpoint(), roll/pitch rows in normalized units
+	static constexpr int MAX_ROTORS{ActuatorEffectivenessRotors::NUM_ROTORS_MAX};
+	static constexpr int MAX_TILTS{ActuatorEffectivenessTilts::MAX_COUNT};
+	int              _edf_pair[MAX_ROTORS] {};      ///< opposing side EDF (opposite base axis), -1 = none
+	matrix::Vector2f _edf_rp[MAX_ROTORS] {};        ///< side-EDF roll/pitch column
+	int              _servo_rotor[MAX_TILTS] {};    ///< rotor carried by each tilt servo, -1 = none
+	matrix::Vector2f _servo_rp_unit[MAX_TILTS] {};  ///< servo roll/pitch column per unit EDF thrust
+	float            _servo_thrust_lin[MAX_TILTS] {}; ///< EDF thrust the servo column was built with
+
 	DEFINE_PARAMETERS(
 		(ParamFloat<px4::params::IFO_TILT_HOVER>) _param_ifo_tilt_hover,
 		(ParamFloat<px4::params::IFO_EDF_TRIM>)   _param_ifo_edf_trim,
+		(ParamFloat<px4::params::IFO_EDF_MIN>)    _param_ifo_edf_min,
 		(ParamFloat<px4::params::IFO_EDF_GAIN>)   _param_ifo_edf_gain,
 		(ParamFloat<px4::params::IFO_TILT_GAIN>)  _param_ifo_tilt_gain,
 		(ParamFloat<px4::params::IFO_CA_LIN_TAU>) _param_ifo_ca_lin_tau,
 		(ParamInt<px4::params::IFO_BST_ROTOR>)    _param_ifo_bst_rotor,
 		(ParamFloat<px4::params::IFO_BST_RATIO>)  _param_ifo_bst_ratio,
-		(ParamBool<px4::params::IFO_DEVEL>)       _param_ifo_devel
+		(ParamBool<px4::params::IFO_DEVEL>)       _param_ifo_devel,
+		(ParamBool<px4::params::IFO_CA_PAIR>)     _param_ifo_ca_pair
 	)
 };
